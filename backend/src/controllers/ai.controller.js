@@ -9,6 +9,8 @@ import VideographerReport from '../models/videographerReport.model.js';
 import HodRdReport from '../models/hodRdReport.model.js';
 import AccountantReport from '../models/accountantReport.model.js';
 import AcademicCounselorReport from '../models/academicCounselorReport.model.js';
+import KPIScore from '../models/kpiScore.model.js';
+import PerformanceReview from '../models/performanceReview.model.js';
 import { generateAIReport, generateAIChat } from '../services/ai.service.js';
 import AiReportCache from '../models/aiReportCache.model.js';
 
@@ -35,7 +37,9 @@ const getLatestDbUpdateTime = async (departmentId, checkReports = false) => {
       VideographerReport.findOne(reportQuery).sort({ updatedAt: -1 }).select('updatedAt').lean(),
       HodRdReport.findOne(reportQuery).sort({ updatedAt: -1 }).select('updatedAt').lean(),
       AccountantReport.findOne(reportQuery).sort({ updatedAt: -1 }).select('updatedAt').lean(),
-      AcademicCounselorReport.findOne(reportQuery).sort({ updatedAt: -1 }).select('updatedAt').lean()
+      AcademicCounselorReport.findOne(reportQuery).sort({ updatedAt: -1 }).select('updatedAt').lean(),
+      KPIScore.findOne().sort({ updatedAt: -1 }).select('updatedAt').lean(),
+      PerformanceReview.findOne().sort({ updatedAt: -1 }).select('updatedAt').lean()
     ];
     const results = await Promise.all(promises);
     const times = results.filter(r => r && r.updatedAt).map(r => new Date(r.updatedAt).getTime());
@@ -65,9 +69,9 @@ const fetchAllReports = async (query) => {
 
 export const getDailyReport = async (req, res) => {
   try {
-    const { department, force } = req.query;
+    const { department, force, customNotes } = req.query;
     const deptId = department || 'all';
-    const isForce = force === 'true';
+    const isForce = force === 'true' || !!customNotes;
 
     // 1. Check Cache
     if (!isForce) {
@@ -96,7 +100,23 @@ export const getDailyReport = async (req, res) => {
        taskQuery.assigned_to = { $in: validUserIds };
     }
 
-    const allTasks = await Task.find(taskQuery).populate('assigned_to', 'name');
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const [allTasks, kpiScores, reviews] = await Promise.all([
+      Task.find(taskQuery).populate('assigned_to', 'name'),
+      KPIScore.find({ month: currentMonth }).populate('employeeId', 'name department').lean(),
+      PerformanceReview.find({ month: currentMonth }).populate('employeeId', 'name').lean()
+    ]);
+
+    // Aggregate KPI Analytics
+    let kpiSum = 0;
+    let kpiCount = 0;
+    kpiScores.forEach(k => {
+      if (k.overallScore !== undefined) {
+        kpiSum += k.overallScore;
+        kpiCount++;
+      }
+    });
+    const avgSystemKpi = kpiCount > 0 ? Math.round(kpiSum / kpiCount) : 0;
 
     // Aggregate stats representing the entire board state
     const taskStats = {
@@ -104,10 +124,11 @@ export const getDailyReport = async (req, res) => {
       pending: allTasks.filter(t => t.status === 'pending').length,
       current: allTasks.filter(t => t.status === 'current').length,
       preview: allTasks.filter(t => t.status === 'preview').length,
-      total: allTasks.length
+      total: allTasks.length,
+      averageSystemKpiScore: `${avgSystemKpi}%`
     };
 
-    // Extract basic details of only today's active/updated tasks for text summary context
+    // Extract basic details of active/updated tasks
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const recentTasks = allTasks
@@ -118,9 +139,9 @@ export const getDailyReport = async (req, res) => {
         assignee: t.assigned_to ? t.assigned_to.name : 'Unassigned'
       }));
 
-    const prompt = `You are an expert Company Operations & HR Analyst. I am providing you with today's task statistics and specific task details for our entire company across all departments (including Development, Design, Marketing, Operations, HODs, and HR). 
+    let prompt = `You are an expert Company Operations & HR Analyst. I am providing you with today's task statistics, real KPI analytics, and specific task details across all departments (including Development, Design, Marketing, Operations, HODs, and HR). 
 Please generate a report.
-You MUST analyze and overview all tasks in the company, regardless of who created or assigned them, ensuring you cover all departments and not just HR-related tasks.
+You MUST analyze and overview all tasks and KPI metrics in the company, ensuring you cover all departments with accurate performance data.
 You MUST respond with a JSON object matching this schema:
 {
   "summary": "A short 1-sentence summary of today's status across all departments",
@@ -129,9 +150,13 @@ You MUST respond with a JSON object matching this schema:
      "name": "N/A",
      "reason": "Today is a daily report, so leave this as N/A"
   },
-  "markdownReport": "The full, professional Daily Status Report summarizing the day's highlights, what specific tasks were worked on across all departments, and any potential bottlenecks, written in Markdown. Do not include placeholders."
+  "markdownReport": "The full, professional Daily Status Report summarizing the day's highlights, KPI performance, specific department tasks, and any potential bottlenecks, written in Markdown. Do not include placeholders."
 }
 Here is the data: ${JSON.stringify({ stats: taskStats, recentTasks: recentTasks })}`;
+
+    if (customNotes) {
+      prompt += `\n\nCRITICAL USER INSTRUCTIONS/NOTES: Please integrate these specific instructions/notes directly into the report content:\n${customNotes}`;
+    }
 
     const reportRaw = await generateAIReport(prompt, null, true);
     
@@ -177,9 +202,9 @@ Here is the data: ${JSON.stringify({ stats: taskStats, recentTasks: recentTasks 
 
 export const getMonthlyReport = async (req, res) => {
   try {
-    const { department, force } = req.query;
+    const { department, force, customNotes } = req.query;
     const deptId = department || 'all';
-    const isForce = force === 'true';
+    const isForce = force === 'true' || !!customNotes;
 
     // 1. Check Cache
     if (!isForce) {
@@ -213,11 +238,30 @@ export const getMonthlyReport = async (req, res) => {
        reportQuery.userId = { $in: validUserIds };
     }
 
-    // Parallel fetch tasks and written reports
-    const [allTasks, writtenReports] = await Promise.all([
-        Task.find(taskQuery).populate('assigned_to', 'name'),
-        fetchAllReports(reportQuery)
+    // Fetch Tasks, Written Reports, KPI Scores, and Performance Reviews concurrently
+    const currentMonthStr = new Date().toISOString().slice(0, 7);
+    const [allTasks, writtenReports, kpiScores, reviews] = await Promise.all([
+      Task.find(taskQuery).populate('assigned_to', 'name'),
+      fetchAllReports(reportQuery),
+      KPIScore.find({ month: currentMonthStr }).populate('employeeId', 'name department').lean(),
+      PerformanceReview.find({ month: currentMonthStr }).populate('employeeId', 'name').lean()
     ]);
+
+    const reviewMap = new Map();
+    reviews.forEach(r => {
+      if (r.employeeId) {
+        const idKey = r.employeeId._id ? r.employeeId._id.toString() : r.employeeId.toString();
+        reviewMap.set(idKey, r);
+      }
+    });
+
+    const kpiMap = new Map();
+    kpiScores.forEach(k => {
+      if (k.employeeId) {
+        const idKey = k.employeeId._id ? k.employeeId._id.toString() : k.employeeId.toString();
+        kpiMap.set(idKey, k);
+      }
+    });
 
     const employeeStats = {};
 
@@ -225,61 +269,95 @@ export const getMonthlyReport = async (req, res) => {
     allTasks.forEach(task => {
       if (!task.assigned_to) return;
       const userName = task.assigned_to.name;
+      const empIdStr = task.assigned_to._id ? task.assigned_to._id.toString() : '';
       if (!employeeStats[userName]) {
-        employeeStats[userName] = { total: 0, done: 0, pending: 0, reportsSubmitted: 0, selfEvaluations: [] };
+        const rev = reviewMap.get(empIdStr);
+        const kpi = kpiMap.get(empIdStr);
+        employeeStats[userName] = { 
+          total: 0, 
+          done: 0, 
+          pending: 0, 
+          reportsSubmitted: 0, 
+          selfEvaluations: [],
+          kpiScore: rev?.overallKPIScore ?? kpi?.overallScore ?? 75,
+          grade: rev?.grade ?? kpi?.grade ?? 'Good',
+          hrRating: rev?.hrRating ?? 5,
+          tlRating: rev?.tlRating ?? 5,
+          performanceStatus: rev?.status ?? 'Good',
+          hrRemark: rev?.hrRemark || '',
+          tlRemark: rev?.tlRemark || ''
+        };
       }
       employeeStats[userName].total += 1;
-      if(employeeStats[userName][task.status] !== undefined) {
-          employeeStats[userName][task.status] += 1;
+      if (employeeStats[userName][task.status] !== undefined) {
+        employeeStats[userName][task.status] += 1;
       } else {
-          employeeStats[userName][task.status] = 1;
+        employeeStats[userName][task.status] = 1;
       }
     });
 
-    // 2. Process Qualitative Report Data (Reading what they submitted)
+    // 2. Process Qualitative Report Data & Merge KPI metrics
     writtenReports.forEach(report => {
-        if (!report.userId) return;
-        const userName = report.userId.name;
-        if (!employeeStats[userName]) {
-            employeeStats[userName] = { total: 0, done: 0, pending: 0, reportsSubmitted: 0, selfEvaluations: [] };
-        }
-        
-        employeeStats[userName].reportsSubmitted += 1;
-        
-        // Extract critical textual data to evaluate their actual performance and challenges
-        const evaluationStr = [];
-        if (report.performanceTracker) {
-            evaluationStr.push(`Performance: ${JSON.stringify(report.performanceTracker)}`);
-        }
-        if (report.challengesFaced) {
-            evaluationStr.push(`Challenges: ${report.challengesFaced}`);
-        }
-        if (report.internRemarks || report.dailyTaskSummary) {
-            evaluationStr.push(`Summary: Submitted detailed logs`);
-        }
-        
-        if (evaluationStr.length > 0 && employeeStats[userName].selfEvaluations.length < 5) {
-             // Cap to prevent token overflow for large companies
-            employeeStats[userName].selfEvaluations.push(evaluationStr.join(" | "));
-        }
+      if (!report.userId) return;
+      const userName = report.userId.name;
+      const empIdStr = report.userId._id ? report.userId._id.toString() : '';
+      if (!employeeStats[userName]) {
+        const rev = reviewMap.get(empIdStr);
+        const kpi = kpiMap.get(empIdStr);
+        employeeStats[userName] = { 
+          total: 0, 
+          done: 0, 
+          pending: 0, 
+          reportsSubmitted: 0, 
+          selfEvaluations: [],
+          kpiScore: rev?.overallKPIScore ?? kpi?.overallScore ?? 75,
+          grade: rev?.grade ?? kpi?.grade ?? 'Good',
+          hrRating: rev?.hrRating ?? 5,
+          tlRating: rev?.tlRating ?? 5,
+          performanceStatus: rev?.status ?? 'Good',
+          hrRemark: rev?.hrRemark || '',
+          tlRemark: rev?.tlRemark || ''
+        };
+      }
+      
+      employeeStats[userName].reportsSubmitted += 1;
+      
+      const evaluationStr = [];
+      if (report.performanceTracker) {
+        evaluationStr.push(`Performance: ${JSON.stringify(report.performanceTracker)}`);
+      }
+      if (report.challengesFaced) {
+        evaluationStr.push(`Challenges: ${report.challengesFaced}`);
+      }
+      if (report.internRemarks || report.dailyTaskSummary) {
+        evaluationStr.push(`Summary: Submitted detailed logs`);
+      }
+      
+      if (evaluationStr.length > 0 && employeeStats[userName].selfEvaluations.length < 5) {
+        employeeStats[userName].selfEvaluations.push(evaluationStr.join(" | "));
+      }
     });
 
-    const prompt = `You are an expert Company Operations & HR Director evaluating the entire company's monthly performance data across all departments (including Development, Design, Marketing, Operations, HODs, and HR).
-I am providing you with task completion statistics and self-evaluation data for each employee in the company.
-Please generate the monthly insights.
-You MUST analyze all tasks and reports in the system, regardless of who created or assigned them, to give a true overview of the entire company, not just HR-assigned tasks.
-You MUST select exactly ONE (1) "Employee of the Month" from any department based on their performance and explain why they won by analyzing BOTH their task numbers AND reading the specific challenges/performance data they submitted in their own reports.
+    let prompt = `You are an expert Company Operations & HR Director evaluating the entire company's monthly performance data, KPI Analytics, HR & TL Ratings, and report logs across all departments (including Development, Design, Marketing, Operations, HODs, and HR).
+I am providing you with comprehensive employee statistics including exact KPI Scores %, Performance Grades, HR Ratings (0-10), Team Lead Ratings (0-10), Task completion numbers, and written report logs.
+Please generate the monthly performance insights.
+You MUST analyze all KPI scores, ratings, tasks, and reports in the system to give a true, 100% accurate overview of the entire company.
+You MUST select exactly ONE (1) "Employee of the Month" from any department based on their top KPI performance score, high HR/TL ratings, and solid report deliverables. Explain why they won by analyzing BOTH their quantitative KPI numbers/ratings AND reading the specific challenges/performance data they submitted in their reports.
 You MUST respond with a JSON object matching this schema:
 {
   "summary": "A short 1-sentence summary of this month's status across all departments",
   "teamVibe": "A status representing the team's vibe this month (e.g. '🚀 Peak Performance', '📈 Growing', '⚠️ Under Pressure')",
   "employeeOfTheMonth": {
      "name": "Name of the single employee selected as Employee of the Month",
-     "reason": "A 1-sentence explanation of why they won, analyzing their task numbers and report data"
+     "reason": "A 1-sentence explanation of why they won, analyzing their KPI score %, ratings, task numbers, and report data"
   },
-  "markdownReport": "The full Monthly Performance Insights report. Provide a short Monthly Overview of the rest of the team's performance, highlights, and any bottlenecks across all departments. Format in Markdown. Do not include placeholders."
+  "markdownReport": "The full Monthly Performance Insights report. Provide a short Monthly Overview, Department KPI Performance Analysis, Key Achievements, and Bottlenecks. Format in Markdown. Do not include placeholders."
 }
-Here is the data: ${JSON.stringify({ employeeStats })}`;
+Here is the comprehensive employee data: ${JSON.stringify({ employeeStats })}`;
+
+    if (customNotes) {
+      prompt += `\n\nCRITICAL USER INSTRUCTIONS/NOTES: Please integrate these specific instructions/notes directly into the report content:\n${customNotes}`;
+    }
 
     const reportRaw = await generateAIReport(prompt, { employeeStats }, true);
 

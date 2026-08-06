@@ -16,8 +16,8 @@ export const createLeadSchema = z.object({
   campaignName: z.string().trim().optional(),
   leadPlatform: z.string().trim().optional(),
   assignedTo: objectIdSchema('assignedTo').nullable().optional().or(z.literal('')),
-  status: z.enum(['New', 'Contacted', 'Follow Up', 'Interested', 'Converted', 'Lost']).optional(),
-  priority: z.enum(['Low', 'Medium', 'High']).optional(),
+  status: z.enum(['New', 'Contacted', 'Follow Up', 'Interested', 'Converted', 'Lost']).optional().or(z.literal('')),
+  priority: z.enum(['Low', 'Medium', 'High']).optional().or(z.literal('')),
   remarks: z.string().optional(),
   nextFollowUpDate: z.string().datetime({ offset: true }).optional().or(z.string().pipe(z.coerce.date())).optional().or(z.literal('')),
   clientMeetingFixed: z.string().trim().optional().or(z.literal('')),
@@ -43,8 +43,8 @@ export const updateLeadSchema = z.object({
   campaignName: z.string().trim().optional(),
   leadPlatform: z.string().trim().optional(),
   assignedTo: objectIdSchema('assignedTo').nullable().optional().or(z.literal('')),
-  status: z.enum(['New', 'Contacted', 'Follow Up', 'Interested', 'Converted', 'Lost']).optional(),
-  priority: z.enum(['Low', 'Medium', 'High']).optional(),
+  status: z.enum(['New', 'Contacted', 'Follow Up', 'Interested', 'Converted', 'Lost']).optional().or(z.literal('')),
+  priority: z.enum(['Low', 'Medium', 'High']).optional().or(z.literal('')),
   remarks: z.string().optional(),
   nextFollowUpDate: z.string().pipe(z.coerce.date()).nullable().optional().or(z.literal('')),
   lostReason: z.string().optional(),
@@ -70,7 +70,7 @@ export const addFollowUpSchema = z.object({
   nextFollowUpDate: z.string().pipe(z.coerce.date()).nullable().optional().or(z.literal('')),
   callSummary: z.string().trim().optional(),
   meetingNotes: z.string().trim().optional(),
-  statusChangedTo: z.enum(['New', 'Contacted', 'Follow Up', 'Interested', 'Converted', 'Lost']).optional()
+  statusChangedTo: z.enum(['New', 'Contacted', 'Follow Up', 'Interested', 'Converted', 'Lost']).optional().or(z.literal(''))
 });
 
 export const updateStatusSchema = z.object({

@@ -215,16 +215,14 @@ const ProfileDrawer = ({ isOpen, onClose }) => {
             className="fixed top-0 right-0 bottom-0 w-full max-w-[420px] bg-white/90 dark:bg-[#08090f]/95 backdrop-blur-3xl border-l border-slate-200/80 dark:border-slate-900/60 shadow-[0_0_50px_rgba(0,0,0,0.1)] dark:shadow-[0_0_50px_rgba(0,0,0,0.4)] z-[6010] flex flex-col overflow-hidden"
           >
             {/* Header section */}
-            <div className="p-8 flex items-center justify-between border-b border-slate-200/60 dark:border-slate-900/60 bg-white/40 dark:bg-slate-950/20 backdrop-blur-md">
-              <div>
+            <div className="p-3 flex items-center justify-between border-b border-slate-200/60 dark:border-slate-900/60 bg-white/40 dark:bg-slate-950/20 backdrop-blur-md">
                 <h2 className="text-lg font-black tracking-tight text-slate-900 dark:text-slate-100 uppercase">
-                  OPERATOR <span className="bg-gradient-to-r from-indigo-500 to-cyan-500 bg-clip-text text-transparent">PROFILE</span>
+                   <span className="bg-gradient-to-r from-indigo-500 to-cyan-500 bg-clip-text text-transparent">PROFILE</span>
                 </h2>
-                <div className="flex items-center gap-2 mt-1">
+                {/* <div className="flex items-center gap-2 mt-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-[9px] font-black text-emerald-500 tracking-widest uppercase">SECURE LINK ACTIVE</span>
-                </div>
-              </div>
+                </div> */}
               <button 
                 onClick={onClose} 
                 className="p-3 rounded-2xl bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500 hover:text-slate-950 dark:hover:text-slate-200 border border-slate-200/60 dark:border-slate-850 hover:border-indigo-500/30 dark:hover:border-indigo-500/30 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95 group"
@@ -245,8 +243,8 @@ const ProfileDrawer = ({ isOpen, onClose }) => {
                   {/* Photo Profile Section */}
                   <div className="py-8 flex flex-col items-center border-b border-slate-200/60 dark:border-slate-900/60 relative overflow-hidden">
                     {/* Background Ambient Glow */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 bg-indigo-500/10 dark:bg-indigo-500/5 blur-[80px] rounded-full pointer-events-none" />
-                    <div className="absolute top-1/3 left-1/3 w-32 h-32 bg-cyan-500/10 dark:bg-cyan-500/5 blur-[60px] rounded-full pointer-events-none" />
+                    {/* <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 bg-indigo-500/10 dark:bg-indigo-500/5 blur-[80px] rounded-full pointer-events-none" />
+                    <div className="absolute top-1/3 left-1/3 w-32 h-32 bg-cyan-500/10 dark:bg-cyan-500/5 blur-[60px] rounded-full pointer-events-none" /> */}
                     
                     <div className="relative group cursor-pointer">
                       {/* Premium Multi-layered Glow and Borders */}
@@ -373,7 +371,7 @@ const ProfileDrawer = ({ isOpen, onClose }) => {
                         className="w-full py-4.5 bg-gradient-to-r from-slate-100 to-slate-200/80 dark:from-slate-900 dark:to-slate-950 text-slate-700 dark:text-slate-355 rounded-2xl font-black text-[10px] uppercase tracking-[0.25em] flex items-center justify-center gap-3 transition-all cursor-pointer border border-slate-200 dark:border-slate-850 shadow-sm hover:shadow-md hover:border-slate-350 dark:hover:border-slate-800 group"
                       >
                         <Settings size={14} className="transition-transform duration-700 group-hover:rotate-90 text-slate-500" />
-                        Configure Security Key
+                        Settings
                       </motion.button>
                     ) : (
                       <motion.div 
@@ -454,7 +452,7 @@ const ProfileDrawer = ({ isOpen, onClose }) => {
                         {/* 2. UPDATE SECURITY PASSWORD FORM */}
                         <div className="space-y-4">
                           <div className="flex items-center gap-2">
-                            <Lock size={12} className="text-indigo-500" />
+                            {/* <Lock size={12} className="text-indigo-500" /> */}
                             <span className="text-[10px] font-bold text-slate-755 dark:text-slate-350 uppercase tracking-widest">Update Security Key</span>
                           </div>
                           
@@ -463,7 +461,7 @@ const ProfileDrawer = ({ isOpen, onClose }) => {
 
                           <div className="space-y-3">
                             <div className="relative">
-                              <Lock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                              {/* <Lock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" /> */}
                               <input 
                                 type="password"
                                 name="current-password"
@@ -476,7 +474,7 @@ const ProfileDrawer = ({ isOpen, onClose }) => {
                             </div>
 
                             <div className="relative">
-                              <Key size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                              {/* <Key size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" /> */}
                               <input 
                                 type="password"
                                 name="new-password"
@@ -489,7 +487,7 @@ const ProfileDrawer = ({ isOpen, onClose }) => {
                             </div>
 
                             <div className="relative">
-                              <Key size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                              {/* <Key size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" /> */}
                               <input 
                                 type="password"
                                 name="confirm-password"
@@ -560,7 +558,7 @@ const ProfileDrawer = ({ isOpen, onClose }) => {
                 onClick={handleLogout}
                 className="w-full py-4 bg-rose-500/10 hover:bg-rose-600 text-rose-500 hover:text-white border border-rose-500/20 hover:border-transparent rounded-2xl font-black text-[10px] uppercase tracking-[0.25em] flex items-center justify-center gap-3 transition-all cursor-pointer shadow-sm hover:shadow-md hover:shadow-rose-500/20 active:scale-98"
               >
-                <LogOut size={14} className="stroke-[2.5]" /> Disconnect Session
+                <LogOut size={14} className="stroke-[2.5]" /> Logout 
               </motion.button>
             </div>
           </motion.aside>

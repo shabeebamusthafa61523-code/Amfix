@@ -30,18 +30,43 @@ const taskSchema = new mongoose.Schema({
     enum: ['pending', 'current', 'preview', 'done'],
     default: 'pending'
   },
+  priority: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    default: 'medium'
+  },
   file_url: {
     type: String
   },
   file_public_id: {
     type: String
   },
- designation_id: {
-  type: String
-},
+  designation_id: {
+    type: String
+  },
+  client: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Client',
+    default: null
+  },
+  project: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
+    default: null
+  },
   dueDate: {
     type: Date
-  }
+  },
+  attachments: [{
+    url: { type: String },
+    name: { type: String },
+    public_id: { type: String },
+    fileType: { type: String, default: 'file' }
+  }],
+  links: [{
+    title: { type: String },
+    url: { type: String }
+  }]
 }, {
   timestamps: true,
   toJSON: {

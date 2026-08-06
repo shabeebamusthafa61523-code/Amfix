@@ -17,22 +17,30 @@ import graphicDesignerReportRoutes from './graphicDesignerReport.routes.js';
 import academicCounselorReportRoutes from './academicCounselorReport.routes.js';
 import videographerReportRoutes from './videographerReport.routes.js';
 import employeeReportPDFRoutes from './employeeReportPDF.routes.js';
-
-
-
-
+import notificationRoutes from './notification.routes.js';
+import clientLeadRoutes from './clientLead.routes.js';
+import performanceRoutes from './performance.routes.js';
+import clientRoutes from './client.routes.js';
+import projectRoutes from './project.routes.js';
+import mdDashboardRoutes from './mdDashboard.routes.js';
+import accountRoutes from './account.routes.js';
 
 const router = Router();
 
 // Mount all available route packages
 router.use('/auth', authRoutes);
+router.use('/accounts', accountRoutes);
 router.use('/users', userRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/departments', departmentRoutes);
 router.use('/designations', designationRoutes);
 router.use('/leads', leadRoutes);
+router.use('/client-leads', clientLeadRoutes);
+router.use('/clients', clientRoutes);
+router.use('/projects', projectRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/md-dashboard', mdDashboardRoutes);
 router.use('/developer-reports', developerReportRoutes);
 router.use('/hr-reports', hrReportRoutes);
 router.use('/ops-reports', opsReportRoutes);
@@ -43,5 +51,7 @@ router.use('/graphic-designer-reports', graphicDesignerReportRoutes);
 router.use('/academic-counselor-reports', academicCounselorReportRoutes);
 router.use('/videographer-reports', videographerReportRoutes);
 router.use('/employee-reports', employeeReportPDFRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/performance', performanceRoutes);
 
 export default router;

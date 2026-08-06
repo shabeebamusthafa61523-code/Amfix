@@ -63,6 +63,13 @@ const getTransports = () => {
     );
   }
 
+  // Catch stream & disk errors (e.g. ENOSPC) on transport streams to prevent crashing the server
+  transportsList.forEach(t => {
+    t.on('error', (err) => {
+      console.warn('⚠️ Non-fatal winston logger transport error:', err.message);
+    });
+  });
+
   return transportsList;
 };
 
@@ -74,6 +81,10 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: 'kod-brand-crm' },
   transports: getTransports()
+});
+
+logger.on('error', (err) => {
+  console.warn('⚠️ Non-fatal logger instance error:', err.message);
 });
 
 export default logger;

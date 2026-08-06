@@ -56,13 +56,79 @@ export const userController = {
    */
   getUserList: async (req, res) => {
     try {
+      const loggedInUserId = req.user?.id || req.user?._id;
+      const loggedInUserRole = String(req.user?.role || req.user?.role_id || '').toLowerCase().trim();
+      
+      let isNonOperational = false;
+      if (loggedInUserId) {
+        const currentUserObj = await User.findById(loggedInUserId).populate('departmentId', 'name');
+        const deptName = currentUserObj?.departmentId?.name || currentUserObj?.department || '';
+        isNonOperational = String(deptName).toLowerCase().trim() === 'non-operational';
+      }
+
+      const isPrivileged = ['1', 'admin', 'hr', 'superadmin'].includes(loggedInUserRole) || isNonOperational;
+      
+      let queryFilter = {
+        isActive: true,
+        role: { $nin: ['student', 'Student'] },
+        role_id: { $nin: ['10', 10] }
+      };
+
+      if (!isPrivileged && loggedInUserId) {
+        const Department = (await import('../modules/departments/department.model.js')).default;
+        const UserDepartment = (await import('../models/userDepartment.model.js')).default;
+        
+        const currentUserObj = await User.findById(loggedInUserId).select('departmentId department designation');
+        const designationName = String(currentUserObj?.designation || '').toLowerCase();
+        let userDeptId = req.user?.departmentId || currentUserObj?.departmentId;
+        let userDeptName = currentUserObj?.department;
+
+        const isRoleBasedTeamLead = (
+          loggedInUserRole.includes('manager') ||
+          loggedInUserRole.includes('lead') ||
+          loggedInUserRole.includes('hod') ||
+          designationName.includes('manager') ||
+          designationName.includes('lead') ||
+          designationName.includes('hod') ||
+          loggedInUserRole === '2'
+        );
+
+        const ledDepartments = await Department.find({ managerId: loggedInUserId }).select('_id name');
+        let deptIds = ledDepartments.map(d => d._id);
+        let deptNames = ledDepartments.map(d => d.name).filter(Boolean);
+
+        if (isRoleBasedTeamLead && deptIds.length === 0) {
+           if (userDeptId) {
+             deptIds.push(userDeptId);
+             try {
+               const fallbackDept = await Department.findById(userDeptId).select('name');
+               if (fallbackDept && fallbackDept.name) {
+                 deptNames.push(fallbackDept.name);
+               }
+             } catch (err) {}
+           }
+           if (userDeptName) {
+             deptNames.push(userDeptName);
+           }
+        }
+
+        if (deptIds.length > 0 || deptNames.length > 0) {
+          const userDepts = await UserDepartment.find({ departmentId: { $in: deptIds } }).select('userId');
+          const userDeptUserIds = userDepts.map(ud => ud.userId).filter(Boolean);
+
+          queryFilter.$or = [
+            { departmentId: { $in: deptIds } },
+            { department: { $in: deptNames, $ne: '' } },
+            { _id: { $in: userDeptUserIds } }
+          ];
+        } else {
+          // If they aren't a team lead/manager, they should only see themselves
+          queryFilter._id = loggedInUserId;
+        }
+      }
 
       const users = await User.find(
-        { 
-          isActive: true,
-          role: { $nin: ['student', 'Student'] },
-          role_id: { $nin: ['10', 10] }
-        },
+        queryFilter,
         {
           password: 0,
           passwordHash: 0,
@@ -70,14 +136,13 @@ export const userController = {
         }
       )
       .populate('designationId')
+      .populate('departmentId')
       .sort({ name: 1 });
 
       return res.status(200).json(users);
 
     } catch (error) {
-
       console.error(error);
-
       return res.status(500).json({
         message: 'Failed to fetch users'
       });
@@ -99,50 +164,52 @@ export const userController = {
         status
       } = req.query;
 
-      const whereClause = { role_id: { $ne: '10' } };
-
-      if (department) {
-        whereClause.$or = [
-          { departmentId: department },
-          { department: { $regex: department, $options: 'i' } }
-        ];
-      }
+      const conditions = [];
 
       if (role) {
-        if (role === 'student' || role === '10') {
-          whereClause.role_id = '10';
+        const roleLower = String(role).toLowerCase().trim();
+        if (roleLower === 'student' || roleLower === '10' || roleLower === '4') {
+          conditions.push({
+            $or: [
+              { role: { $regex: /^student$/i } },
+              { role_id: '10' },
+              { role_id: 10 },
+              { role_id: '4' },
+              { role_id: 4 }
+            ]
+          });
         } else {
-          whereClause.role = role;
-          delete whereClause.role_id;
+          conditions.push({ role: role });
         }
+      } else {
+        // Exclude students by default when listing staff members
+        conditions.push({ role_id: { $ne: '10' } });
+      }
+
+      if (department) {
+        conditions.push({
+          $or: [
+            { departmentId: department },
+            { department: { $regex: department, $options: 'i' } }
+          ]
+        });
       }
 
       if (status !== undefined && status !== '') {
-        whereClause.status = status;
+        conditions.push({ status: status });
       }
 
       if (search) {
-        whereClause.$or = [
-          {
-            name: {
-              $regex: search,
-              $options: 'i'
-            }
-          },
-          {
-            email: {
-              $regex: search,
-              $options: 'i'
-            }
-          },
-          {
-            employeeId: {
-              $regex: search,
-              $options: 'i'
-            }
-          }
-        ];
+        conditions.push({
+          $or: [
+            { name: { $regex: search, $options: 'i' } },
+            { email: { $regex: search, $options: 'i' } },
+            { employeeId: { $regex: search, $options: 'i' } }
+          ]
+        });
       }
+
+      const whereClause = conditions.length > 0 ? { $and: conditions } : {};
 
       const isPaginationRequested = req.query.page !== undefined || req.query.limit !== undefined;
 
@@ -202,7 +269,9 @@ export const userController = {
         salary: u.salary,
         address: u.address,
         identityType: u.identityType,
-        identityNumber: u.identityNumber
+        identityNumber: u.identityNumber,
+        permissions: u.permissions || [],
+        isSuperAdmin: u.isSuperAdmin || u.role === 'superadmin'
         });
       });
 
@@ -249,6 +318,9 @@ export const userController = {
 
       const isDeptActive = user.departmentId && user.departmentId.status !== false;
 
+      const Department = (await import('../modules/departments/department.model.js')).default;
+      const isTeamLead = await Department.exists({ managerId: user._id }) ? true : false;
+
       return sendSuccess(res, {
         status: 200,
         message:
@@ -270,12 +342,15 @@ export const userController = {
           isActive: user.isActive,
           status: user.status || (user.isActive ? 'active' : 'inactive'),
           lastLogin: user.lastLogin,
+          isTeamLead,
           createdAt: user.createdAt,
           joining_date: user.joining_date,
           salary: user.salary,
           address: user.address,
           identityType: user.identityType,
-          identityNumber: user.identityNumber
+          identityNumber: user.identityNumber,
+          permissions: user.permissions || [],
+          isSuperAdmin: user.isSuperAdmin || user.role === 'superadmin'
         }
       });
 
@@ -308,20 +383,35 @@ export const userController = {
         identityNumber
       } = req.body;
 
-      const existingUser =
-        await User.findOne({
-          $or: [
-            { email },
-            { phone },
-            { employeeId }
-          ]
-        });
+      const searchConditions = [{ email }];
+      if (phone) searchConditions.push({ phone });
+      if (employeeId) searchConditions.push({ employeeId });
 
-      if (existingUser) {
-        throw new AppError(
-          'Conflict: Email, Phone, or Employee ID already registered.',
-          409
-        );
+      const existingUsers = await User.find({
+        $or: searchConditions
+      });
+
+      if (existingUsers.length > 0) {
+        const conflicts = [];
+        const hasEmail = existingUsers.some(u => u.email === email);
+        const hasPhone = phone && existingUsers.some(u => u.phone === phone);
+        const hasEmpId = employeeId && existingUsers.some(u => u.employeeId === employeeId);
+
+        if (hasEmail) conflicts.push('Email');
+        if (hasPhone) conflicts.push('Phone number');
+        if (hasEmpId) conflicts.push('Employee ID');
+
+        let msgPart = '';
+        if (conflicts.length === 1) {
+          msgPart = `${conflicts[0]} is`;
+        } else if (conflicts.length === 2) {
+          msgPart = `${conflicts[0]} and ${conflicts[1]} are`;
+        } else {
+          msgPart = `${conflicts[0]}, ${conflicts[1]} and ${conflicts[2]} are`;
+        }
+        const message = `Conflict: ${msgPart} already registered.`;
+
+        throw new AppError(message, 409);
       }
 
       const tempPass =
@@ -486,6 +576,14 @@ export const userController = {
           throw new AppError('Conflict: Email address is already registered by another account.', 409);
         }
         updateFields.email = email;
+      }
+
+      if (phone && phone !== existingUser.phone) {
+        const phoneTaken = await User.findOne({ phone, _id: { $ne: id } });
+        if (phoneTaken) {
+          throw new AppError('Conflict: Phone number is already registered to another account.', 409);
+        }
+        updateFields.phone = phone;
       }
 
       if (employeeId && employeeId !== existingUser.employeeId) {
@@ -756,6 +854,55 @@ export const userController = {
       return sendSuccess(res, {
         status: 200,
         message: 'Password successfully updated.'
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * PUT /api/v1/users/:id/permissions
+   */
+  updatePermissions: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { permissions, isSuperAdmin, role } = req.body;
+
+      const user = await User.findById(id);
+      if (!user) {
+        throw new AppError('Employee profile not found.', 404);
+      }
+
+      if (permissions !== undefined && Array.isArray(permissions)) {
+        user.permissions = permissions;
+      }
+      if (isSuperAdmin !== undefined) {
+        user.isSuperAdmin = Boolean(isSuperAdmin);
+        if (user.isSuperAdmin) {
+          user.role = 'superadmin';
+          user.role_id = '0';
+        }
+      }
+      if (role !== undefined && role) {
+        user.role = role;
+        if (role === 'superadmin') {
+          user.isSuperAdmin = true;
+          user.role_id = '0';
+        }
+      }
+
+      await user.save();
+
+      return sendSuccess(res, {
+        status: 200,
+        message: 'Employee sidebar permissions updated successfully.',
+        data: {
+          id: user._id,
+          name: user.name,
+          role: user.role,
+          permissions: user.permissions,
+          isSuperAdmin: user.isSuperAdmin
+        }
       });
     } catch (error) {
       next(error);

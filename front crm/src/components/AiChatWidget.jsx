@@ -31,6 +31,23 @@ const AiChatWidget = ({ reportContext }) => {
     setInput('');
     setIsLoading(true);
 
+    // Extract current visible page text context
+    let pageText = "";
+    try {
+      const mainEl = document.querySelector('main');
+      if (mainEl) {
+        pageText = mainEl.innerText.replace(/\s+/g, ' ').slice(0, 8000);
+      }
+    } catch (err) {
+      console.error("Failed to extract page context", err);
+    }
+
+    const compiledContext = [
+      `Current Page URL Path: ${window.location.pathname}`,
+      `Current Page Document Title: ${document.title}`,
+      reportContext ? `Report Data:\n${reportContext}` : `Visible Page Content:\n${pageText}`
+    ].filter(Boolean).join("\n\n");
+
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_URL}/v1/ai/chat`, {
@@ -41,7 +58,7 @@ const AiChatWidget = ({ reportContext }) => {
         },
         body: JSON.stringify({
           messages: updatedMessages,
-          context: reportContext
+          context: compiledContext
         })
       });
       
@@ -98,8 +115,8 @@ const AiChatWidget = ({ reportContext }) => {
               {messages.length === 0 && (
                 <div className="text-center text-slate-500 mt-10 text-sm">
                   <MessageSquare size={32} className="mx-auto mb-2 opacity-50" />
-                  <p>Ask me questions about the current report!</p>
-                  <p className="text-xs mt-2 opacity-75">e.g. "Who had the highest attendance?"</p>
+                  <p>{reportContext ? "Ask me questions about the current report!" : "Ask me anything about tasks or operations!"}</p>
+                  <p className="text-xs mt-2 opacity-75">{reportContext ? 'e.g. "Who had the highest attendance?"' : 'e.g. "How can I update my daily tasks?"'}</p>
                 </div>
               )}
               {messages.map((msg, idx) => (
@@ -140,7 +157,7 @@ const AiChatWidget = ({ reportContext }) => {
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask about this report..."
+                  placeholder={reportContext ? "Ask about this report..." : "Ask me anything..."}
                   className="flex-1 bg-slate-100 dark:bg-slate-800 text-sm text-slate-900 dark:text-white px-4 py-2.5 rounded-full border-none focus:ring-2 focus:ring-indigo-500 outline-none"
                 />
                 <button 

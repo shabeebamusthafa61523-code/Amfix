@@ -41,7 +41,7 @@ export const DepartmentCard = ({ department, onEdit, onDelete, onViewUsers }) =>
           {description || 'No description provided for this department.'}
         </p>
 
-        {/* Manager Profile Box */}
+        {/* Team Lead Profile Box */}
         <div className="p-4 rounded-2xl bg-slate-50/50 dark:bg-slate-800/30 border border-slate-200/30 dark:border-slate-800/30 mb-6 flex items-center gap-3">
           {managerId ? (
             <>
@@ -57,15 +57,15 @@ export const DepartmentCard = ({ department, onEdit, onDelete, onViewUsers }) =>
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-slate-400 font-semibold tracking-wide uppercase">Manager</p>
+                <p className="text-xs text-slate-400 font-semibold tracking-wide uppercase">Team Lead</p>
                 <p className="text-sm font-bold text-slate-800 dark:text-white truncate">
                   {managerId.name}
                 </p>
                 <p className="text-[11px] font-semibold text-indigo-500 dark:text-lime-400 truncate">
-                  {managerId.designation || 'Department Manager'}
+                  {managerId.designation || 'Department Team Lead'}
                 </p>
                 {managerId.email && (
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium truncate">
+                  <p className="text-[10px] text-slate-400 dark:text-slate-550 font-medium truncate">
                     {managerId.email}
                   </p>
                 )}
@@ -73,12 +73,12 @@ export const DepartmentCard = ({ department, onEdit, onDelete, onViewUsers }) =>
             </>
           ) : (
             <>
-              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 flex items-center justify-center border border-dashed border-slate-300 dark:border-slate-700">
+              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-550 flex items-center justify-center border border-dashed border-slate-300 dark:border-slate-700">
                 <User size={18} />
               </div>
               <div>
-                <p className="text-xs text-slate-400 font-semibold tracking-wide uppercase">Manager</p>
-                <p className="text-sm font-semibold text-slate-400 dark:text-slate-500 italic">
+                <p className="text-xs text-slate-400 font-semibold tracking-wide uppercase">Team Lead</p>
+                <p className="text-sm font-semibold text-slate-400 dark:text-slate-550 italic">
                   Unassigned
                 </p>
               </div>

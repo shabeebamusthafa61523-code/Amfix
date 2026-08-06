@@ -13,7 +13,5 @@ const designationSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-designationSchema.index({ name: 1 });
-
 const Designation = mongoose.model('Designation', designationSchema);
 export default Designation;

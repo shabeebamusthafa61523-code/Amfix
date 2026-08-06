@@ -1,7 +1,7 @@
+import 'dotenv/config';
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -14,10 +14,10 @@ import studentRoutes from './src/routes/student.routes.js';
 import crmRoutes from './src/routes/index.js';
 import apiRoutes from './src/routes/api.js';
 import aiRoutes from './src/routes/ai.routes.js';
+import mdDashboardRoutes from './src/routes/mdDashboard.routes.js';
+import accountRoutes from './src/routes/account.routes.js';
 import Designation from './src/models/designation.model.js';
 import Department from './src/modules/departments/department.model.js';
-
-dotenv.config();
 const app = express();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -73,6 +73,10 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/user', userRoutes); 
 app.use('/api/tasks', taskRoutes);
 app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/md-dashboard', mdDashboardRoutes);
+app.use('/api/md-dashboard', mdDashboardRoutes);
+app.use('/api/v1/accounts', accountRoutes);
+app.use('/api/accounts', accountRoutes);
 
 // 4. Broad, Versioned, & Catch-all Fallbacks (Broadest matching paths go lower)
 app.use('/api/v1', crmRoutes);
@@ -114,8 +118,13 @@ app.use((err, req, res, next) => {
     });
   }
 
-  res.status(err.status || 500).json({
+  const statusCode = (typeof err.statusCode === 'number' && err.statusCode >= 100 && err.statusCode < 600)
+    ? err.statusCode
+    : ((typeof err.status === 'number' && err.status >= 100 && err.status < 600) ? err.status : 500);
+
+  res.status(statusCode).json({
     success: false,
+    error: err.message || 'Internal Server Error Fallback',
     message: err.message || 'Internal Server Error Fallback'
   });
 });

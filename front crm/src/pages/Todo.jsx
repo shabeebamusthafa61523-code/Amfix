@@ -4,31 +4,81 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Clock, CheckCircle2, Eye, Layout, X, 
   Trash2, Edit3, Save, Upload, Image as ImageIcon, 
-  Loader2, Camera, ShieldCheck, User, Target, Info
+  Loader2, Camera, ShieldCheck, User, Target, Info, Building, FolderKanban,
+  Paperclip, Link2, ExternalLink, FileText
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;// --- UTILS & CONSTANTS ---
 const getTaskImageUrl = (path) => {
-
   if (!path) return null;
+  if (typeof path === 'object') {
+    path = path.url || path.file || path.image || path.path || null;
+    if (!path) return null;
+  }
+  if (typeof path !== 'string') return null;
 
-  if (path.startsWith("http")) {
+  // Cloudinary PDF handling: convert .pdf to .png viewable URL so Cloudinary streams it on screen cleanly
+  if (path.includes('res.cloudinary.com')) {
+    let cleanUrl = path
+      .replace('/raw/upload/', '/image/upload/')
+      .replace('/image/upload/fl_inline/', '/image/upload/');
+      
+    if (/\.pdf$/i.test(cleanUrl)) {
+      cleanUrl = cleanUrl.replace(/\.pdf$/i, '.png');
+    }
+    return cleanUrl;
+  }
+
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:") || path.startsWith("blob:")) {
     return path;
   }
 
+  const cleanPath = path.replace(/^\//, '');
+  if (cleanPath.startsWith('uploads') || cleanPath.startsWith('files')) {
+    const backendHost = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1').replace('/api/v1', '').replace('/api', '');
+    return `${backendHost}/${cleanPath}`;
+  }
+
   const fileName = path.split(/[\\/]/).pop();
-
-  return `https://res.cloudinary.com/davmqgfsq/image/upload/v1776844261/tasks/${fileName}`;
-
+  if (fileName.startsWith('http')) return fileName;
+  const cleanFileName = fileName.replace(/\.pdf$/i, '.png');
+  return `https://res.cloudinary.com/davmqgfsq/image/upload/v1776844261/tasks/${cleanFileName}`;
 };
 
 const COLUMN_META = {
   pending: { label: 'Pending', icon: Layout, color: 'bg-[#e26a6a]', glow: 'shadow-[#e26a6a]/20' },
   current: { label: 'Current', icon: Clock, color: 'bg-[#e5a23a]', glow: 'shadow-[#e5a23a]/20' },
   preview: { label: 'Preview', icon: Eye, color: 'bg-indigo-500', glow: 'shadow-indigo-500/20' },
-  done: { label: 'Completed', icon: CheckCircle2, color: 'bg-[#9dd384]', glow: 'shadow-[#9dd384]/20' }
+  done: { label: 'Completed', icon: CheckCircle2, color: 'bg-[#b7d333]', glow: 'shadow-[#b7d333]/20' }
+};
+
+const PRIORITY_META = {
+  high: { 
+    label: 'High Priority',
+    shortLabel: 'High', 
+    color: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30', 
+    dot: 'bg-rose-500',
+    style: { backgroundColor: 'rgba(244, 63, 94, 0.15)', color: '#f43f5e', borderColor: 'rgba(244, 63, 94, 0.4)' },
+    dotStyle: { backgroundColor: '#f43f5e' }
+  },
+  medium: { 
+    label: 'Medium Priority', 
+    shortLabel: 'Medium',
+    color: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30', 
+    dot: 'bg-sky-500',
+    style: { backgroundColor: 'rgba(2, 132, 199, 0.18)', color: '#0284c7', borderColor: 'rgba(2, 132, 199, 0.45)' },
+    dotStyle: { backgroundColor: '#0284c7' }
+  },
+  low: { 
+    label: 'Low Priority', 
+    shortLabel: 'Low',
+    color: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30', 
+    dot: 'bg-yellow-500',
+    style: { backgroundColor: 'rgba(234, 179, 8, 0.18)', color: '#ca8a04', borderColor: 'rgba(234, 179, 8, 0.45)' },
+    dotStyle: { backgroundColor: '#eab308' }
+  }
 };
 
 const DEFAULT_DESIGNATIONS = [
@@ -45,6 +95,7 @@ const Todo = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [previewFile, setPreviewFile] = useState(null);
   
   // Determine current user ID from localStorage or JWT token
   const getCurrentUserId = () => {
@@ -154,14 +205,14 @@ console.log("HEADERS:", getAuthHeaders());
     <div className="text-slate-700 dark:text-slate-200 font-sans selection:bg-white-500/30 selection:text-white">
       <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
       
-      <div className="max-w-[1700px] mx-auto px-6 py-10">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-10 border-b border-slate-200 dark:border-slate-800 pb-5">
+      <div className="max-w-[1700px] mx-auto py-2">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-6 border-b border-slate-200 dark:border-slate-800 pb-2">
           <div>
             <div className="flex items-center gap-3 ">
-              <div className="h-2 w-2 bg-indigo-500 rounded-full animate-ping" />
-              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-500/70 dark:text-indigo-400/80">System Live</span>
+              {/* <div className="h-2 w-2 bg-indigo-500 rounded-full animate-ping" />
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-500/70 dark:text-indigo-400/80">System Live</span> */}
             </div>
-            <h1 className="text-4xl md:text-6xl font-black text-slate-900 dark:text-slate-100 italic tracking-tighter leading-none">
+            <h1 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 italic tracking-tighter leading-none">
               TASKS <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500"></span>
             </h1>
           </div>
@@ -211,6 +262,9 @@ console.log("HEADERS:", getAuthHeaders());
                           return diffDays <= 1; // Today, tomorrow, or overdue
                         };
                         const isUrgent = task.dueDate && statusKey !== 'done' && checkIsUrgent(task.dueDate);
+                        const prioKey = String(task.priority || 'medium').toLowerCase();
+                        const prioMeta = PRIORITY_META[prioKey] || PRIORITY_META.medium;
+
                         return (
                         <Draggable key={task.id.toString()} draggableId={task.id.toString()} index={index}>
                           {(p, s) => (
@@ -222,11 +276,22 @@ console.log("HEADERS:", getAuthHeaders());
                               {/* Left Accent Bar */}
                               <div className={`absolute left-0 top-6 bottom-6 w-[3px] rounded-r-full transition-all duration-300 group-hover:top-4 group-hover:bottom-4 ${isUrgent ? 'bg-rose-500' : COLUMN_META[statusKey].color}`} />
 
-                              <div className="flex items-center gap-2 mb-3">
-                                <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)] animate-pulse" />
-                                <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                                  {designations.find(d => String(d.id) === String(task.designation_id))?.name || "General"}
-                                </span>
+                              <div className="flex items-center justify-between gap-2 mb-3">
+                                <div className="flex items-center gap-2">
+                                  {/* Priority Badge Button */}
+                                  <span style={prioMeta.style} className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${prioMeta.color}`}>
+                                    <span style={prioMeta.dotStyle} className={`w-1.5 h-1.5 rounded-full ${prioMeta.dot} animate-pulse`} />
+                                    {prioMeta.shortLabel || prioKey}
+                                  </span>
+                                  <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                                    {designations.find(d => String(d.id) === String(task.designation_id))?.name || "General"}
+                                  </span>
+                                </div>
+                                {task.project && (
+                                  <span className="text-[9px] font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800/60 truncate max-w-[130px]">
+                                    {typeof task.project === 'object' && task.project ? (task.project.projectName || task.project.projectCode) : 'Project'}
+                                  </span>
+                                )}
                               </div>
 
                               <h3 className="text-slate-800 dark:text-slate-200 font-bold text-[14px] leading-snug mb-2 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors duration-300">{task.title}</h3>
@@ -245,7 +310,7 @@ console.log("HEADERS:", getAuthHeaders());
                                   </div>
                                   <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wide truncate max-w-[120px]">
                                     {
-                                      typeof task.assigned_to === "object"
+                                      (task.assigned_to && typeof task.assigned_to === "object")
                                         ? task.assigned_to?.name
                                         : users.find(
                                             u => String(u.id || u._id) === String(task.assigned_to)
@@ -294,7 +359,11 @@ console.log("HEADERS:", getAuthHeaders());
             getAuthHeaders={getAuthHeaders}
             API_BASE={API_BASE} // <--- ADD THIS LINE
             DESIGNATIONS={designations} 
+            onPreviewFile={(f) => setPreviewFile(f)}
           />
+        )}
+        {previewFile && (
+          <DocPreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
         )}
       </AnimatePresence>
     </div>
@@ -305,41 +374,96 @@ console.log("HEADERS:", getAuthHeaders());
 const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) => {
   const { showToast } = useToast();
 
-  const [form, setForm] = useState({ title: '', description: '', assigned_to: '', designation_id: '', image: null, dueDate: '' });
+  const [form, setForm] = useState({ title: '', description: '', assigned_to: '', designation_id: '', dueDate: '', client: '', project: '', priority: 'medium' });
+  const [attachedFiles, setAttachedFiles] = useState([]);
+  const [attachedLinks, setAttachedLinks] = useState([]);
+  const [linkTitle, setLinkTitle] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
+  const [showLinkInput, setShowLinkInput] = useState(false);
 
-  const [preview, setPreview] = useState(null);
+  const [clientsList, setClientsList] = useState([]);
+  const [clientProjects, setClientProjects] = useState([]);
+  const [allProjects, setAllProjects] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleImage = (e) => {
-    const file = e.target.files[0];
-    if (file) { 
-      setForm({ ...form, image: file }); 
-      setPreview(URL.createObjectURL(file)); 
+  useEffect(() => {
+    fetch(`${API_BASE}/v1/clients?limit=100`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success) setClientsList(data.data.clients || []);
+      })
+      .catch(err => console.error("Failed to load clients in task modal", err));
+
+    fetch(`${API_BASE}/v1/projects?limit=100`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success) {
+          const list = data.data.projects || [];
+          setAllProjects(list);
+          setClientProjects(list);
+        }
+      })
+      .catch(err => console.error("Failed to load projects in task modal", err));
+  }, [getAuthHeaders]);
+
+  const handleMultiFiles = (e) => {
+    const selected = Array.from(e.target.files);
+    if (selected.length > 0) {
+      setAttachedFiles(prev => [...prev, ...selected]);
     }
+    e.target.value = '';
+  };
+
+  const removeFile = (index) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddLink = (e) => {
+    e.preventDefault();
+    if (!linkUrl.trim()) return;
+    let formattedUrl = linkUrl.trim();
+    if (!/^https?:\/\//i.test(formattedUrl)) {
+      formattedUrl = `https://${formattedUrl}`;
+    }
+    const newLink = {
+      title: linkTitle.trim() || formattedUrl,
+      url: formattedUrl
+    };
+    setAttachedLinks(prev => [...prev, newLink]);
+    setLinkTitle('');
+    setLinkUrl('');
+    setShowLinkInput(false);
+  };
+
+  const removeLink = (index) => {
+    setAttachedLinks(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
 
-  e.preventDefault();
+    const fd = new FormData();
+    fd.append('title', form.title);
+    fd.append('description', form.description || '');
+    fd.append('assigned_to', form.assigned_to);
+    fd.append('designation_id', form.designation_id);
+    fd.append('status', 'pending');
+    fd.append('priority', form.priority || 'medium');
+    if (form.dueDate) fd.append('dueDate', form.dueDate);
+    if (form.dueDate) fd.append('dueDate', form.dueDate);
+    if (form.client) fd.append('client', form.client);
+    if (form.project) fd.append('project', form.project);
 
-  setIsSubmitting(true);
+    // Append multiple files
+    attachedFiles.forEach(f => {
+      fd.append('file', f);
+    });
 
-  const fd = new FormData();
-
- 
-
-  fd.append('title', form.title);
-  fd.append('description', form.description || '');
-  fd.append('assigned_to', form.assigned_to);
-  fd.append('designation_id', form.designation_id);
-  fd.append('status', 'pending');
-  if (form.dueDate) {
-    fd.append('dueDate', form.dueDate);
-  }
-
-  if (form.image) {
-    fd.append('file', form.image);
-  }
+    // Append links as JSON
+    if (attachedLinks.length > 0) {
+      fd.append('links', JSON.stringify(attachedLinks));
+    }
 
   // DEBUG
   for (let pair of fd.entries()) {
@@ -378,90 +502,236 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
   return (
     <motion.div 
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex justify-center items-start overflow-y-auto pt-10 pb-10 no-scrollbar"
+      className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex justify-center items-start pt-6 overflow-y-auto p-4"
     >
       <motion.div 
-        initial={{ y: -100, scale: 0.9 }} animate={{ y: 0, scale: 1 }}
-        className="bg-white border border-slate-200 w-full max-w-3xl rounded-[3rem] p-10 shadow-xl relative"
+        initial={{ y: -40, scale: 0.95 }} animate={{ y: 0, scale: 1 }}
+        className="bg-white border border-slate-200 w-full max-w-2xl rounded-2xl p-6 shadow-xl relative"
       >
-        <button onClick={onClose} className="absolute top-8 right-8 text-slate-500 hover:text-slate-900 transition-colors"><X size={24}/></button>
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors"><X size={18}/></button>
         
-        <header className="mb-10">
-          <h2 className="text-3xl font-black text-slate-900 italic uppercase tracking-tighter">New <span className="text-indigo-600">Assignment</span></h2>
-          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.4em] mt-2">Dossier Entry Protocol</p>
+        <header className="mb-4">
+          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">New <span className="text-indigo-600">Task</span></h2>
         </header>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="group relative h-48 w-full rounded-[2rem] border-2 border-dashed border-slate-200 hover:border-indigo-500/50 flex flex-col items-center justify-center transition-all bg-slate-50">
-            <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleImage} />
-            {preview ? (
-              <img src={preview} className="h-full w-full object-cover rounded-[2rem]" alt="preview" />
-            ) : (
-              <div className="text-center">
-                <Camera className="mx-auto text-indigo-500 mb-4" size={32} />
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Upload Intelligence Asset</p>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {/* Multi-Attachments & Multi-Links Section */}
+          <div className="space-y-2.5 bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] flex items-center gap-1.5">
+                <Paperclip size={12} /> Attachments & Links ({attachedFiles.length + attachedLinks.length})
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowLinkInput(prev => !prev)}
+                className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <Link2 size={12} /> + Add External Link
+              </button>
+            </div>
+
+            {/* Multi-file selection input */}
+            <div className="group relative flex items-center gap-3 w-full border border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 rounded-xl px-3 py-2.5 bg-white dark:bg-slate-800 transition-all cursor-pointer">
+              <input 
+                type="file" 
+                multiple 
+                className="absolute inset-0 opacity-0 cursor-pointer w-full z-10" 
+                onChange={handleMultiFiles} 
+              />
+              <Upload size={15} className="text-indigo-500 shrink-0" />
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold truncate">
+                Upload files / images — Select multiple files or images
+              </span>
+            </div>
+
+            {/* Render Selected File Chips */}
+            {attachedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {attachedFiles.map((f, idx) => {
+                  const isImg = f.type?.startsWith('image/');
+                  return (
+                    <div key={idx} className="flex items-center gap-2 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
+                      {isImg ? (
+                        <img src={URL.createObjectURL(f)} className="w-5 h-5 rounded-md object-cover" alt="thumb" />
+                      ) : (
+                        <FileText size={13} className="text-indigo-500" />
+                      )}
+                      <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 truncate max-w-[140px]">{f.name}</span>
+                      <button type="button" onClick={() => removeFile(idx)} className="text-slate-400 hover:text-rose-500 p-0.5 cursor-pointer">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Add Link Popover Inline */}
+            {showLinkInput && (
+              <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Link Title (e.g. Figma, Drive)" 
+                    value={linkTitle} 
+                    onChange={e => setLinkTitle(e.target.value)} 
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none text-slate-900 dark:text-slate-100"
+                  />
+                  <input 
+                    type="url" 
+                    placeholder="https://example.com" 
+                    value={linkUrl} 
+                    onChange={e => setLinkUrl(e.target.value)} 
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setShowLinkInput(false)} className="px-2.5 py-1 text-[10px] font-bold text-slate-500 cursor-pointer">Cancel</button>
+                  <button type="button" onClick={handleAddLink} className="px-3 py-1 bg-indigo-600 text-white text-[10px] font-bold rounded-lg uppercase tracking-wider cursor-pointer">Save Link</button>
+                </div>
+              </div>
+            )}
+
+            {/* Render Selected Link Chips */}
+            {attachedLinks.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {attachedLinks.map((l, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5 bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 px-2.5 py-1 rounded-xl border border-indigo-200 dark:border-indigo-800/60 text-[10px] font-bold">
+                    <ExternalLink size={12} />
+                    <span className="truncate max-w-[150px]">{l.title}</span>
+                    <button type="button" onClick={() => removeLink(idx)} className="text-indigo-400 hover:text-rose-500 p-0.5 cursor-pointer">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-2">Title</label>
-              <input required className="w-full bg-white border border-slate-200 p-5 rounded-2xl text-slate-900 font-bold outline-none focus:border-indigo-500/50" placeholder="TITLE" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">Title</label>
+              <input required className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-slate-900 text-sm font-semibold outline-none focus:border-indigo-500/50" placeholder="Task title" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
             </div>
-            <div className="space-y-2">
-              <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-2">Due Date</label>
-              <input type="date" className="w-full bg-white border border-slate-200 p-5 rounded-2xl text-slate-900 font-bold outline-none focus:border-indigo-500/50" value={form.dueDate} onChange={e => setForm({...form, dueDate: e.target.value})} />
+            <div className="space-y-1">
+              <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">Priority</label>
+              <select
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-xl text-slate-900 dark:text-slate-100 text-xs font-bold outline-none cursor-pointer"
+                value={form.priority || 'medium'}
+                onChange={e => setForm({ ...form, priority: e.target.value })}
+              >
+                <option value="high">🔴 High</option>
+                <option value="medium">🔷 Medium</option>
+                <option value="low">🟡 Low</option>
+              </select>
             </div>
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-2">assign to</label>
-              <div className="grid grid-cols-2 gap-3">
-                <select
-                  required
-                  className="appearance-none bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 p-5 rounded-2xl text-gray-900 dark:text-gray-200 text-[11px] font-bold outline-none"
-                  value={form.assigned_to}
-                  onChange={e => {
-                    const userId = e.target.value;
-                    const user = users.find(u => String(u.id || u._id) === String(userId));
-                    let desigId = '';
-                    if (user) {
-                      if (user.designationId) {
-                        desigId = typeof user.designationId === 'object'
-                          ? (user.designationId._id || user.designationId.id || '')
-                          : String(user.designationId);
-                      } else if (user.designation) {
-                        desigId = String(user.designation);
-                      }
+            <div className="space-y-1">
+              <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">Due Date</label>
+              <input type="date" min={new Date().toISOString().split('T')[0]} className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-slate-900 text-sm font-semibold outline-none focus:border-indigo-500/50" value={form.dueDate} onChange={e => setForm({...form, dueDate: e.target.value})} />
+            </div>
+          </div>
+
+          {/* Client & Project Selection Section (Feature 1) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">Client</label>
+              <select
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-xl text-slate-900 dark:text-slate-100 text-xs font-bold outline-none"
+                value={form.client}
+                onChange={async (e) => {
+                  const clientId = e.target.value;
+                  setForm(prev => ({ ...prev, client: clientId, project: '' }));
+                  if (clientId) {
+                    try {
+                      const res = await fetch(`${API_BASE}/v1/projects?client=${clientId}&limit=100`, { headers: getAuthHeaders() });
+                      const d = await res.json();
+                      if (d && d.success) setClientProjects(d.data.projects || []);
+                    } catch (err) { console.error("Failed to fetch client projects", err); }
+                  } else {
+                    setClientProjects(allProjects);
+                  }
+                }}
+              >
+                <option value="">Select Client (Optional)</option>
+                {clientsList.map(c => (
+                  <option key={c._id || c.id} value={c._id || c.id}>
+                    {c.companyName} ({c.clientId})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">Project</label>
+              <select
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-xl text-slate-900 dark:text-slate-100 text-xs font-bold outline-none cursor-pointer"
+                value={form.project}
+                onChange={e => {
+                  const projId = e.target.value;
+                  const selectedProj = clientProjects.find(p => String(p._id || p.id) === String(projId));
+                  let parentClient = form.client;
+                  if (selectedProj && selectedProj.client) {
+                    parentClient = (selectedProj.client && typeof selectedProj.client === 'object') ? (selectedProj.client._id || selectedProj.client.id) : selectedProj.client;
+                  }
+                  setForm({ ...form, project: projId, client: parentClient });
+                }}
+              >
+                <option value="">Select Active Project (Optional)</option>
+                {clientProjects.map(p => (
+                  <option key={p._id || p.id} value={p._id || p.id}>
+                    {p.projectName} ({p.projectCode})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">Assign To</label>
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                required
+                className="appearance-none bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 px-3 py-2 rounded-xl text-gray-900 dark:text-gray-200 text-xs font-bold outline-none"
+                value={form.assigned_to}
+                onChange={e => {
+                  const userId = e.target.value;
+                  const user = users.find(u => String(u.id || u._id) === String(userId));
+                  let desigId = '';
+                  if (user) {
+                    if (user.designationId) {
+                      desigId = (user.designationId && typeof user.designationId === 'object')
+                        ? (user.designationId._id || user.designationId.id || '')
+                        : String(user.designationId);
+                    } else if (user.designation) {
+                      desigId = String(user.designation);
                     }
-                    setForm({ ...form, assigned_to: userId, designation_id: desigId });
-                  }}
-                >
-                  <option value="">Assign to</option>
-                  {users.map(u => (
-                    <option key={u.id || u._id} value={u.id || u._id} className="bg-white text-gray-900">
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="bg-slate-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-650 p-5 rounded-2xl text-gray-500 dark:text-gray-400 text-[11px] font-bold flex items-center">
-                  <span>
-                    {designations.find(d => String(d.id || d._id) === String(form.designation_id))?.name || "Designation"}
-                  </span>
-                </div>
+                  }
+                  setForm({ ...form, assigned_to: userId, designation_id: desigId });
+                }}
+              >
+                <option value="">Assign to</option>
+                {users.map(u => (
+                  <option key={u.id || u._id} value={u.id || u._id} className="bg-white text-gray-900">
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+              <div className="bg-slate-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-650 px-3 py-2 rounded-xl text-gray-500 dark:text-gray-400 text-xs font-bold flex items-center">
+                <span>
+                  {designations.find(d => String(d.id || d._id) === String(form.designation_id))?.name || "Designation"}
+                </span>
               </div>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-2">Briefing</label>
-            <textarea className="w-full bg-white border border-slate-200 p-5 rounded-2xl text-slate-900 text-sm h-40 resize-none outline-none focus:border-indigo-500/50" placeholder="Enter tactical requirements..." value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+          <div className="space-y-1">
+            <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">Briefing</label>
+            <textarea className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-slate-900 text-sm h-20 resize-none outline-none focus:border-indigo-500/50" placeholder="Enter task details..." value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
           </div>
 
-          <button disabled={isSubmitting} className="w-full py-6 bg-indigo-600 text-white hover:bg-indigo-700 hover:text-white rounded-2xl font-black uppercase text-[12px] tracking-[0.3em] transition-all flex items-center justify-center gap-3">
-{isSubmitting ? <Loader2
-  size={18}
-  className="animate-spin"
-/> : <ShieldCheck size={20} />}            Submit
+          <button disabled={isSubmitting} className="w-full py-3 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black uppercase text-[11px] tracking-[0.2em] transition-all flex items-center justify-center gap-2">
+            {isSubmitting ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} />}
+            Submit Task
           </button>
         </form>
       </motion.div>
@@ -469,8 +739,102 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
   );
 };
 
+// --- LIVE IN-APP DOCUMENT PREVIEW MODAL ---
+const DocPreviewModal = ({ file, onClose }) => {
+  if (!file) return null;
+  const rawUrl = typeof file === 'string' ? file : (file.url || file.file || file.image);
+  const fileName = typeof file === 'object' && file.name ? file.name : (rawUrl ? rawUrl.split(/[\\/]/).pop() : 'Document');
+  
+  const isImage = (typeof file === 'object' && file.fileType === 'image') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(rawUrl || '');
+  const isPdf = /\.(pdf)$/i.test(rawUrl || fileName);
+  
+  let targetUrl = rawUrl;
+  if (targetUrl && targetUrl.includes('res.cloudinary.com')) {
+    targetUrl = targetUrl.replace('/raw/upload/', '/image/upload/');
+  }
+
+  // Cloudinary PDF to Image rendering URL
+  const cloudinaryJpgUrl = (targetUrl && targetUrl.includes('res.cloudinary.com') && isPdf) 
+    ? targetUrl.replace(/\.pdf$/i, '.jpg') 
+    : null;
+
+  const [useJpgFallback, setUseJpgFallback] = useState(false);
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[6000] bg-slate-950/80 backdrop-blur-md flex flex-col justify-between p-3 md:p-6"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between bg-slate-900/90 text-white px-5 py-3 rounded-2xl border border-slate-800 shadow-2xl mb-3">
+        <div className="flex items-center gap-3 truncate">
+          <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-xl">
+            {isImage || isPdf ? <ImageIcon size={18} /> : <FileText size={18} />}
+          </div>
+          <div className="truncate">
+            <h3 className="text-sm font-bold text-slate-100 truncate max-w-md">{fileName}</h3>
+            <span className="text-[10px] text-indigo-400 font-semibold tracking-wider uppercase">
+              {isImage ? 'Image Preview' : (isPdf ? 'PDF Live View' : 'Document View')}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {isPdf && cloudinaryJpgUrl && (
+            <button
+              type="button"
+              onClick={() => setUseJpgFallback(prev => !prev)}
+              className="px-3 py-1.5 bg-indigo-600/30 border border-indigo-500/40 hover:bg-indigo-600 text-xs font-bold rounded-xl text-indigo-200 transition-colors cursor-pointer"
+            >
+              {useJpgFallback ? 'Switch to PDF View' : 'Render Page as Image'}
+            </button>
+          )}
+          <a 
+            href={targetUrl} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 text-slate-200 transition-colors"
+          >
+            <ExternalLink size={13} /> Open Raw Link
+          </a>
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-xl transition-colors cursor-pointer"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* Embedded Live Viewer Area */}
+      <div className="flex-1 w-full bg-slate-900 rounded-2xl overflow-hidden border border-slate-800 flex items-center justify-center relative shadow-inner">
+        {isImage || useJpgFallback ? (
+          <img src={useJpgFallback ? cloudinaryJpgUrl : targetUrl} className="max-w-full max-h-full object-contain p-4 rounded-xl" alt={fileName} />
+        ) : isPdf ? (
+          <object 
+            data={targetUrl} 
+            type="application/pdf" 
+            className="w-full h-full min-h-[75vh] rounded-2xl border-0 bg-white"
+          >
+            <iframe 
+              src={`https://docs.google.com/viewer?url=${encodeURIComponent(targetUrl)}&embedded=true`} 
+              className="w-full h-full min-h-[75vh] rounded-2xl border-0 bg-white" 
+              title={fileName}
+            />
+          </object>
+        ) : (
+          <iframe 
+            src={`https://docs.google.com/viewer?url=${encodeURIComponent(targetUrl)}&embedded=true`} 
+            className="w-full h-full min-h-[75vh] rounded-2xl border-0 bg-white" 
+            title={fileName}
+          />
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
 // --- DETAIL MODAL COMPONENT (CLEANED & INTEGRATED) ---
-const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, DESIGNATIONS, users, API_BASE }) => {
+const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, DESIGNATIONS, users, API_BASE, onPreviewFile }) => {
   const { showToast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
@@ -513,9 +877,9 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
 
       for (const val of candidates) {
         if (!val) continue;
-        const str = typeof val === 'object'
+        const str = (val && typeof val === 'object')
           ? (val._id || val.id || '').toString().trim()
-          : val.toString().trim();
+          : (val ? val.toString().trim() : '');
 
         if (str && str !== '[object Object]') {
           return str;
@@ -528,10 +892,28 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
     return currentUserId && creatorId && String(currentUserId).trim() === creatorId;
   }, [task, currentUserId]);
 
+  const [clientsList, setClientsList] = useState([]);
+  const [projectsList, setProjectsList] = useState([]);
+
+  useEffect(() => {
+    if (!API_BASE || !getAuthHeaders) return;
+    fetch(`${API_BASE}/v1/clients?limit=100`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(d => d?.success && setClientsList(d.data.clients || []))
+      .catch(() => {});
+
+    fetch(`${API_BASE}/v1/projects?limit=100`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(d => d?.success && setProjectsList(d.data.projects || []))
+      .catch(() => {});
+  }, [getAuthHeaders, API_BASE]);
+
   useEffect(() => { 
     if (task) { 
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      setEditForm({ ...task, status: task.status || "pending" }); 
+      const rawClient = (task.client && typeof task.client === 'object') ? (task.client._id || task.client.id) : (task.client || task.client_id || '');
+      const rawProject = (task.project && typeof task.project === 'object') ? (task.project._id || task.project.id) : (task.project || task.project_id || '');
+      setEditForm({ ...task, status: task.status || "pending", client: rawClient, project: rawProject }); 
       setIsEditing(false); 
       setNewFile(null);
     } 
@@ -548,6 +930,16 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
     fd.append('description', editForm.description || '');
     fd.append('assigned_to', editForm.assigned_to);
     fd.append('designation_id', editForm.designation_id);
+    if (editForm.priority) fd.append('priority', editForm.priority);
+
+    if (editForm.client) {
+      const cid = (editForm.client && typeof editForm.client === 'object') ? (editForm.client._id || editForm.client.id) : editForm.client;
+      if (cid) fd.append('client', cid);
+    }
+    if (editForm.project) {
+      const pid = (editForm.project && typeof editForm.project === 'object') ? (editForm.project._id || editForm.project.id) : editForm.project;
+      if (pid) fd.append('project', pid);
+    }
 
     if (newFile) fd.append('file', newFile);
     if (editForm.dueDate) fd.append('dueDate', editForm.dueDate);
@@ -626,108 +1018,236 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
   return (
     <motion.div 
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[5000] bg-slate-900/40 backdrop-blur-sm flex justify-center items-start overflow-y-auto pt-8 md:pt-16 p-4 no-scrollbar"
+      className="fixed inset-0 z-[5000] bg-slate-900/40 backdrop-blur-sm flex justify-center items-start pt-6 overflow-y-auto p-4"
     >
       <motion.div 
-        initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-6xl rounded-[3.5rem] overflow-hidden flex flex-col lg:flex-row shadow-2xl mb-10"
+        initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-4xl rounded-2xl overflow-hidden flex flex-col lg:flex-row shadow-2xl"
       >
-        <div className="w-full lg:w-5/12 bg-slate-50 dark:bg-slate-950/40 p-10 flex flex-col items-center justify-center relative border-r border-slate-100 dark:border-slate-800">
-          <div className="absolute top-8 left-10 flex items-center gap-3">
-            <div className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
-            <span className="text-[9px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.4em]">Tactical Asset</span>
+        <div className="w-full lg:w-3/12 bg-slate-50 dark:bg-slate-950/40 p-4 flex flex-col items-center justify-start gap-3 relative border-r border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-1.5 self-start">
+            <div className="h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse" />
+            <span className="text-[8px] font-black text-indigo-500 dark:text-indigo-400 uppercase tracking-[0.3em]">Task</span>
           </div>
 
-          <div 
-            className="group relative cursor-zoom-in w-full transition-transform duration-500 hover:scale-[1.02]" 
-            onClick={() => window.open(getTaskImageUrl(task.image || task.file), '_blank')}
-          >
-            <img 
-              src={getTaskImageUrl(task.image || task.file) || 'https://placehold.co/600x800/111218/4f46e5?text=DATA+MISSING'} 
-              className="w-full rounded-3xl object-cover shadow-2xl border border-slate-100 dark:border-slate-850" 
-              alt="Task Asset" 
-            />
+          {/* Attachments & Links Gallery in Detail Modal */}
+          <div className="w-full space-y-2">
+            {task.attachments && task.attachments.length > 0 ? (
+              <div className="space-y-1.5 w-full">
+                {task.attachments.map((att, idx) => {
+                  const fileUrl = getTaskImageUrl(att);
+                  const isImg = att?.fileType === 'image' || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(fileUrl || att?.name || '');
+                  return (
+                    <div key={idx} className="group relative w-full">
+                      <a 
+                        href={fileUrl} 
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-indigo-600 hover:border-indigo-500/50 transition shadow-xs cursor-pointer group w-full text-left"
+                      >
+                        {isImg ? (
+                          <ImageIcon size={14} className="text-indigo-500 shrink-0 group-hover:scale-110 transition-transform" />
+                        ) : (
+                          <FileText size={14} className="text-indigo-500 shrink-0 group-hover:scale-110 transition-transform" />
+                        )}
+                        <span className="truncate flex-1 font-bold text-[11px]">{att.name || (isImg ? 'View Image' : 'View Document')}</span>
+                        <ExternalLink size={11} className="text-slate-400 group-hover:text-indigo-500 shrink-0" />
+                      </a>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              (task.image || task.file) && (
+                <a 
+                  href={getTaskImageUrl(task.image || task.file)} 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-indigo-600 hover:border-indigo-500/50 transition shadow-xs cursor-pointer group w-full text-left"
+                >
+                  <ImageIcon size={14} className="text-indigo-500 shrink-0 group-hover:scale-110 transition-transform" />
+                  <span className="truncate flex-1 font-bold text-[11px]">View Attachment</span>
+                  <ExternalLink size={11} className="text-slate-400 group-hover:text-indigo-500 shrink-0" />
+                </a>
+              )
+            )}
+
+            {/* Links List */}
+            {task.links && task.links.length > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800 w-full">
+                <span className="text-[9px] font-black text-indigo-500 uppercase tracking-wider block">Attached Links</span>
+                {task.links.map((link, idx) => (
+                  <a
+                    key={idx}
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 rounded-xl border border-indigo-200 dark:border-indigo-800/60 text-xs font-bold hover:underline truncate w-full"
+                  >
+                    <ExternalLink size={12} className="shrink-0 text-indigo-500" />
+                    <span className="truncate flex-1">{link.title || link.url}</span>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
 
           {isEditing && (
-            <label className="mt-6 w-full py-4 border-2 border-dashed border-indigo-500/20 rounded-2xl flex items-center justify-center gap-3 cursor-pointer hover:bg-indigo-500/5 transition-all">
-              <input type="file" className="hidden" onChange={(e) => setNewFile(e.target.files[0])} />
-              <Camera size={18} className="text-indigo-500" />
-              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[200px]">
-                {newFile ? newFile.name : 'Update File'}
+            <label className="w-full py-2 border border-dashed border-indigo-500/30 rounded-lg flex items-center justify-center gap-2 cursor-pointer hover:bg-indigo-500/5 transition-all">
+              <input type="file" multiple className="hidden" onChange={(e) => setNewFile(e.target.files[0])} />
+              <Camera size={13} className="text-indigo-500" />
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[120px]">
+                {newFile ? newFile.name : 'Add / Replace File'}
               </span>
             </label>
           )}
         </div>
 
-        <div className="w-full lg:w-7/12 p-10 lg:p-16 relative flex flex-col justify-between bg-white dark:bg-slate-900">
-          <button onClick={onClose} className="absolute top-10 right-10 p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-all">
-            <X />
+        <div className="w-full lg:w-9/12 p-5 relative flex flex-col justify-between bg-white dark:bg-slate-900">
+          <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-all">
+            <X size={16} />
           </button>
 
           <div>
-            {/* STATUS DISPLAY */}
-            <div className="mb-8">
+            {/* STATUS & PRIORITY */}
+            <div className="mb-3">
               {isEditing ? (
-                <div className="relative">
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    className="w-full appearance-none bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 pr-12 rounded-2xl text-slate-900 dark:text-slate-100 text-[11px] font-black uppercase tracking-[0.2em] outline-none focus:border-indigo-500/50 transition-all cursor-pointer hover:border-indigo-500/30 shadow-sm"
-                  >
-                    <option value="pending" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">PENDING</option>
-                    <option value="current" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">CURRENT</option>
-                    <option value="preview" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">PREVIEW</option>
-                    <option value="done" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">COMPLETED</option>
-                  </select>
-                  <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-indigo-400/60">
-                    <Layout size={16} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[9px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-1 block ml-1">Status</label>
+                    <select
+                      value={editForm.status}
+                      onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                      className="w-full appearance-none bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-slate-900 dark:text-slate-100 text-xs font-black uppercase tracking-[0.15em] outline-none focus:border-indigo-500/50 cursor-pointer"
+                    >
+                      <option value="pending">PENDING</option>
+                      <option value="current">CURRENT</option>
+                      <option value="preview">PREVIEW</option>
+                      <option value="done">COMPLETED</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-1 block ml-1">Priority</label>
+                    <select
+                      value={editForm.priority || 'medium'}
+                      onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
+                      className="w-full appearance-none bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-slate-900 dark:text-slate-100 text-xs font-black uppercase tracking-[0.15em] outline-none focus:border-indigo-500/50 cursor-pointer"
+                    >
+                      <option value="high">🔴 HIGH PRIORITY</option>
+                      <option value="medium">🔷 MEDIUM PRIORITY</option>
+                      <option value="low">🟡 LOW PRIORITY</option>
+                    </select>
                   </div>
                 </div>
               ) : (
-                <div className={`inline-flex items-center gap-3 px-6 py-3 rounded-full border ${statusConfig[task.status]?.activeClass || 'bg-slate-500/10 border-slate-500/20 text-slate-600'}`}>
-                  <div className={`w-2 h-2 rounded-full animate-pulse ${statusConfig[task.status]?.dot || 'bg-slate-500'}`} />
-                  <span className="font-black uppercase text-[11px] tracking-widest">
-                    {statusConfig[task.status]?.label || task.status}
-                  </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${statusConfig[task.status]?.activeClass || 'bg-slate-500/10 border-slate-500/20 text-slate-600'}`}>
+                    <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${statusConfig[task.status]?.dot || 'bg-slate-500'}`} />
+                    <span className="font-black uppercase text-[10px] tracking-widest">
+                      {statusConfig[task.status]?.label || task.status}
+                    </span>
+                  </div>
+
+                  {(() => {
+                    const prioKey = String(task.priority || 'medium').toLowerCase();
+                    const meta = PRIORITY_META[prioKey] || PRIORITY_META.medium;
+                    return (
+                      <div style={meta.style} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${meta.color}`}>
+                        <div style={meta.dotStyle} className={`w-1.5 h-1.5 rounded-full animate-pulse ${meta.dot}`} />
+                        <span className="font-black uppercase text-[10px] tracking-widest">
+                          {meta.label}
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
 
             {isEditing ? (
-              <div className="space-y-6">
+              <div className="space-y-3">
                 <div>
-                  <label className="text-[9px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-2 block ml-2">Header</label>
+                  <label className="text-[9px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-1 block ml-1">Title</label>
                   <input 
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 p-6 rounded-3xl text-slate-900 dark:text-slate-105 text-2xl font-bold outline-none focus:border-indigo-500/50" 
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-slate-900 dark:text-slate-100 text-base font-bold outline-none focus:border-indigo-500/50" 
                     value={editForm.title} 
                     onChange={e => setEditForm({...editForm, title: e.target.value})} 
                   />
                 </div>
                 <div>
-                  <label className="text-[9px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-2 block ml-2">Objective Brief</label>
+                  <label className="text-[9px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-1 block ml-1">Description</label>
                   <textarea 
-                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-855 p-6 rounded-3xl text-slate-900 dark:text-slate-110 text-sm h-48 outline-none focus:border-indigo-500/50 resize-none leading-relaxed" 
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-slate-900 dark:text-slate-100 text-sm h-24 outline-none focus:border-indigo-500/50 resize-none leading-relaxed" 
                     value={editForm.description} 
                     onChange={e => setEditForm({...editForm, description: e.target.value})} 
                   />
                 </div>
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[9px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-1 block ml-1">Client</label>
+                    <select
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-slate-900 dark:text-slate-100 text-xs font-bold outline-none cursor-pointer"
+                      value={(editForm.client && typeof editForm.client === 'object') ? (editForm.client._id || editForm.client.id) : (editForm.client || '')}
+                      onChange={e => setEditForm({ ...editForm, client: e.target.value })}
+                    >
+                      <option value="">Select Client (Optional)</option>
+                      {clientsList.map(c => (
+                        <option key={c._id || c.id} value={c._id || c.id}>
+                          {c.companyName} ({c.clientId})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[9px] text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest mb-1 block ml-1">Project</label>
+                    <select
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-slate-900 dark:text-slate-100 text-xs font-bold outline-none cursor-pointer"
+                      value={(editForm.project && typeof editForm.project === 'object') ? (editForm.project._id || editForm.project.id) : (editForm.project || '')}
+                      onChange={e => setEditForm({ ...editForm, project: e.target.value })}
+                    >
+                      <option value="">Select Active Project (Optional)</option>
+                      {projectsList.map(p => (
+                        <option key={p._id || p.id} value={p._id || p.id}>
+                          {p.projectName} ({p.projectCode})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="space-y-8">
-                <h2 className="text-5xl md:text-7xl font-black text-slate-900 dark:text-slate-100 italic tracking-tighter uppercase leading-[0.85]">
+              <div className="space-y-3">
+                <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight leading-tight">
                   {task.title}
                 </h2>
-                <div className="p-8 bg-slate-50 dark:bg-slate-950/40 border-y border-r border-slate-100 dark:border-slate-800 border-l-2 border-l-indigo-500 rounded-r-[2rem]">
-                  <p className="text-slate-605 dark:text-slate-300 text-xl leading-relaxed font-medium italic opacity-80">
-                    {task.description || 'No briefing recorded for this asset.'}
+                
+                {/* CLIENT & PROJECT BADGES */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-slate-700">
+                    <Building className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>
+                      Client: {typeof task.client === 'object' && task.client ? (task.client?.companyName || task.client?.clientName) : (clientsList.find(c => String(c._id || c.id) === String(task.client || task.client_id))?.companyName || (task.client || 'General Client'))}
+                    </span>
+                  </div>
+
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold border border-indigo-200 dark:border-indigo-800/60">
+                    <FolderKanban className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>
+                      Project: {typeof task.project === 'object' && task.project ? (task.project?.projectName || task.project?.projectCode) : (projectsList.find(p => String(p._id || p.id) === String(task.project || task.project_id))?.projectName || (task.project || 'Standalone Task'))}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 dark:bg-slate-950/40 border-y border-r border-slate-100 dark:border-slate-800 border-l-2 border-l-indigo-500 rounded-r-xl">
+                  <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed font-medium">
+                    {task.description || 'No briefing recorded.'}
                   </p>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 py-8 border-y border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 rounded-2xl px-6 mt-8">
+          <div className="grid grid-cols-3 gap-3 py-3 border-y border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 rounded-xl px-3 mt-3">
             <div>
               <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.3em] block mb-2">Staff</span>
               {isEditing ? (
@@ -742,7 +1262,7 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
                       let desigId = '';
                       if (user) {
                         if (user.designationId) {
-                          desigId = typeof user.designationId === 'object'
+                          desigId = (user.designationId && typeof user.designationId === 'object')
                             ? (user.designationId._id || user.designationId.id || '')
                             : String(user.designationId);
                         } else if (user.designation) {
@@ -767,7 +1287,7 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
                   </div>
                   <span className="text-slate-900 dark:text-slate-100 font-bold tracking-tight uppercase text-sm">
                     {
-                      typeof task.assigned_to === "object"
+                      (task.assigned_to && typeof task.assigned_to === "object")
                         ? task.assigned_to?.name
                         : users?.find(
                             u => String(u.id || u._id) === String(task.assigned_to)
@@ -801,6 +1321,7 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
               {isEditing ? (
                 <input 
                   type="date"
+                  min={new Date().toISOString().split('T')[0]}
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-gray-500 dark:text-gray-400 text-[11px] font-bold outline-none"
                   value={editForm.dueDate ? new Date(editForm.dueDate).toISOString().split('T')[0] : ''}
                   onChange={e => setEditForm({...editForm, dueDate: e.target.value})} 
@@ -818,23 +1339,43 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
             </div>
           </div>
 
-          <div className="mt-12 flex gap-4">
+          <div className="mt-4 flex items-center justify-end gap-2.5">
             {canModify ? (
               <>
-                <button 
-                  onClick={handleDelete}
-                  disabled={isSaving || isDeleting}
-                  className="px-6 bg-red-500/10 border border-red-500/20 text-red-500 rounded-2xl hover:bg-red-500 hover:text-white transition-all active:scale-95 disabled:opacity-50"
-                >
-                  {isDeleting ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
-                </button>
+                {isDeleteConfirmOpen ? (
+                  <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50 px-3 py-1.5 rounded-xl animate-in slide-in-from-left-2 fade-in duration-200">
+                    <span className="text-xs font-bold text-red-600 dark:text-red-400">Delete task?</span>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => setIsDeleteConfirmOpen(false)}
+                        className="px-2.5 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={handleConfirmDelete}
+                        className="px-2.5 py-1 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg shadow-md shadow-red-500/20 transition-colors"
+                      >
+                        Yes
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={handleDelete}
+                    disabled={isSaving || isDeleting}
+                    className="px-3 py-2 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center cursor-pointer"
+                  >
+                    {isDeleting ? <Loader2 className="animate-spin" size={13} /> : <Trash2 size={13} />}
+                  </button>
+                )}
                 <button 
                   onClick={isEditing ? handleUpdate : () => setIsEditing(true)} 
                   disabled={isSaving || isDeleting}
-                  className="flex-1 py-6 bg-indigo-600 text-white font-black uppercase text-[11px] tracking-[0.2em] rounded-2xl flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all active:scale-95 shadow-lg disabled:opacity-50"
+                  className="px-4 py-2 bg-indigo-600 text-white font-extrabold uppercase text-[10px] tracking-[0.15em] rounded-xl flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all active:scale-95 shadow-sm disabled:opacity-50 cursor-pointer"
                 >
-                  {isSaving ? <Loader2 className="animate-spin" /> : isEditing ? <Save size={18} /> : <Edit3 size={18} />}
-                  {isEditing ? (isSaving ? "Saving..." : "Synchronize Changes") : "Modify Assignment"}
+                  {isSaving ? <Loader2 className="animate-spin" size={13} /> : isEditing ? <Save size={13} /> : <Edit3 size={13} />}
+                  {isEditing ? (isSaving ? "Saving..." : "Save Changes") : "Edit Task"}
                 </button>
               </>
             ) : (
@@ -853,16 +1394,6 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
           </div>
         </div>
 
-        <ConfirmModal
-          isOpen={isDeleteConfirmOpen}
-          onClose={() => setIsDeleteConfirmOpen(false)}
-          onConfirm={handleConfirmDelete}
-          title="Purge Asset"
-          message="Are you sure you want to permanently delete this task asset? This action cannot be undone."
-          confirmText="Yes, Purge"
-          cancelText="Cancel"
-          type="danger"
-        />
       </motion.div>
     </motion.div>
   );

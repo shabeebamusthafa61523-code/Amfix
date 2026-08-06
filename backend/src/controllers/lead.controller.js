@@ -220,59 +220,69 @@ export const leadController = {
    * Atomic ACID Transaction handling
    */
   createLead: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       let createdLead;
       const createdById = req.user?.id || req.user?._id;
+      const {
+        leadName, companyName, email, phone, city, source,
+        interestedService, campaignName, leadPlatform, assignedTo, status, priority, remarks, nextFollowUpDate,
+        clientMeetingFixed, admissionYesNo, leadsReceivedDate,
+        followUpDate1, followUpDate2, followUpDate3, followUpDate4, followUpDate5
+      } = req.body;
 
-      await session.withTransaction(async () => {
-        const {
-          leadName, companyName, email, phone, city, source,
-          interestedService, campaignName, leadPlatform, assignedTo, status, priority, remarks, nextFollowUpDate,
-          clientMeetingFixed, admissionYesNo, leadsReceivedDate,
-          followUpDate1, followUpDate2, followUpDate3, followUpDate4, followUpDate5
-        } = req.body;
+      if (!leadName || !phone) {
+        return res.status(400).json({ success: false, message: 'Lead Name and Phone Number are required.' });
+      }
 
-        if (!leadName || !phone) {
-          throw new Error('VALIDATION_ERROR: Lead Name and Phone Number are required.');
-        }
+      const leadPayload = {
+        leadName, companyName, email, phone, city, source, interestedService, campaignName, leadPlatform,
+        assignedTo: mongoose.Types.ObjectId.isValid(assignedTo) ? assignedTo : null,
+        status: status || 'New',
+        priority: priority || 'Medium',
+        clientMeetingFixed: clientMeetingFixed || '',
+        admissionYesNo: admissionYesNo || '',
+        remarks,
+        nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
+        leadsReceivedDate: leadsReceivedDate ? new Date(leadsReceivedDate) : null,
+        followUpDate1: followUpDate1 ? new Date(followUpDate1) : null,
+        followUpDate2: followUpDate2 ? new Date(followUpDate2) : null,
+        followUpDate3: followUpDate3 ? new Date(followUpDate3) : null,
+        followUpDate4: followUpDate4 ? new Date(followUpDate4) : null,
+        followUpDate5: followUpDate5 ? new Date(followUpDate5) : null,
+        createdBy: createdById
+      };
 
-        const leadPayload = {
-          leadName, companyName, email, phone, city, source, interestedService, campaignName, leadPlatform,
-          assignedTo: mongoose.Types.ObjectId.isValid(assignedTo) ? assignedTo : null,
-          status: status || 'New',
-          priority: priority || 'Medium',
-          clientMeetingFixed: clientMeetingFixed || '',
-          admissionYesNo: admissionYesNo || '',
-          remarks,
-          nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
-          leadsReceivedDate: leadsReceivedDate ? new Date(leadsReceivedDate) : null,
-          followUpDate1: followUpDate1 ? new Date(followUpDate1) : null,
-          followUpDate2: followUpDate2 ? new Date(followUpDate2) : null,
-          followUpDate3: followUpDate3 ? new Date(followUpDate3) : null,
-          followUpDate4: followUpDate4 ? new Date(followUpDate4) : null,
-          followUpDate5: followUpDate5 ? new Date(followUpDate5) : null,
-          createdBy: createdById
-        };
+      if (leadPayload.status === 'Converted') {
+        leadPayload.convertedAt = new Date();
+      }
 
-        if (leadPayload.status === 'Converted') {
-          leadPayload.convertedAt = new Date();
-        }
-
-        const [newLead] = await Lead.create([leadPayload], { session });
-        createdLead = newLead;
-
+      try {
+        const session = await mongoose.startSession();
+        await session.withTransaction(async () => {
+          const [newLead] = await Lead.create([leadPayload], { session });
+          createdLead = newLead;
+          const initialFollowup = new LeadFollowup({
+            leadId: newLead._id,
+            remarks: remarks || 'Lead created in CRM.',
+            statusChangedTo: newLead.status,
+            nextFollowUpDate: newLead.nextFollowUpDate,
+            createdBy: createdById
+          });
+          await initialFollowup.save({ session });
+        });
+        await session.endSession();
+      } catch (txErr) {
+        // Fallback for standalone MongoDB deployments where transactions are not supported
+        createdLead = await Lead.create(leadPayload);
         const initialFollowup = new LeadFollowup({
-          leadId: newLead._id,
+          leadId: createdLead._id,
           remarks: remarks || 'Lead created in CRM.',
-          statusChangedTo: newLead.status,
-          nextFollowUpDate: newLead.nextFollowUpDate,
+          statusChangedTo: createdLead.status,
+          nextFollowUpDate: createdLead.nextFollowUpDate,
           createdBy: createdById
         });
-        await initialFollowup.save({ session });
-      });
-
-      await session.endSession();
+        await initialFollowup.save();
+      }
 
       // Post transactions (async)
       await clearAnalyticsCache();
@@ -284,12 +294,10 @@ export const leadController = {
         data: createdLead
       });
     } catch (error) {
-      await session.endSession();
       console.error('Error creating lead:', error);
-      const isValidationError = error.message.startsWith('VALIDATION_ERROR:');
-      return res.status(isValidationError ? 400 : 500).json({
+      return res.status(500).json({
         success: false,
-        message: isValidationError ? error.message.split(': ')[1] : 'Failed to create lead',
+        message: 'Failed to create lead',
         error: error.message
       });
     }

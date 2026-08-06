@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Activity, UserCheck, UserMinus, BarChart3,
-  TrendingUp, Clock, CheckCircle2, AlertCircle, Layout, RefreshCw, Eye, PieChart
+  TrendingUp, Clock, CheckCircle2, AlertCircle, Layout, RefreshCw, Eye, PieChart,
+  Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -212,7 +213,7 @@ export default function HrDashboard() {
       { label: 'Pending', value: counts.pending, color: '#94a3b8', bgClass: 'bg-slate-400' },     // Slate 400
       { label: 'Current', value: counts.current, color: '#3b82f6', bgClass: 'bg-blue-500' },      // Blue 500
       { label: 'Preview', value: counts.preview, color: '#f59e0b', bgClass: 'bg-amber-500' },     // Amber 500
-      { label: 'Done', value: counts.done, color: '#10b981', bgClass: 'bg-emerald-500' }          // Emerald 500
+      { label: 'Done', value: counts.done, color: '#b7d333', bgClass: 'bg-emerald-500' }          // Emerald 500
     ];
   }, [tasks]);
 
@@ -358,7 +359,10 @@ export default function HrDashboard() {
             
             <div className="space-y-5">
               {loading ? (
-                <div className="flex items-center justify-center h-48 text-slate-400 text-sm">Loading metrics...</div>
+                <div className="flex flex-col items-center justify-center h-48 gap-2 text-slate-400 text-sm">
+                  <Loader2 size={24} className="animate-spin text-indigo-500" />
+                  <span>Loading metrics...</span>
+                </div>
               ) : performanceStats.length === 0 ? (
                 <div className="flex items-center justify-center h-48 text-slate-400 text-sm">No task data available</div>
               ) : (
@@ -418,7 +422,10 @@ export default function HrDashboard() {
               </h2>
               
               {loading ? (
-                 <div className="text-center text-slate-400 py-12 text-sm">Loading...</div>
+                <div className="flex flex-col items-center justify-center py-12 gap-2 text-slate-400 text-sm">
+                  <Loader2 size={24} className="animate-spin text-indigo-500" />
+                  <span>Loading...</span>
+                </div>
               ) : (
                 <div className="flex flex-col items-center justify-center mt-2">
                   <DoughnutChart data={companyWorkloadData} />
@@ -452,7 +459,10 @@ export default function HrDashboard() {
               </h2>
               <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
                 {loading ? (
-                  <div className="text-center text-slate-400 py-4 text-sm">Loading...</div>
+                  <div className="flex flex-col items-center justify-center py-4 gap-2 text-slate-400 text-sm">
+                    <Loader2 size={16} className="animate-spin text-indigo-500" />
+                    <span>Loading...</span>
+                  </div>
                 ) : userStats.online.length === 0 ? (
                   <div className="text-center text-slate-400 py-4 text-sm">No one checked in yet</div>
                 ) : (
@@ -492,7 +502,10 @@ export default function HrDashboard() {
               </h2>
               <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
                 {loading ? (
-                  <div className="text-center text-slate-400 py-4 text-sm">Loading...</div>
+                  <div className="flex flex-col items-center justify-center py-4 gap-2 text-slate-400 text-sm">
+                    <Loader2 size={16} className="animate-spin text-indigo-500" />
+                    <span>Loading...</span>
+                  </div>
                 ) : userStats.offline.length === 0 ? (
                   <div className="text-center text-slate-400 py-4 text-sm">Everyone is checked in!</div>
                 ) : (
@@ -583,19 +596,19 @@ export default function HrDashboard() {
                     { label: 'Pending', value: counts.pending, color: '#94a3b8' },
                     { label: 'Current', value: counts.current, color: '#3b82f6' },
                     { label: 'Preview', value: counts.preview, color: '#f59e0b' },
-                    { label: 'Done', value: counts.done, color: '#10b981' }
+                    { label: 'Done', value: counts.done, color: '#b7d333' }
                   ];
 
                   return (
                     <div className="space-y-8">
                       {/* Attendance Card */}
                       {todayRecord ? (
-                        <div className="p-5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 grid grid-cols-3 gap-4">
+                        <div className="p-5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 grid grid-cols-1 sm:grid-cols-3 gap-4">
                           <div className="space-y-1">
                             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Checked In</span>
                             <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{formatTime(todayRecord.check_in_time)}</span>
                           </div>
-                          <div className="space-y-1 border-x border-slate-200/50 dark:border-slate-800/50 px-4">
+                          <div className="space-y-1 sm:border-x border-slate-200/50 dark:border-slate-800/50 sm:px-4 max-sm:border-y max-sm:py-3 px-0">
                             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Checked Out</span>
                             <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
                               {todayRecord.check_out_time ? formatTime(todayRecord.check_out_time) : (
@@ -605,7 +618,7 @@ export default function HrDashboard() {
                               )}
                             </span>
                           </div>
-                          <div className="space-y-1 pl-2">
+                          <div className="space-y-1 sm:pl-2">
                             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Work Hours</span>
                             <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{getWorkHours(todayRecord)}</span>
                           </div>

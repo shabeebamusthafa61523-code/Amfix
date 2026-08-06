@@ -193,7 +193,7 @@ export const DepartmentUsersDrawer = ({ isOpen, onClose, department }) => {
                   ))}
                 </select>
                 
-                <button
+                {/* <button
                   type="button"
                   disabled={!selectedUserToAdd || addingUser}
                   onClick={handleAddUser}
@@ -205,7 +205,7 @@ export const DepartmentUsersDrawer = ({ isOpen, onClose, department }) => {
                     <Plus size={14} />
                   )}
                   <span>Add</span>
-                </button>
+                </button> */}
               </div>
             </div>
 

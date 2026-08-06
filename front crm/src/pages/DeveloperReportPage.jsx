@@ -3,27 +3,24 @@ import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X, Maximize2
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
+import SignatureUpload from '../components/SignatureUpload';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
 // Default items for Daily Task Summary (matching the mockup)
 const DEFAULT_TASK_SUMMARY = [
-  { activity: 'Website Development', status: 'Done', dueDate: '', remarks: '' },
-  { activity: 'CRM Software Planning', status: 'Done', dueDate: '', remarks: '' },
-  { activity: 'Testing/Bug Fixing', status: 'NA', dueDate: '', remarks: '' },
-  { activity: 'UI/UX Improvements', status: 'NA', dueDate: '', remarks: '' },
-  { activity: 'Client Revision Work', status: 'NA', dueDate: '', remarks: '' }
+  { activity: '', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' }
 ];
 
 // Default items for Development Task Report
 const DEFAULT_DEV_REPORT = [
-  { project: 'CRM', activity: '-Updated Dashboard\n-Debugging\n-Deployed', status: 'ongoing', remark: '' }
+  { project: '', activity: '', status: '', remark: '' }
 ];
 
 const getMostFrequentValue = (countsObj, fallback) => {
@@ -240,7 +237,7 @@ const consolidateDeveloperReports = (reports) => {
 const DeveloperReportPage = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
@@ -283,6 +280,7 @@ const DeveloperReportPage = () => {
   });
   
   const [dailyTaskSummary, setDailyTaskSummary] = useState(DEFAULT_TASK_SUMMARY);
+  const [selectedActivityText, setSelectedActivityText] = useState(null);
   const [developmentTaskReport, setDevelopmentTaskReport] = useState(DEFAULT_DEV_REPORT);
   const [researchLearning, setResearchLearning] = useState([{ activity: '', details: '' }]);
   const [performanceTracker, setPerformanceTracker] = useState({
@@ -487,7 +485,7 @@ const DeveloperReportPage = () => {
           ...apiBasicDetails,
           employeeName: userDetail.name || apiBasicDetails.employeeName || '',
           employeeId: userDetail.employeeId || apiBasicDetails.employeeId || '',
-          designation: userDetail.designation || apiBasicDetails.designation || '',
+          designation: userDetail.designationName || userDetail.designation || apiBasicDetails.designation || '',
           reportingTo: userDetail.reportingManager || apiBasicDetails.reportingTo || '',
           department: userDetail.department || apiBasicDetails.department || ''
         });
@@ -516,14 +514,20 @@ const DeveloperReportPage = () => {
                     ...updatedLog[matchIndex],
                     activity: t.title,
                     dueDate: t.dueDate || '',
-                    status: t.status || 'Done'
+                    startDate: t.startDate || t.startTime || updatedLog[matchIndex].startDate || '',
+                    endDate: t.endDate || t.endTime || updatedLog[matchIndex].endDate || '',
+                    status: t.status || 'Pending',
+                    remarks: t.description || updatedLog[matchIndex].remarks || ''
                   };
                 } else {
                   // Append new task
                   addedTasks.push({
                     activity: t.title,
-                    status: t.status || 'Done',
-                    dueDate: t.dueDate || '', remarks: 'Auto-fetched'
+                    status: t.status || 'Pending',
+                    dueDate: t.dueDate || '',
+                    startDate: t.startDate || t.startTime || '',
+                    endDate: t.endDate || t.endTime || '',
+                    remarks: t.description || ''
                   });
                 }
               });
@@ -556,12 +560,15 @@ const DeveloperReportPage = () => {
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status || 'Done', dueDate: t.dueDate || '', remarks: 'Auto-fetched' }));
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
+            const mappedTasks = completedTasks.map(t => ({
+              activity: t.title,
+              status: t.status || 'Pending',
+              dueDate: t.dueDate || '',
+              startDate: t.startDate || t.startTime || '',
+              endDate: t.endDate || t.endTime || '',
+              remarks: t.description || ''
+            }));
             setDailyTaskSummary(mappedTasks);
-          } else {
-            setDailyTaskSummary(prev => [...prev, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
@@ -575,12 +582,15 @@ const DeveloperReportPage = () => {
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status || 'Done', dueDate: t.dueDate || '', remarks: 'Auto-fetched' }));
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
+            const mappedTasks = completedTasks.map(t => ({
+              activity: t.title,
+              status: t.status || 'Pending',
+              dueDate: t.dueDate || '',
+              startDate: t.startDate || t.startTime || '',
+              endDate: t.endDate || t.endTime || '',
+              remarks: t.description || ''
+            }));
             setDailyTaskSummary(mappedTasks);
-          } else {
-            setDailyTaskSummary(prev => [...prev, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
@@ -646,7 +656,7 @@ const DeveloperReportPage = () => {
       employeeName: userDetail.name || parsedCached?.employeeName || '',
       employeeId: userDetail.employeeId || parsedCached?.employeeId || '',
       department: parsedCached?.department || 'R&D/ Development',
-      designation: userDetail.designation || parsedCached?.designation || 'Developer',
+      designation: userDetail.designationName || userDetail.designation || parsedCached?.designation || 'Developer',
       shiftTiming: parsedCached?.shiftTiming || '9:00 AM - 5:00 PM',
       reportingTo: userDetail.reportingManager || parsedCached?.reportingTo || 'HOD - R&D / Developer',
       preparedTime: parsedCached?.preparedTime || timeStr
@@ -876,9 +886,12 @@ const DeveloperReportPage = () => {
       // 2. DAILY TASK SUMMARY
       drawSectionHeader("2. DAILY TASK SUMMARY");
       
-      const summaryHeaders = [["Activity", "Status", "Remarks"]];
+      const summaryHeaders = [["Activity", "Due Date", "Start Time", "End Time", "Status", "Remarks"]];
       const summaryRows = mTaskSummary.map(t => [
         t.activity || '',
+        t.dueDate || '',
+        t.startDate || '',
+        t.endDate || '',
         t.status || '',
         t.remarks || ''
       ]);
@@ -891,9 +904,12 @@ const DeveloperReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 70 },
-          1: { width: 35, halign: 'center' },
-          2: { width: 77 }
+          0: { width: 45 },
+          1: { width: 20 },
+          2: { width: 20 },
+          3: { width: 20 },
+          4: { width: 20, halign: 'center' },
+          5: { width: 57 }
         },
         margin: { left: 14, right: 14 }
       });
@@ -1013,7 +1029,7 @@ const DeveloperReportPage = () => {
       currentY += planBoxHeight + 4;
 
       // 9. INTERN / STUDENT REMARKS
-      drawSectionHeader("9. INTERN / STUDENT REMARKS");
+      drawSectionHeader("9. REMARKS");
       const remarksLines = doc.splitTextToSize(mRemarks || '', 178);
       doc.text(remarksLines, 16, currentY + 5);
       const remarksBoxHeight = Math.max(12, remarksLines.length * 4.2 + 5);
@@ -1025,7 +1041,7 @@ const DeveloperReportPage = () => {
       const approvalHeaders = [["Name", "Signature", "Date"]];
       const approvalRows = [
         [
-          `Intern / Student: ${mApproval.internName || ''}`,
+          `Developer: ${mApproval.internName || ''}`,
           mApproval.internSignature || '',
           mApproval.internDate || ''
         ],
@@ -1044,9 +1060,26 @@ const DeveloperReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 8, cellPadding: 3, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 75, fontStyle: 'bold' },
-          1: { width: 55 },
-          2: { width: 52 }
+          0: { cellWidth: 80 },
+          1: { cellWidth: 62 },
+          2: { cellWidth: 40 }
+        },
+        didDrawCell: (data) => {
+          if (data.column.index === 1 && data.cell.section === 'body') {
+            const signatureVal = data.cell.raw;
+            if (signatureVal && String(signatureVal).startsWith('data:image/')) {
+              data.cell.text = '';
+              const x = data.cell.x + 2;
+              const y = data.cell.y + 2;
+              const w = data.cell.width - 4;
+              const h = data.cell.height - 4;
+              try {
+                doc.addImage(signatureVal, 'PNG', x, y, w, h);
+              } catch (e) {
+                console.error("Failed to add signature image to monthly PDF:", e);
+              }
+            }
+          }
         },
         margin: { left: 14, right: 14 }
       });
@@ -1128,7 +1161,7 @@ const DeveloperReportPage = () => {
 
   // Helper row handlers for dynamic tables
   const addSummaryRow = () => {
-    setDailyTaskSummary([...dailyTaskSummary, { activity: '', status: 'Done', dueDate: '', remarks: '' }]);
+    setDailyTaskSummary([...dailyTaskSummary, { activity: '', status: 'Pending', dueDate: '', startDate: '', endDate: '', remarks: '' }]);
   };
   
   const removeSummaryRow = (index) => {
@@ -1247,7 +1280,7 @@ const DeveloperReportPage = () => {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-start sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setIsMonthlyModalOpen(true)}
@@ -1257,18 +1290,11 @@ const DeveloperReportPage = () => {
                   Monthly Report
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleDownloadPDF}
-                  className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
-                >
-                  <Download size={16} />
-                  Download PDF
-                </button>
+                
 
                 <button
                   type="button"
-                  onClick={handleSaveReport}
+                  onClick={handleDownloadPDF}
                   disabled={saving}
                   className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
                 >
@@ -1277,7 +1303,7 @@ const DeveloperReportPage = () => {
                   ) : (
                     <Save size={16} />
                   )}
-                  Save Report
+                  Save File
                 </button>
               </div>
             </div>
@@ -1420,8 +1446,10 @@ const DeveloperReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3">Activity</th>
+                      <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
                       <th className="px-4 py-3">Due Date</th>
+                      <th className="px-4 py-3">Start Date</th>
+                      <th className="px-4 py-3">End Date</th>
                       <th className="px-4 py-3 w-40">Status</th>
                       <th className="px-4 py-3">Remarks</th>
                       <th className="px-4 py-3 w-12 text-center">Action</th>
@@ -1430,18 +1458,30 @@ const DeveloperReportPage = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
                     {dailyTaskSummary.map((row, i) => (
                       <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/10">
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.activity}
-                            onChange={(e) => {
-                              const newArr = [...dailyTaskSummary];
-                              newArr[i].activity = e.target.value;
-                              setDailyTaskSummary(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none focus:ring-0 focus:border-none p-0 text-sm"
-                            placeholder="Enter activity name"
-                          />
+                        <td className="px-4 py-2.5 relative group">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={row.activity}
+                              onChange={(e) => {
+                                const newArr = [...dailyTaskSummary];
+                                newArr[i].activity = e.target.value;
+                                setDailyTaskSummary(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none focus:ring-0 focus:border-none p-0 text-sm"
+                              placeholder="Enter activity name"
+                            />
+                            {row.activity && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(row.activity)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                title="View full text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-2.5">
                           <input
@@ -1453,6 +1493,30 @@ const DeveloperReportPage = () => {
                               setDailyTaskSummary(newArr);
                             }}
                             className="bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
+                          />
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <input
+                            type="date"
+                            value={row.startDate || ''}
+                            onChange={(e) => {
+                              const newArr = [...dailyTaskSummary];
+                              newArr[i].startDate = e.target.value;
+                              setDailyTaskSummary(newArr);
+                            }}
+                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
+                          />
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <input
+                            type="date"
+                            value={row.endDate || ''}
+                            onChange={(e) => {
+                              const newArr = [...dailyTaskSummary];
+                              newArr[i].endDate = e.target.value;
+                              setDailyTaskSummary(newArr);
+                            }}
+                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
                           />
                         </td>
                         <td className="px-4 py-2.5">
@@ -1522,7 +1586,7 @@ const DeveloperReportPage = () => {
                   <thead>
                     <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
                       <th className="px-4 py-3 w-48">Project</th>
-                      <th className="px-4 py-3">Development Activity</th>
+                      <th className="px-4 py-3 w-[35%] min-w-[280px]">Development Activity</th>
                       <th className="px-4 py-3 w-40">Status</th>
                       <th className="px-4 py-3 w-48">Remark</th>
                       <th className="px-4 py-3 w-12 text-center">Action</th>
@@ -1640,18 +1704,30 @@ const DeveloperReportPage = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
                     {researchLearning.map((row, i) => (
                       <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/10">
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.activity}
-                            onChange={(e) => {
-                              const newArr = [...researchLearning];
-                              newArr[i].activity = e.target.value;
-                              setResearchLearning(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold"
-                            placeholder="Activity name"
-                          />
+                        <td className="px-4 py-2.5 relative group">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={row.activity}
+                              onChange={(e) => {
+                                const newArr = [...researchLearning];
+                                newArr[i].activity = e.target.value;
+                                setResearchLearning(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold"
+                              placeholder="Activity name"
+                            />
+                            {row.activity && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(row.activity)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                title="View full text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-2.5">
                           <input
@@ -1814,7 +1890,7 @@ const DeveloperReportPage = () => {
             <div className="space-y-3">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
                 <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">8</span>
-                Intern / Student Remarks
+                 Remarks
               </h2>
               <textarea
                 value={internRemarks}
@@ -1832,7 +1908,7 @@ const DeveloperReportPage = () => {
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 dark:bg-slate-950/20 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
                 <div className="space-y-3">
-                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Intern / Student</h4>
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Developer</h4>
                   <div>
                     <label className="block text-xs mb-1">Name</label>
                     <input
@@ -1844,12 +1920,10 @@ const DeveloperReportPage = () => {
                   </div>
                   <div>
                     <label className="block text-xs mb-1">Signature</label>
-                    <input
-                      type="text"
+                    <SignatureUpload
                       value={approval.internSignature || ''}
-                      onChange={(e) => setApproval({ ...approval, internSignature: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      placeholder="Type signature"
+                      onChange={(val) => setApproval({ ...approval, internSignature: val })}
+                      placeholder="Upload intern signature"
                     />
                   </div>
                   <div>
@@ -1876,12 +1950,10 @@ const DeveloperReportPage = () => {
                   </div>
                   <div>
                     <label className="block text-xs mb-1">Signature</label>
-                    <input
-                      type="text"
+                    <SignatureUpload
                       value={approval.hodSignature || ''}
-                      onChange={(e) => setApproval({ ...approval, hodSignature: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      placeholder="HOD signature"
+                      onChange={(val) => setApproval({ ...approval, hodSignature: val })}
+                      placeholder="Upload HOD signature"
                     />
                   </div>
                   <div>
@@ -1898,7 +1970,7 @@ const DeveloperReportPage = () => {
             </div>
             
             {/* Form Footer Action Buttons */}
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5">
+            <div className="flex flex-wrap items-center justify-start sm:justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5 w-full">
               <button
                 type="button"
                 onClick={() => setIsMonthlyModalOpen(true)}
@@ -1908,18 +1980,11 @@ const DeveloperReportPage = () => {
                 Monthly Report
               </button>
 
-              <button
-                type="button"
-                onClick={handleDownloadPDF}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
-              >
-                <Download size={16} />
-                Download PDF
-              </button>
+              
 
               <button
                 type="button"
-                onClick={handleSaveReport}
+                onClick={handleDownloadPDF}
                 disabled={saving}
                 className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
               >
@@ -1928,7 +1993,7 @@ const DeveloperReportPage = () => {
                 ) : (
                   <Save size={16} />
                 )}
-                Save Report
+                Save File
               </button>
             </div>
 
@@ -2118,7 +2183,7 @@ const DeveloperReportPage = () => {
                             <h4 className="text-sm font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-wide">Daily Task Summary</h4>
                             <button
                               type="button"
-                              onClick={() => setMonthlyDailyTaskSummary([...monthlyDailyTaskSummary, { activity: '', status: 'Done', dueDate: '', remarks: '' }])}
+                              onClick={() => setMonthlyDailyTaskSummary([...monthlyDailyTaskSummary, { activity: '', status: 'Pending', dueDate: '', startDate: '', endDate: '', remarks: '' }])}
                               className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-lime-400 hover:opacity-80"
                             >
                               <Plus size={14} /> Add Row
@@ -2128,8 +2193,10 @@ const DeveloperReportPage = () => {
                             <table className="w-full text-left border-collapse text-sm">
                               <thead>
                                 <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                                  <th className="px-4 py-3">Activity</th>
-                      <th className="px-4 py-3">Due Date</th>
+                                  <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
+                                  <th className="px-4 py-3">Due Date</th>
+                                  <th className="px-4 py-3">Start Time</th>
+                                  <th className="px-4 py-3">End Time</th>
                                   <th className="px-4 py-3 w-40">Status</th>
                                   <th className="px-4 py-3">Remarks</th>
                                   <th className="px-4 py-3 w-12 text-center">Action</th>
@@ -2138,17 +2205,65 @@ const DeveloperReportPage = () => {
                               <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
                                 {monthlyDailyTaskSummary.map((row, i) => (
                                   <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/10">
+                                    <td className="px-4 py-2.5 relative group">
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          type="text"
+                                          value={row.activity}
+                                          onChange={(e) => {
+                                            const newArr = [...monthlyDailyTaskSummary];
+                                            newArr[i].activity = e.target.value;
+                                            setMonthlyDailyTaskSummary(newArr);
+                                          }}
+                                          className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                                          placeholder="Activity"
+                                        />
+                                        {row.activity && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedActivityText(row.activity)}
+                                            className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                            title="View full text"
+                                          >
+                                            <Maximize2 size={13} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
                                     <td className="px-4 py-2.5">
                                       <input
-                                        type="text"
-                                        value={row.activity}
+                                        type="date"
+                                        value={row.dueDate || ''}
                                         onChange={(e) => {
                                           const newArr = [...monthlyDailyTaskSummary];
-                                          newArr[i].activity = e.target.value;
+                                          newArr[i].dueDate = e.target.value;
                                           setMonthlyDailyTaskSummary(newArr);
                                         }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                                        placeholder="Activity"
+                                        className="bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
+                                      />
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      <input
+                                        type="date"
+                                        value={row.startDate || ''}
+                                        onChange={(e) => {
+                                          const newArr = [...monthlyDailyTaskSummary];
+                                          newArr[i].startDate = e.target.value;
+                                          setMonthlyDailyTaskSummary(newArr);
+                                        }}
+                                        className="bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
+                                      />
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      <input
+                                        type="date"
+                                        value={row.endDate || ''}
+                                        onChange={(e) => {
+                                          const newArr = [...monthlyDailyTaskSummary];
+                                          newArr[i].endDate = e.target.value;
+                                          setMonthlyDailyTaskSummary(newArr);
+                                        }}
+                                        className="bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
                                       />
                                     </td>
                                     <td className="px-4 py-2.5">
@@ -2215,7 +2330,7 @@ const DeveloperReportPage = () => {
                               <thead>
                                 <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
                                   <th className="px-4 py-3 w-48">Project</th>
-                                  <th className="px-4 py-3">Development Activity</th>
+                                  <th className="px-4 py-3 w-[35%] min-w-[280px]">Development Activity</th>
                                   <th className="px-4 py-3 w-40">Status</th>
                                   <th className="px-4 py-3 w-48">Remark</th>
                                   <th className="px-4 py-3 w-12 text-center">Action</th>
@@ -2330,18 +2445,30 @@ const DeveloperReportPage = () => {
                               <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
                                 {monthlyResearchLearning.map((row, i) => (
                                   <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/10">
-                                    <td className="px-4 py-2.5">
-                                      <input
-                                        type="text"
-                                        value={row.activity}
-                                        onChange={(e) => {
-                                          const newArr = [...monthlyResearchLearning];
-                                          newArr[i].activity = e.target.value;
-                                          setMonthlyResearchLearning(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold"
-                                        placeholder="Activity"
-                                      />
+                                    <td className="px-4 py-2.5 relative group">
+                                      <div className="flex items-center gap-1.5">
+                                        <input
+                                          type="text"
+                                          value={row.activity}
+                                          onChange={(e) => {
+                                            const newArr = [...monthlyResearchLearning];
+                                            newArr[i].activity = e.target.value;
+                                            setMonthlyResearchLearning(newArr);
+                                          }}
+                                          className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold"
+                                          placeholder="Activity"
+                                        />
+                                        {row.activity && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedActivityText(row.activity)}
+                                            className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                            title="View full text"
+                                          >
+                                            <Maximize2 size={13} />
+                                          </button>
+                                        )}
+                                      </div>
                                     </td>
                         <td className="px-4 py-2.5">
                           <input
@@ -2483,7 +2610,7 @@ const DeveloperReportPage = () => {
                             />
                           </div>
                           <div className="space-y-2">
-                            <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Intern / Student Remarks</label>
+                            <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider"> Remarks</label>
                             <textarea
                               value={monthlyInternRemarks}
                               onChange={(e) => setMonthlyInternRemarks(e.target.value)}
@@ -2497,7 +2624,7 @@ const DeveloperReportPage = () => {
                       {monthlyActiveTab === 'approval' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 dark:bg-slate-950/20 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
                           <div className="space-y-3">
-                            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Intern / Student</h4>
+                            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Developer</h4>
                             <div>
                               <label className="block text-xs mb-1">Name</label>
                               <input
@@ -2509,12 +2636,10 @@ const DeveloperReportPage = () => {
                             </div>
                             <div>
                               <label className="block text-xs mb-1">Signature</label>
-                              <input
-                                type="text"
+                              <SignatureUpload
                                 value={monthlyApproval.internSignature || ''}
-                                onChange={(e) => setMonthlyApproval({ ...monthlyApproval, internSignature: e.target.value })}
-                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                                placeholder="Type signature"
+                                onChange={(val) => setMonthlyApproval({ ...monthlyApproval, internSignature: val })}
+                                placeholder="Upload intern signature"
                               />
                             </div>
                             <div>
@@ -2541,12 +2666,10 @@ const DeveloperReportPage = () => {
                             </div>
                             <div>
                               <label className="block text-xs mb-1">Signature</label>
-                              <input
-                                type="text"
+                              <SignatureUpload
                                 value={monthlyApproval.hodSignature || ''}
-                                onChange={(e) => setMonthlyApproval({ ...monthlyApproval, hodSignature: e.target.value })}
-                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                                placeholder="HOD signature"
+                                onChange={(val) => setMonthlyApproval({ ...monthlyApproval, hodSignature: val })}
+                                placeholder="Upload HOD signature"
                               />
                             </div>
                             <div>
@@ -2607,6 +2730,33 @@ const DeveloperReportPage = () => {
         )}
       </AnimatePresence>
 
+      {/* Activity Detail Modal */}
+      {selectedActivityText && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+            <button
+              type="button"
+              onClick={() => setSelectedActivityText(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mb-4">Activity Details</h3>
+            <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
+              {selectedActivityText}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedActivityText(null)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

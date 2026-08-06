@@ -133,8 +133,8 @@ export const restrictToDepartment = (departmentId) => {
 
     userDeptId = String(userDeptId || '').trim();
 
-    // Bypass for HR/ADMIN department
-    if (userDeptId === '6a3caed51194353cbc8a3686') {
+    // Bypass for HR/ADMIN & Non-Operational departments
+    if (userDeptId === '6a3caed51194353cbc8a3686' || userDeptId === '6a55c7e8b613a280003481d8') {
       return next();
     }
 
@@ -155,8 +155,6 @@ export const restrictToDepartment = (departmentId) => {
  */
 const protectRoute = async (req, res, next) => {
   try {
-    console.log("HEADERS:", req.headers);
-
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
@@ -173,30 +171,25 @@ const protectRoute = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
 
-    console.log("TOKEN:", token);
-
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET
-    );
-
-    console.log("DECODED:", decoded);
+    const secret = process.env.JWT_SECRET || 'fallback_secret_key';
+    const decoded = jwt.verify(token, secret);
 
     req.user = decoded;
 
     // --- Inactivity sliding session check (30 mins = 1800 seconds) ---
     try {
-      const sessionKey = `session:active:${decoded.id}`;
-      const sessionExists = await redis.exists(sessionKey);
-      
-      if (!sessionExists) {
-        return res.status(401).json({
-          detail: "Session expired due to inactivity. Please log in again."
-        });
+      if (redis && redis.status === 'ready') {
+        const sessionKey = `session:active:${decoded.id}`;
+        const sessionExists = await redis.exists(sessionKey);
+        
+        if (sessionExists) {
+          // Slide expiration forward
+          await redis.expire(sessionKey, 1800);
+        } else {
+          // If Redis key is missing for valid JWT, auto-re-arm session key
+          await redis.set(sessionKey, 'active', 'EX', 1800);
+        }
       }
-      
-      // Slide expiration forward
-      await redis.expire(sessionKey, 1800);
     } catch (redisError) {
       console.warn("Redis session verification failed, skipping check:", redisError.message);
     }
@@ -204,10 +197,10 @@ const protectRoute = async (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error("JWT ERROR:", error);
+    console.error("JWT ERROR:", error.message);
 
     return res.status(403).json({
-      detail: error.message
+      detail: error.message || "Unauthorized access"
     });
   }
 };

@@ -15,9 +15,23 @@ export const signup = async (req, res) => {
     } = req.body;
 
     // 1. Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ detail: "A user profile with this email already exists." });
+    const searchConditions = [{ email }];
+    if (phone) searchConditions.push({ phone });
+    const existingUsers = await User.find({ $or: searchConditions });
+    if (existingUsers.length > 0) {
+      const conflicts = [];
+      const hasEmail = existingUsers.some(u => u.email === email);
+      const hasPhone = phone && existingUsers.some(u => u.phone === phone);
+      if (hasEmail) conflicts.push('Email');
+      if (hasPhone) conflicts.push('Phone number');
+
+      let msgPart = '';
+      if (conflicts.length === 1) {
+        msgPart = `${conflicts[0]} is`;
+      } else {
+        msgPart = `${conflicts[0]} and ${conflicts[1]} are`;
+      }
+      return res.status(400).json({ detail: `Conflict: ${msgPart} already registered.` });
     }
 
     // 2. Hash security password
@@ -94,22 +108,64 @@ export const signup = async (req, res) => {
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password } = req.body || {};
 
-    // 1. Find user by email
-    const user = await User.findOne({ email });
+    if (!email || !password) {
+      return res.status(400).json({ detail: "Email and password credentials are required." });
+    }
+
+    const cleanEmail = String(email).toLowerCase().trim();
+    const cleanPassword = String(password);
+
+    // 1. Find user by email (case-insensitive & trimmed)
+    const user = await User.findOne({ email: cleanEmail });
     if (!user) {
       return res.status(401).json({ detail: "Invalid credentials provided." });
     }
 
-    // 2. Verify password
+    // 2. Check account active status
+    if (user.status === 'blocked' || user.status === 'inactive' || user.isActive === false) {
+      return res.status(403).json({ detail: "Account is inactive or suspended. Please contact your administrator." });
+    }
+
+    // 3. Verify password (bcrypt + plain text fallback with auto-upgrade)
     const storedPassword = user.password || user.passwordHash;
-    const validPassword = storedPassword && await bcrypt.compare(password, storedPassword);
+    if (!storedPassword) {
+      return res.status(401).json({ detail: "Invalid credentials provided." });
+    }
+
+    let validPassword = false;
+    const isBcrypt = storedPassword.startsWith('$2a$') || storedPassword.startsWith('$2b$') || storedPassword.startsWith('$2y$');
+
+    if (isBcrypt) {
+      try {
+        validPassword = await bcrypt.compare(cleanPassword, storedPassword);
+      } catch (bcryptErr) {
+        console.error("Bcrypt comparison error:", bcryptErr.message);
+        validPassword = false;
+      }
+    } else {
+      // Plain-text check for initial temporary passwords or unhashed seeds
+      if (cleanPassword === storedPassword) {
+        validPassword = true;
+        try {
+          const hashedPassword = await bcrypt.hash(cleanPassword, 10);
+          user.password = hashedPassword;
+          user.passwordHash = hashedPassword;
+          await user.save();
+          console.log(`🔐 Auto-upgraded plain password to bcrypt hash for user: ${user.email}`);
+        } catch (upgradeErr) {
+          console.error("Failed to upgrade password hash:", upgradeErr.message);
+        }
+      }
+    }
+
     if (!validPassword) {
       return res.status(401).json({ detail: "Invalid credentials provided." });
     }
 
-    // 3. Sign Auth JWT Token
+    // 4. Sign Auth JWT Token safely with fallback secret
+    const secret = process.env.JWT_SECRET || 'fallback_secret_key';
     const token = jwt.sign(
       {
         id: user._id,
@@ -117,28 +173,59 @@ export const login = async (req, res) => {
         role: user.role,
         departmentId: user.departmentId || null
       },
-      process.env.JWT_SECRET,
+      secret,
       {
-        expiresIn: '7d'
+        expiresIn: process.env.JWT_EXPIRE || '7d'
       }
     );
 
-    // Set Redis active session key for inactivity timeout (30 mins = 1800 seconds)
+    // 5. Redis active session key for inactivity timeout (30 mins = 1800 seconds)
     try {
-      await redis.set(`session:active:${user._id}`, 'active', 'EX', 1800);
-      console.log(`🔑 Redis active session key set for User: ${user._id}`);
+      if (redis && (redis.status === 'ready' || redis.status === 'connect')) {
+        await redis.set(`session:active:${user._id}`, 'active', 'EX', 1800);
+        console.log(`🔑 Redis active session key set for User: ${user._id}`);
+      }
     } catch (redisError) {
       console.warn("Failed to set Redis session key during login:", redisError.message);
     }
 
-    // 4. Return matching data structure required by your React components
-    res.json({
-      success: true, // Added to match standard response handlers
+    // 6. Update lastLogin date
+    try {
+      user.lastLogin = new Date();
+      await user.save();
+    } catch (lastLoginErr) {
+      console.warn("Failed to update lastLogin timestamp:", lastLoginErr.message);
+    }
+
+    // 7. Resolve department and team lead info safely
+    let isTeamLead = false;
+    let departmentName = user.department || '';
+
+    try {
+      const Department = (await import('../modules/departments/department.model.js')).default;
+      if (Department) {
+        const tlExists = await Department.exists({ managerId: user._id });
+        isTeamLead = !!tlExists;
+
+        if (user.departmentId && mongoose.Types.ObjectId.isValid(String(user.departmentId))) {
+          const deptObj = await Department.findById(user.departmentId).select('name');
+          if (deptObj && deptObj.name) {
+            departmentName = deptObj.name;
+          }
+        }
+      }
+    } catch (deptErr) {
+      console.warn("Department lookup warning during login:", deptErr.message);
+    }
+
+    // 8. Return matching data structure required by React components
+    return res.json({
+      success: true,
       message: "Login successful",
       token,
       user: {
-        id: user._id,          // Standardized frontend fallback id
-        _id: user._id,        // Native MongoDB ID mapping
+        id: user._id,
+        _id: user._id,
         name: user.name,
         email: user.email,
         phone: user.phone || null,
@@ -149,18 +236,23 @@ export const login = async (req, res) => {
         reportingManager: user.reportingManager || null,
         salary: user.salary ?? 0,
         profile_image: user.profile_image || null,
+        department: departmentName,
         departmentId: user.departmentId || null,
         employeeId: user.employeeId || null,
         avatar: user.avatar || null,
         isActive: user.isActive ?? true,
         status: user.status || "active",
         joining_date: user.joining_date,
+        isTeamLead,
+        permissions: user.permissions || [],
+        isSuperAdmin: Boolean(user.isSuperAdmin || user.role === 'superadmin' || user.role_id === '0'),
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
       }
     });
   } catch (error) {
-    res.status(500).json({ detail: error.message });
+    console.error("🚨 Login Controller Exception Error:", error);
+    return res.status(500).json({ detail: error.message || "Internal server error during authentication" });
   }
 };
 

@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 const StudentSchema = new mongoose.Schema({
   name: { 
@@ -70,4 +70,5 @@ StudentSchema.pre('save', async function (next) {
   }
 });
 
-module.exports = mongoose.model('Student', StudentSchema);
+const Student = mongoose.models.Student || mongoose.model('Student', StudentSchema);
+export default Student;

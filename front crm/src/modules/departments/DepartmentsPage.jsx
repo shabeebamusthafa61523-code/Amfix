@@ -110,16 +110,16 @@ export const DepartmentsPage = () => {
   });
 
   return (
-    <div className="space-y-8 p-1">
+    <div className="space-y-5 p-1">
       {/* Top Banner and Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">
             Departments Manager
           </h1>
-          <p className="text-sm font-semibold text-slate-400">
+          {/* <p className="text-sm font-semibold text-slate-400">
             Configure business divisions, view headcounts, and assign management roles.
-          </p>
+          </p> */}
         </div>
 
         <motion.button
@@ -166,17 +166,17 @@ export const DepartmentsPage = () => {
       </div>
 
       {/* Filter tabs, search control and view toggle */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-3xl bg-slate-50/50 dark:bg-slate-900/55 border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-1">
         {/* Tabs */}
         <div className="flex gap-2 flex-wrap">
           {['all', 'active', 'inactive'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all duration-300
+              className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer
                 ${activeTab === tab
-                  ? 'bg-white dark:bg-slate-850 text-indigo-600 dark:text-lime-400 shadow-md shadow-black/5 ring-1 ring-slate-200/50 dark:ring-slate-800/50'
-                  : 'text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-white'
+                  ? 'bg-indigo-700 text-white shadow-md shadow-indigo-600/25'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-800/40 dark:hover:bg-slate-800/80 dark:text-slate-400'
                 }
               `}
             >
@@ -193,32 +193,32 @@ export const DepartmentsPage = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search departments..."
-              className="w-full pl-4 pr-4 py-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800/50 text-slate-800 dark:text-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
+              className="w-full pl-4 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 dark:bg-slate-950 dark:border-slate-800/80 text-slate-800 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-400"
             />
           </div>
 
-          <div className="flex items-center gap-1 bg-white dark:bg-slate-850 p-1 rounded-2xl border border-slate-200/50 dark:border-slate-800/50 self-end sm:self-auto">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/40 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800/50 self-end sm:self-auto">
             <button
               onClick={() => setViewMode('table')}
               className={`p-2.5 rounded-xl transition-all cursor-pointer ${
                 viewMode === 'table'
-                  ? 'bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-lime-400 border border-slate-200/50 dark:border-slate-750 shadow-sm'
-                  : 'text-slate-400 dark:text-slate-500 hover:text-slate-650 dark:hover:text-slate-350'
+                  ? 'bg-indigo-700 text-white shadow-sm border border-transparent'
+                  : 'text-slate-400 dark:text-slate-505 hover:text-slate-650 dark:hover:text-slate-350'
               }`}
               title="Table View"
             >
-              <List size={18} />
+              <List size={16} />
             </button>
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2.5 rounded-xl transition-all cursor-pointer ${
                 viewMode === 'grid'
-                  ? 'bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-lime-400 border border-slate-200/50 dark:border-slate-750 shadow-sm'
-                  : 'text-slate-400 dark:text-slate-500 hover:text-slate-650 dark:hover:text-slate-350'
+                  ? 'bg-indigo-700 text-white shadow-sm border border-transparent'
+                  : 'text-slate-400 dark:text-slate-505 hover:text-slate-650 dark:hover:text-slate-350'
               }`}
               title="Grid View"
             >
-              <LayoutGrid size={18} />
+              <LayoutGrid size={16} />
             </button>
           </div>
         </div>

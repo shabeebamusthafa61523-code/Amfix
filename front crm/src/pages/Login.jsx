@@ -56,7 +56,15 @@ const Login = () => {
         body: JSON.stringify(loginData),
       });
 
-      const result = await response.json();
+      let result = {};
+      try {
+        result = await response.json();
+      } catch (jsonErr) {
+        if (!response.ok) {
+          showToast(`Server Connection Error (${response.status}: ${response.statusText || 'Bad Gateway'}). Please ensure the backend server is running.`, 'error');
+          return;
+        }
+      }
 
       if (response.ok && result.token) {
         // 1. Save the token
@@ -87,13 +95,22 @@ const Login = () => {
         localStorage.setItem('user', JSON.stringify(userObj));
         showToast('Login successful!', 'success');
 
-        // Check if user is an admin
+        // Check if user is MD, HR, or Admin
         const currentUserRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
+        const currentUserDesignation = String(userObj.designation || '').toLowerCase().trim();
+        const currentUserDesignationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
 
-        const isAdmin = ['1', '2', 'admin'].includes(currentUserRole);
-        const isHr = currentUserRole === 'hr';
+        const isMd = currentUserDesignation.includes('md') || 
+                     currentUserDesignation.includes('managing director') || 
+                     currentUserDesignationId === '6a7187de0bdbef63c8658832' || 
+                     ['md', 'coo', 'executive_director'].includes(currentUserRole);
 
-        if (isHr) {
+        const isAdmin = ['1', '2', 'admin'].includes(currentUserRole) || currentUserDesignation.includes('admin');
+        const isHr = currentUserRole === 'hr' || currentUserDesignation.includes('hr') || currentUserDesignationId === '6a2f8efea2fe388770a38987';
+
+        if (isMd) {
+          navigate('/md-dashboard');
+        } else if (isHr) {
           navigate('/hr-dashboard');
         } else if (isAdmin) {
           navigate('/dashboard');

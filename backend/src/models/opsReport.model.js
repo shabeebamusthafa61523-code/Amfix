@@ -25,8 +25,11 @@ const opsReportSchema = new mongoose.Schema({
     {
       activity: { type: String },
       dueDate: { type: String },
+      startDate: { type: String },
+      endDate: { type: String },
       status: { type: String },
-      remarks: { type: String }
+      remarks: { type: String },
+      isTodoTask: { type: Boolean, default: false }
     }
   ],
   salesActivity: [
@@ -60,6 +63,14 @@ const opsReportSchema = new mongoose.Schema({
       dueDate: { type: String },
       status: { type: String },
       remarks: { type: String }
+    }
+  ],
+  kpiTracking: [
+    {
+      project: { type: String },
+      kpi: { type: String },
+      target: { type: String },
+      achieved: { type: String }
     }
   ],
   issuesEscalations: [

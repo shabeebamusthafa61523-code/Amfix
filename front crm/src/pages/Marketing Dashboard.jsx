@@ -323,25 +323,28 @@ const MarketingDashboard = () => {
                       const max = Math.max(...analytics.weeklyTrend.map(d => d.count), 1);
                       const hPct = Math.round((day.count / max) * 100);
                       return (
-                        <div key={idx} className="flex flex-col items-center flex-1 h-full justify-end group relative z-10">
-                          {/* Rich Tooltip */}
-                          <div className="absolute bottom-[105%] opacity-0 group-hover:opacity-100 bg-slate-900/90 dark:bg-white/95 backdrop-blur-sm text-white dark:text-slate-950 text-[10px] font-bold px-3 py-1.5 rounded-xl shadow-xl transition-all duration-300 pointer-events-none transform translate-y-1 group-hover:translate-y-0 whitespace-nowrap z-20 flex flex-col items-center gap-0.5 border border-slate-700/30 dark:border-slate-200/50">
-                            <span className="text-[8px] text-slate-400 dark:text-slate-500 font-semibold">{day.label}</span>
-                            <span className="text-xs font-extrabold">{day.count} leads</span>
+                        <div key={idx} className="flex flex-col items-center flex-1 h-full justify-end group">
+                          {/* Always visible count above the bar */}
+                          <span className="text-[10px] font-extrabold text-slate-650 dark:text-slate-300 font-mono mb-1 transition-colors group-hover:text-lime-500">
+                            {day.count}
+                          </span>
+                          
+                          {/* Bar Track Container */}
+                          <div className="w-full flex items-end justify-center h-28 relative">
+                            {/* Faint background track for clarity */}
+                            <div className="absolute inset-x-0 bottom-0 top-0 bg-slate-100/40 dark:bg-slate-800/10 rounded-t-md w-full max-w-[20px] mx-auto border border-dashed border-slate-200/20 dark:border-slate-800/10" />
+                            
+                            {/* Actual Bar */}
+                            <motion.div
+                              initial={{ scaleY: 0 }}
+                              animate={{ scaleY: 1 }}
+                              transition={{ duration: 0.6, delay: idx * 0.08 }}
+                              style={{ height: `${Math.max(hPct, 2)}%`, transformOrigin: 'bottom' }}
+                              className="w-full max-w-[20px] bg-gradient-to-t from-lime-600 to-lime-400 group-hover:from-lime-500 group-hover:to-lime-300 rounded-t-md transition-colors min-h-[2px] cursor-pointer relative z-10 shadow-sm"
+                            />
                           </div>
-
-                          {/* Interactive Bar */}
-                          <motion.div
-                            initial={{ height: 0 }}
-                            animate={{ height: `${Math.max(hPct, 5)}%` }}
-                            transition={{ duration: 0.6, delay: idx * 0.05, type: "spring", stiffness: 80 }}
-                            className="w-full max-w-[28px] bg-gradient-to-t from-lime-650 via-lime-500 to-lime-400 group-hover:from-lime-500 group-hover:via-lime-400 group-hover:to-lime-300 rounded-t-xl transition-all duration-300 min-h-[6px] cursor-pointer shadow-md shadow-lime-500/10 group-hover:shadow-lg group-hover:shadow-lime-500/20 relative"
-                          >
-                            {/* Glowing dot on top of bar */}
-                            {day.count > 0 && (
-                              <span className="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-lime-300 dark:bg-lime-100 shadow-[0_0_8px_#84cc16] animate-pulse" />
-                            )}
-                          </motion.div>
+                          
+                          {/* Day label */}
                           <span className="text-[8px] text-slate-400 dark:text-slate-550 font-bold mt-2 tracking-tight">{day.label}</span>
                         </div>
                       );

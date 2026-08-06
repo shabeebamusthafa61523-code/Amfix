@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, X } from 'lucide-react';
 
@@ -12,10 +13,11 @@ const ConfirmModal = ({
   cancelText = "Cancel",
   type = "danger"
 }) => {
-  return (
+  if (!isOpen) return null;
+
+  return createPortal(
     <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
           {/* Backdrop with blur */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -83,8 +85,8 @@ const ConfirmModal = ({
             </div>
           </motion.div>
         </div>
-      )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 

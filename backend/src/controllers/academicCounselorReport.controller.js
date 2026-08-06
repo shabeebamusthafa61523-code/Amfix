@@ -203,3 +203,59 @@ export const getSubmittedDates = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * 5. GET REPORTS BY RANGE (For Weekly / Monthly Consolidation)
+ * GET /api/v1/academic-counselor-reports/range?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&userId=...
+ */
+export const getReportsByRange = async (req, res, next) => {
+  try {
+    const { startDate, endDate } = req.query;
+    let targetUserId = req.query.userId;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'startDate and endDate parameters are required'
+      });
+    }
+
+    const currentUserId = req.user.id || req.user._id;
+    const currentUserRole = String(req.user.role || req.user.role_id || '').toLowerCase().trim();
+    const isPrivileged = ['1', '2', 'hr', 'admin'].includes(currentUserRole);
+
+    let userDesignationId = '';
+    try {
+      const userObj = await User.findById(currentUserId);
+      if (userObj) {
+        userDesignationId = String(userObj.designationId || userObj.designation_id || '');
+      }
+    } catch (err) {}
+
+    const isCounselor = userDesignationId === '6a27939af292348deb7d0495';
+
+    if (targetUserId) {
+      if (targetUserId !== String(currentUserId) && !isPrivileged && !isCounselor) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You can only view your own reports.'
+        });
+      }
+    } else {
+      targetUserId = currentUserId;
+    }
+
+    const reports = await AcademicCounselorReport.find({
+      userId: targetUserId,
+      dateString: { $gte: startDate, $lte: endDate }
+    }).sort({ dateString: 1 });
+
+    return res.status(200).json({
+      success: true,
+      data: reports
+    });
+  } catch (error) {
+    console.error('Error in getReportsByRange:', error);
+    next(error);
+  }
+};

@@ -304,17 +304,29 @@ const CounselorDashboard = () => {
                     const max = Math.max(...analytics.weeklyTrend.map(d => d.count), 1);
                     const hPct = Math.round((day.count / max) * 100);
                     return (
-                      <div key={idx} className="flex flex-col items-center flex-1 group relative">
-                        <div className="absolute bottom-[105%] opacity-0 group-hover:opacity-100 bg-slate-800 dark:bg-white text-white dark:text-slate-900 text-[9px] font-bold px-2 py-1 rounded-lg shadow-lg transition duration-200 pointer-events-none whitespace-nowrap z-10">
-                          {day.count} leads
+                      <div key={idx} className="flex flex-col items-center flex-1 h-full justify-end group">
+                        {/* Always visible count above the bar */}
+                        <span className="text-[10px] font-extrabold text-slate-650 dark:text-slate-300 font-mono mb-1 transition-colors group-hover:text-indigo-500">
+                          {day.count}
+                        </span>
+                        
+                        {/* Bar Track Container */}
+                        <div className="w-full flex items-end justify-center h-28 relative">
+                          {/* Faint background track for clarity */}
+                          <div className="absolute inset-x-0 bottom-0 top-0 bg-slate-100/40 dark:bg-slate-800/10 rounded-t-md w-full max-w-[20px] mx-auto border border-dashed border-slate-200/20 dark:border-slate-800/10" />
+                          
+                          {/* Actual Bar */}
+                          <motion.div
+                            initial={{ scaleY: 0 }}
+                            animate={{ scaleY: 1 }}
+                            transition={{ duration: 0.6, delay: idx * 0.08 }}
+                            style={{ height: `${Math.max(hPct, 2)}%`, transformOrigin: 'bottom' }}
+                            className="w-full max-w-[20px] bg-gradient-to-t from-indigo-500 to-purple-400 group-hover:from-indigo-400 group-hover:to-purple-300 rounded-t-md transition-colors min-h-[2px] cursor-pointer relative z-10 shadow-sm"
+                          />
                         </div>
-                        <motion.div
-                          initial={{ height: 0 }}
-                          animate={{ height: `${Math.max(hPct, 4)}%` }}
-                          transition={{ duration: 0.6, delay: idx * 0.08 }}
-                          className="w-full max-w-[28px] bg-gradient-to-t from-indigo-500 to-purple-400 group-hover:from-indigo-400 group-hover:to-purple-300 rounded-t-lg transition-colors min-h-[4px] cursor-pointer"
-                        />
-                        <span className="text-[8px] text-slate-400 font-bold mt-2 tracking-tight">{day.label}</span>
+                        
+                        {/* Day label */}
+                        <span className="text-[8px] text-slate-400 dark:text-slate-500 font-black mt-2 tracking-tight uppercase">{day.label}</span>
                       </div>
                     );
                   })}

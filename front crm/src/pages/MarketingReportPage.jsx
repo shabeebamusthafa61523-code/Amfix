@@ -3,23 +3,20 @@ import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil,
+  X, Maximize2
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
+import SignatureUpload from '../components/SignatureUpload';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
 // Defaults from mockup
 const DEFAULT_TASK_SUMMARY = [
-  { task: 'Instagram post published', detailsNotes: 'Gangeee poster and software development reel', status: 'Done', dueDate: '', remarks: '' },
-  { task: 'Stories uploaded', detailsNotes: 'poll poster of world cup 2026 Grp E,F', status: 'Done', dueDate: '', remarks: '' },
-  { task: 'Client works', detailsNotes: 'ipas post about GST UPDATE 2026 , Bail & Anticipatory Bail', status: 'Done', dueDate: '', remarks: '' },
-  { task: '', detailsNotes: '', status: 'N/A', dueDate: '', remarks: '' },
-  { task: '', detailsNotes: '', status: 'N/A', dueDate: '', remarks: '' },
-  { task: '', detailsNotes: '', status: 'N/A', dueDate: '', remarks: '' }
+  { task: '', detailsNotes: '', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' }
 ];
 
 const DEFAULT_KPI_TRACKING = [
@@ -27,8 +24,8 @@ const DEFAULT_KPI_TRACKING = [
   { kpi: 'Ad reach', target: '', achievedToday: '', notes: '' },
   { kpi: 'Ad spend (₹)', target: '', achievedToday: '', notes: '' },
   { kpi: 'Engagement rate (%)', target: '', achievedToday: '', notes: '' },
-  { kpi: 'Posts published', target: '', achievedToday: 'done', notes: '' },
-  { kpi: 'Videos delivered', target: '', achievedToday: 'done', notes: '' }
+  { kpi: 'Posts published', target: '', achievedToday: '', notes: '' },
+  { kpi: 'Videos delivered', target: '', achievedToday: '', notes: '' }
 ];
 
 const DEFAULT_BLOCKERS_PLAN = [
@@ -38,7 +35,7 @@ const DEFAULT_BLOCKERS_PLAN = [
 const MarketingReportPage = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
@@ -82,11 +79,14 @@ const MarketingReportPage = () => {
   const [taskSummary, setTaskSummary] = useState(DEFAULT_TASK_SUMMARY);
   const [keyNumbers, setKeyNumbers] = useState(DEFAULT_KPI_TRACKING);
   const [blockersTomorrowPlan, setBlockersTomorrowPlan] = useState(DEFAULT_BLOCKERS_PLAN);
+  const [selectedActivityText, setSelectedActivityText] = useState(null);
   
   const [approval, setApproval] = useState({
+    staffName: '',
     staffSignature: '',
     submittedAt: '',
-    leaderApproval: 'CMO / Team Leader Approval',
+    leaderName: '',
+    leaderApproval: '',
     approvedOn: ''
   });
 
@@ -138,6 +138,32 @@ const MarketingReportPage = () => {
   const [monthlyKeyNumbers, setMonthlyKeyNumbers] = useState([]);
   const [monthlyBlockersTomorrowPlan, setMonthlyBlockersTomorrowPlan] = useState([]);
 
+  // Weekly States
+  const [isWeeklyModalOpen, setIsWeeklyModalOpen] = useState(false);
+  const [weeklyStartDate, setWeeklyStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [weeklyEndDate, setWeeklyEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [isWeeklyLoading, setIsWeeklyLoading] = useState(false);
+  const [weeklyActiveTab, setWeeklyActiveTab] = useState('taskSummary');
+  const [weeklyBasicDetails, setWeeklyBasicDetails] = useState({
+    employeeName: '',
+    employeeId: '',
+    designation: '',
+    reportingTo: '',
+    dateRange: '',
+    shiftTiming: ''
+  });
+  const [weeklyTaskSummary, setWeeklyTaskSummary] = useState([]);
+  const [weeklyKeyNumbers, setWeeklyKeyNumbers] = useState([]);
+  const [weeklyBlockersTomorrowPlan, setWeeklyBlockersTomorrowPlan] = useState([]);
+
+  const [weeklyAchievements, setWeeklyAchievements] = useState('');
+  const [weeklyImprovements, setWeeklyImprovements] = useState('');
+  const [weeklyNextWeekPlanning, setWeeklyNextWeekPlanning] = useState('');
+
   const handleMonthlyTaskChange = (index, field, value) => {
     const updated = [...monthlyTaskSummary];
     updated[index][field] = value;
@@ -147,7 +173,7 @@ const MarketingReportPage = () => {
   const addMonthlyTaskRow = () => {
     setMonthlyTaskSummary([
       ...monthlyTaskSummary,
-      { task: '', detailsNotes: '', status: 'Done', dueDate: '', remarks: '' }
+      { task: '', detailsNotes: '', status: 'Done', dueDate: '', startDate: '', endDate: '', remarks: '' }
     ]);
   };
 
@@ -224,12 +250,15 @@ const MarketingReportPage = () => {
         tasks.forEach(t => {
           const taskName = (t.task || '').trim();
           if (!taskName) return;
-          if (!taskMap[taskName]) {
+           if (!taskMap[taskName]) {
             taskMap[taskName] = {
               task: taskName,
               detailsNotes: [],
               status: t.status || 'Done',
-              dueDate: t.dueDate || '', remarks: []
+              dueDate: t.dueDate || '',
+              startDate: t.startDate || '',
+              endDate: t.endDate || '',
+              remarks: []
             };
           }
           if (t.detailsNotes && !taskMap[taskName].detailsNotes.includes(t.detailsNotes.trim())) {
@@ -241,18 +270,25 @@ const MarketingReportPage = () => {
           if (t.status && t.status.toLowerCase() === 'done') {
             taskMap[taskName].status = 'Done';
           }
+          // Preserve dates if not set yet
+          if (t.dueDate && !taskMap[taskName].dueDate) taskMap[taskName].dueDate = t.dueDate;
+          if (t.startDate && !taskMap[taskName].startDate) taskMap[taskName].startDate = t.startDate;
+          if (t.endDate && !taskMap[taskName].endDate) taskMap[taskName].endDate = t.endDate;
         });
       });
 
       const consolidatedTasks = Object.values(taskMap).map(item => ({
         task: item.task,
+        dueDate: item.dueDate,
+        startDate: item.startDate,
+        endDate: item.endDate,
         detailsNotes: item.detailsNotes.filter(Boolean).join('; '),
         status: item.status,
-        dueDate: '', remarks: item.remarks.filter(Boolean).join('; ')
+        remarks: item.remarks.filter(Boolean).join('; ')
       }));
 
       if (consolidatedTasks.length === 0) {
-        consolidatedTasks.push({ task: '', detailsNotes: '', status: 'N/A', dueDate: '', remarks: '' });
+        consolidatedTasks.push({ task: '', detailsNotes: '', status: 'N/A', dueDate: '', startDate: '', endDate: '', remarks: '' });
       }
       setMonthlyTaskSummary(consolidatedTasks);
 
@@ -438,8 +474,8 @@ const MarketingReportPage = () => {
 
       // 2. TASK SUMMARY
       drawSectionHeader("2. Consolidated Task summary");
-      const taskHeaders = [["Task", "Details / notes", "Status", "Remarks"]];
-      const taskRows = monthlyTaskSummary.map(t => [t.task || '', t.detailsNotes || '', t.status || '', t.remarks || '']);
+      const taskHeaders = [["Task", "Due Date", "Start Date", "End Date", "Details / notes", "Status", "Remarks"]];
+      const taskRows = monthlyTaskSummary.map(t => [t.task || '', t.dueDate || '', t.startDate || '', t.endDate || '', t.detailsNotes || '', t.status || '', t.remarks || '']);
 
       autoTable(doc, {
         head: taskHeaders,
@@ -449,10 +485,13 @@ const MarketingReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 45 },
-          1: { width: 75 },
-          2: { width: 27, halign: 'center' },
-          3: { width: 35 }
+          0: { width: 35 },
+          1: { width: 20 },
+          2: { width: 20 },
+          3: { width: 20 },
+          4: { width: 45 },
+          5: { width: 20, halign: 'center' },
+          6: { width: 22 }
         },
         margin: { left: 14, right: 14 }
       });
@@ -516,6 +555,383 @@ const MarketingReportPage = () => {
     } catch (e) {
       console.error(e);
       showToast("Failed to generate Monthly PDF.", "error");
+    }
+  };
+
+  const handleFetchWeeklyData = async () => {
+    if (!selectedUserId || !weeklyStartDate || !weeklyEndDate) return;
+    try {
+      setIsWeeklyLoading(true);
+      const start = new Date(weeklyStartDate);
+      const end = new Date(weeklyEndDate);
+      const dateList = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        dateList.push(d.toISOString().split('T')[0]);
+      }
+
+      const requests = dateList.map(dateStr =>
+        fetch(`${API_BASE}/v1/marketing-reports/by-date?userId=${selectedUserId}&dateString=${dateStr}`, {
+          headers: getAuthHeaders()
+        }).then(res => res.json())
+      );
+
+      const responses = await Promise.all(requests);
+      const validReports = responses
+        .filter(res => res.success && res.data)
+        .map(res => res.data);
+
+      if (validReports.length === 0) {
+        showToast("No reports found in the selected date range.", "warning");
+        setIsWeeklyLoading(false);
+        return;
+      }
+
+      const firstReportBasic = validReports[0].basicDetails || {};
+      setWeeklyBasicDetails({
+        employeeName: firstReportBasic.employeeName || basicDetails.employeeName || '',
+        employeeId: firstReportBasic.employeeId || basicDetails.employeeId || '',
+        designation: firstReportBasic.designation || basicDetails.designation || 'Digital Marketer',
+        reportingTo: firstReportBasic.reportingTo || basicDetails.reportingTo || 'CMO',
+        dateRange: `${new Date(weeklyStartDate).toLocaleDateString('en-GB')} - ${new Date(weeklyEndDate).toLocaleDateString('en-GB')}`,
+        shiftTiming: firstReportBasic.shiftTiming || basicDetails.shiftTiming || '9:00 AM – 6:00 PM'
+      });
+
+      const taskMap = {};
+      validReports.forEach(report => {
+        const tasks = report.taskSummary || [];
+        tasks.forEach(t => {
+          const taskName = (t.task || '').trim();
+          if (!taskName) return;
+          if (!taskMap[taskName]) {
+            taskMap[taskName] = {
+              task: taskName,
+              detailsNotes: [],
+              status: t.status || 'Done',
+              dueDate: t.dueDate || '',
+              startDate: t.startDate || '',
+              endDate: t.endDate || '',
+              remarks: []
+            };
+          }
+          if (t.detailsNotes && !taskMap[taskName].detailsNotes.includes(t.detailsNotes.trim())) {
+            taskMap[taskName].detailsNotes.push(t.detailsNotes.trim());
+          }
+          if (t.remarks && !taskMap[taskName].remarks.includes(t.remarks.trim())) {
+            taskMap[taskName].remarks.push(t.remarks.trim());
+          }
+          if (t.status && t.status.toLowerCase() === 'done') {
+            taskMap[taskName].status = 'Done';
+          }
+          if (t.dueDate && !taskMap[taskName].dueDate) taskMap[taskName].dueDate = t.dueDate;
+          if (t.startDate && !taskMap[taskName].startDate) taskMap[taskName].startDate = t.startDate;
+          if (t.endDate && !taskMap[taskName].endDate) taskMap[taskName].endDate = t.endDate;
+        });
+      });
+
+      const consolidatedTasks = Object.values(taskMap).map(item => ({
+        task: item.task,
+        dueDate: item.dueDate,
+        startDate: item.startDate,
+        endDate: item.endDate,
+        detailsNotes: item.detailsNotes.filter(Boolean).join('; '),
+        status: item.status,
+        remarks: item.remarks.filter(Boolean).join('; ')
+      }));
+
+      if (consolidatedTasks.length === 0) {
+        consolidatedTasks.push({ task: '', detailsNotes: '', status: 'N/A', dueDate: '', startDate: '', endDate: '', remarks: '' });
+      }
+      setWeeklyTaskSummary(consolidatedTasks);
+
+      const kpisMap = {};
+      DEFAULT_KPI_TRACKING.forEach(k => {
+        kpisMap[k.kpi] = { kpi: k.kpi, target: 0, achievedToday: 0, notes: [], count: 0 };
+      });
+
+      validReports.forEach(report => {
+        const kpis = report.keyNumbers || [];
+        kpis.forEach(k => {
+          const name = (k.kpi || '').trim();
+          if (!name) return;
+          if (!kpisMap[name]) {
+            kpisMap[name] = { kpi: name, target: 0, achievedToday: 0, notes: [], count: 0 };
+          }
+          
+          const parseVal = (val) => {
+            if (!val) return 0;
+            const cleaned = val.toString().replace(/[₹%,]/g, '').trim();
+            const num = parseFloat(cleaned);
+            return isNaN(num) ? 0 : num;
+          };
+
+          const tVal = parseVal(k.target);
+          const aVal = parseVal(k.achievedToday);
+
+          kpisMap[name].target += tVal;
+          kpisMap[name].achievedToday += aVal;
+          kpisMap[name].count += 1;
+
+          if (k.notes && !kpisMap[name].notes.includes(k.notes.trim())) {
+            kpisMap[name].notes.push(k.notes.trim());
+          }
+        });
+      });
+
+      const consolidatedKPIs = Object.values(kpisMap).map(k => {
+        let displayTarget = k.target;
+        let displayAchieved = k.achievedToday;
+        
+        if (k.kpi.toLowerCase().includes('%') || k.kpi.toLowerCase().includes('rate')) {
+          displayTarget = k.count > 0 ? (k.target / k.count).toFixed(2) : 0;
+          displayAchieved = k.count > 0 ? (k.achievedToday / k.count).toFixed(2) : 0;
+          if (displayTarget.endsWith('.00')) displayTarget = displayTarget.slice(0, -3);
+          if (displayAchieved.endsWith('.00')) displayAchieved = displayAchieved.slice(0, -3);
+          displayTarget = `${displayTarget}%`;
+          displayAchieved = `${displayAchieved}%`;
+        } else if (k.kpi.toLowerCase().includes('₹') || k.kpi.toLowerCase().includes('spend') || k.kpi.toLowerCase().includes('budget')) {
+          displayTarget = `₹${k.target}`;
+          displayAchieved = `₹${k.achievedToday}`;
+        } else {
+          displayTarget = k.target || '';
+          displayAchieved = k.achievedToday || '';
+        }
+
+        return {
+          kpi: k.kpi,
+          target: displayTarget,
+          achievedToday: displayAchieved,
+          notes: k.notes.filter(Boolean).join('; ')
+        };
+      });
+
+      setWeeklyKeyNumbers(consolidatedKPIs);
+
+      const consolidatedBlockers = [];
+      validReports.forEach(report => {
+        const items = report.blockersTomorrowPlan || [];
+        items.forEach(item => {
+          if (item.blockersToday || item.tomorrowMainTask || item.notes) {
+            consolidatedBlockers.push({
+              blockersToday: item.blockersToday || '',
+              priority: item.priority || '',
+              tomorrowMainTask: item.tomorrowMainTask || '',
+              notes: item.notes || ''
+            });
+          }
+        });
+      });
+
+      if (consolidatedBlockers.length === 0) {
+        consolidatedBlockers.push({ blockersToday: '', priority: '', tomorrowMainTask: '', notes: '' });
+      }
+      setWeeklyBlockersTomorrowPlan(consolidatedBlockers);
+
+      showToast(`Consolidated ${validReports.length} daily reports!`, "success");
+    } catch (e) {
+      console.error(e);
+      showToast("Error consolidating weekly report data.", "error");
+    } finally {
+      setIsWeeklyLoading(false);
+    }
+  };
+
+  const handleDownloadWeeklyPDF = async () => {
+    try {
+      const logoImg = new Image();
+      logoImg.src = '/logo3.png';
+      await new Promise((resolve) => {
+        logoImg.onload = resolve;
+        logoImg.onerror = resolve;
+      });
+
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      let currentY = 15;
+
+      const drawSectionHeader = (title) => {
+        doc.setFillColor(60, 35, 117);
+        doc.rect(14, currentY, 182, 6, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(255, 255, 255);
+        doc.text(title.toUpperCase(), 17, currentY + 4.2);
+        currentY += 6;
+      };
+
+      const drawHeader = () => {
+        if (logoImg.complete && logoImg.naturalWidth > 0) {
+          doc.addImage(logoImg, 'PNG', 14, 10, 32, 12);
+        } else {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(20);
+          doc.setTextColor(132, 204, 22);
+          doc.text("KOD.", 14, 21);
+          
+          doc.setTextColor(60, 35, 117);
+          doc.text("brand", 32, 21);
+        }
+
+        doc.setFontSize(14);
+        doc.setTextColor(60, 35, 117);
+        doc.text("WEEKLY CONSOLIDATED REPORT", 95, 16);
+        
+        doc.setFontSize(7.5);
+        doc.setTextColor(0, 0, 0);
+        doc.text("DIGITAL MARKETER · CMO / CREATIVE & MARKETING", 112, 22);
+      };
+
+      drawHeader();
+      currentY = 25;
+
+      // 1. BASIC DETAILS
+      drawSectionHeader("1. Basic details");
+      const basicRows = [
+        [
+          "Employee name", weeklyBasicDetails.employeeName || '',
+          "Date range", weeklyBasicDetails.dateRange || ''
+        ],
+        [
+          "Employee ID", weeklyBasicDetails.employeeId || '',
+          "Designation", weeklyBasicDetails.designation || ''
+        ],
+        [
+          "Reporting to", weeklyBasicDetails.reportingTo || '',
+          "Shift timing", weeklyBasicDetails.shiftTiming || ''
+        ]
+      ];
+
+      autoTable(doc, {
+        body: basicRows,
+        startY: currentY,
+        theme: 'grid',
+        styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 35 },
+          1: { width: 56 },
+          2: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 35 },
+          3: { width: 56 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      // 2. TASK SUMMARY
+      drawSectionHeader("2. Consolidated Task summary");
+      const taskHeaders = [["Task", "Due Date", "Start Date", "End Date", "Details / notes", "Status", "Remarks"]];
+      const taskRows = weeklyTaskSummary.map(t => [t.task || '', t.dueDate || '', t.startDate || '', t.endDate || '', t.detailsNotes || '', t.status || '', t.remarks || '']);
+
+      autoTable(doc, {
+        head: taskHeaders,
+        body: taskRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 35 },
+          1: { width: 20 },
+          2: { width: 20 },
+          3: { width: 20 },
+          4: { width: 45 },
+          5: { width: 20, halign: 'center' },
+          6: { width: 22 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      // 3. KEY NUMBERS (KPIs)
+      drawSectionHeader("3. Consolidated Key numbers (KPIs)");
+      const kpiHeaders = [["KPI", "Target (Sum/Avg)", "Achieved (Sum/Avg)", "Notes"]];
+      const kpiRows = weeklyKeyNumbers.map(k => [k.kpi || '', k.target || '', k.achievedToday || '', k.notes || '']);
+
+      autoTable(doc, {
+        head: kpiHeaders,
+        body: kpiRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 45 },
+          1: { width: 45, halign: 'center' },
+          2: { width: 45, halign: 'center' },
+          3: { width: 47 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      // 4. BLOCKERS & NEXT PLAN
+      drawSectionHeader("4. Consolidated Blockers & next plans");
+      const blockersHeaders = [["Any blockers?", "Priority", "Next main tasks", "Notes"]];
+      const blockersRows = weeklyBlockersTomorrowPlan.map(b => [b.blockersToday || '', b.priority || '', b.tomorrowMainTask || '', b.notes || '']);
+
+      autoTable(doc, {
+        head: blockersHeaders,
+        body: blockersRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 45 },
+          1: { width: 30, halign: 'center' },
+          2: { width: 62 },
+          3: { width: 45 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      // 5. ACHIEVEMENTS, IMPROVEMENTS & NEXT WEEK PLANNING
+      if (weeklyAchievements || weeklyImprovements || weeklyNextWeekPlanning) {
+        if (currentY > 240) {
+          doc.addPage();
+          currentY = 15;
+        }
+        drawSectionHeader("5. Achievements, Improvements & Next Week Planning");
+        const weeklySummaryRows = [
+          ["Achievements", weeklyAchievements || 'N/A'],
+          ["Improvements Needed", weeklyImprovements || 'N/A'],
+          ["Next Week Planning", weeklyNextWeekPlanning || 'N/A']
+        ];
+
+        autoTable(doc, {
+          body: weeklySummaryRows,
+          startY: currentY,
+          theme: 'grid',
+          styles: { fontSize: 7.5, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+          columnStyles: {
+            0: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 45 },
+            1: { width: 137 }
+          },
+          margin: { left: 14, right: 14 }
+        });
+      }
+
+      const pdfBlob = doc.output('blob');
+      const filename = `Marketing_Weekly_Report_${weeklyBasicDetails.employeeName || 'Marketer'}_${weeklyStartDate}_to_${weeklyEndDate}.pdf`;
+      try {
+        await uploadCompiledPDFReport(selectedUserId, `${weeklyStartDate}_to_${weeklyEndDate}`, pdfBlob, filename, 'marketing', 'weekly');
+        console.log("Weekly PDF saved successfully");
+      } catch (uploadErr) {
+        console.error("Failed to upload weekly PDF:", uploadErr);
+      }
+      doc.save(filename);
+      showToast("Weekly PDF report downloaded successfully!", "success");
+    } catch (e) {
+      console.error(e);
+      showToast("Failed to generate Weekly PDF.", "error");
     }
   };
 
@@ -639,7 +1055,7 @@ const MarketingReportPage = () => {
           ...apiBasicDetails,
           employeeName: userDetail.name || apiBasicDetails.employeeName || '',
           employeeId: userDetail.employeeId || apiBasicDetails.employeeId || '',
-          designation: userDetail.designation || apiBasicDetails.designation || '',
+          designation: userDetail.designationName || userDetail.designation || apiBasicDetails.designation || '',
           reportingTo: userDetail.reportingManager || apiBasicDetails.reportingTo || '',
           department: userDetail.department || apiBasicDetails.department || ''
         });
@@ -654,12 +1070,16 @@ const MarketingReportPage = () => {
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ task: t.title, detailsNotes: 'Auto-fetched', status: t.status === 'Done' ? 'Completed' : 'Pending', dueDate: t.dueDate || '', remarks: '' }));
-            mappedTasks.push({ task: '', detailsNotes: '', status: 'ongoing', dueDate: '', remarks: '' });
-            mappedTasks.push({ task: '', detailsNotes: '', status: 'ongoing', dueDate: '', remarks: '' });
+            const mappedTasks = completedTasks.map(t => ({
+              task: t.title,
+              dueDate: t.dueDate || '',
+              startDate: t.startTime || '',
+              endDate: t.endTime || '',
+              detailsNotes: t.description || 'Auto-fetched',
+              status: t.status || 'Pending',
+              remarks: ''
+            }));
             setTaskSummary(mappedTasks);
-          } else {
-            setTaskSummary(prev => [...prev, { task: '', detailsNotes: '', status: 'ongoing', dueDate: '', remarks: '' }, { task: '', detailsNotes: '', status: 'ongoing', dueDate: '', remarks: '' }]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
@@ -672,12 +1092,16 @@ const MarketingReportPage = () => {
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ task: t.title, detailsNotes: 'Auto-fetched', status: t.status === 'Done' ? 'Completed' : 'Pending', dueDate: t.dueDate || '', remarks: '' }));
-            mappedTasks.push({ task: '', detailsNotes: '', status: 'ongoing', dueDate: '', remarks: '' });
-            mappedTasks.push({ task: '', detailsNotes: '', status: 'ongoing', dueDate: '', remarks: '' });
+            const mappedTasks = completedTasks.map(t => ({
+              task: t.title,
+              dueDate: t.dueDate || '',
+              startDate: t.startTime || '',
+              endDate: t.endTime || '',
+              detailsNotes: t.description || 'Auto-fetched',
+              status: t.status || 'Pending',
+              remarks: ''
+            }));
             setTaskSummary(mappedTasks);
-          } else {
-            setTaskSummary(prev => [...prev, { task: '', detailsNotes: '', status: 'ongoing', dueDate: '', remarks: '' }, { task: '', detailsNotes: '', status: 'ongoing', dueDate: '', remarks: '' }]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
@@ -737,7 +1161,7 @@ const MarketingReportPage = () => {
     setBasicDetails({
       employeeName: userDetail.name || parsedCached?.employeeName || '',
       employeeId: userDetail.employeeId || parsedCached?.employeeId || '',
-      designation: userDetail.designation || parsedCached?.designation || 'Digital Marketer',
+      designation: userDetail.designationName || userDetail.designation || parsedCached?.designation || 'Digital Marketer',
       reportingTo: userDetail.reportingManager || parsedCached?.reportingTo || 'CMO',
       date: formattedDateString,
       day: dayName.toLowerCase(),
@@ -749,9 +1173,11 @@ const MarketingReportPage = () => {
     setKeyNumbers(DEFAULT_KPI_TRACKING);
     setBlockersTomorrowPlan(DEFAULT_BLOCKERS_PLAN);
     setApproval({
-      staffSignature: userDetail.name || '',
+      staffName: userDetail.name || '',
+      staffSignature: '',
       submittedAt: timeStr,
-      leaderApproval: 'CMO / Team Leader Approval',
+      leaderName: '',
+      leaderApproval: '',
       approvedOn: ''
     });
   };
@@ -859,7 +1285,7 @@ const MarketingReportPage = () => {
   const addTaskRow = () => {
     setTaskSummary([
       ...taskSummary,
-      { task: '', detailsNotes: '', status: '', dueDate: '', remarks: '' }
+      { task: '', detailsNotes: '', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' }
     ]);
   };
 
@@ -973,7 +1399,16 @@ const MarketingReportPage = () => {
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-start sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsWeeklyModalOpen(true)}
+                  className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-600 dark:text-indigo-400 font-semibold text-sm transition-all"
+                >
+                  <Calendar size={16} />
+                  Weekly Report
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setIsMonthlyModalOpen(true)}
@@ -983,18 +1418,11 @@ const MarketingReportPage = () => {
                   Monthly Report
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleDownloadPDF}
-                  className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
-                >
-                  <Download size={16} />
-                  Download PDF
-                </button>
+                
 
                 <button
                   type="button"
-                  onClick={handleSaveReport}
+                  onClick={handleDownloadPDF}
                   disabled={saving}
                   className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
                 >
@@ -1003,7 +1431,7 @@ const MarketingReportPage = () => {
                   ) : (
                     <Save size={16} />
                   )}
-                  Save Report
+                  Save File
                 </button>
               </div>
             </div>
@@ -1135,9 +1563,11 @@ const MarketingReportPage = () => {
                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-950">
                     <tr>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Task</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[35%] min-w-[280px]">Task</th>
                       <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Due Date</th>
-                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/2">Details / Notes</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Start Date</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">End Date</th>
+                      <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Details / Notes</th>
                       <th className="px-4 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-32">Status</th>
                       <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
                       <th className="px-3 py-3 text-center w-12"></th>
@@ -1153,6 +1583,33 @@ const MarketingReportPage = () => {
                             onChange={(e) => handleTaskChange(idx, 'task', e.target.value)}
                             className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
                             placeholder="e.g. Stories uploaded"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={item.dueDate || ''}
+                            onChange={(e) => handleTaskChange(idx, 'dueDate', e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                            placeholder="Due date"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={item.startDate || ''}
+                            onChange={(e) => handleTaskChange(idx, 'startDate', e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                            placeholder="Start date"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            value={item.endDate || ''}
+                            onChange={(e) => handleTaskChange(idx, 'endDate', e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                            placeholder="End date"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -1350,12 +1807,20 @@ const MarketingReportPage = () => {
                     Staff Verification
                   </h4>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Staff Signature / Name</label>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Staff Name</label>
                     <input
                       type="text"
+                      value={approval.staffName || ''}
+                      onChange={(e) => setApproval({ ...approval, staffName: e.target.value })}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none text-slate-700 dark:text-slate-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Staff Signature</label>
+                    <SignatureUpload
                       value={approval.staffSignature || ''}
-                      onChange={(e) => setApproval({ ...approval, staffSignature: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
+                      onChange={(val) => setApproval({ ...approval, staffSignature: val })}
+                      placeholder="Upload staff signature"
                     />
                   </div>
                   <div>
@@ -1364,7 +1829,7 @@ const MarketingReportPage = () => {
                       type="text"
                       value={approval.submittedAt || ''}
                       onChange={(e) => setApproval({ ...approval, submittedAt: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none text-slate-700 dark:text-slate-200"
                     />
                   </div>
                 </div>
@@ -1374,14 +1839,20 @@ const MarketingReportPage = () => {
                     Team Leader Approval
                   </h4>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Team Leader Approval Signature</label>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Team Leader Name</label>
                     <input
                       type="text"
+                      value={approval.leaderName || ''}
+                      onChange={(e) => setApproval({ ...approval, leaderName: e.target.value })}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none text-slate-700 dark:text-slate-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Team Leader Approval Signature</label>
+                    <SignatureUpload
                       value={approval.leaderApproval || ''}
-                      onChange={(e) => setApproval({ ...approval, leaderApproval: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                      disabled={!isPrivileged}
-                      placeholder={!isPrivileged ? "Restricted to Team Leader/CMO" : "Leader Approval"}
+                      onChange={(val) => setApproval({ ...approval, leaderApproval: val })}
+                      placeholder="Upload leader signature"
                     />
                   </div>
                   <div>
@@ -1399,7 +1870,16 @@ const MarketingReportPage = () => {
             </div>
 
             {/* Form Footer Action Buttons */}
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5">
+            <div className="flex flex-wrap items-center justify-start sm:justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5 w-full">
+              <button
+                type="button"
+                onClick={() => setIsWeeklyModalOpen(true)}
+                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 font-semibold text-sm transition-all border border-indigo-100 dark:border-indigo-900/50"
+              >
+                <Calendar size={16} />
+                Weekly Report
+              </button>
+
               <button
                 type="button"
                 onClick={() => setIsMonthlyModalOpen(true)}
@@ -1409,18 +1889,11 @@ const MarketingReportPage = () => {
                 Monthly Report
               </button>
 
-              <button
-                type="button"
-                onClick={handleDownloadPDF}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
-              >
-                <Download size={16} />
-                Download PDF
-              </button>
+              
 
               <button
                 type="button"
-                onClick={handleSaveReport}
+                onClick={handleDownloadPDF}
                 disabled={saving}
                 className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
               >
@@ -1429,7 +1902,7 @@ const MarketingReportPage = () => {
                 ) : (
                   <Save size={16} />
                 )}
-                Save Report
+                Save File
               </button>
             </div>
           </motion.div>
@@ -1556,9 +2029,11 @@ const MarketingReportPage = () => {
                             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
                               <thead className="bg-slate-50 dark:bg-slate-950">
                                 <tr>
-                                  <th className="px-3 py-2 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Task</th>
-                      <th className="px-3 py-2 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Due Date</th>
-                                  <th className="px-3 py-2 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/2">Details / Notes</th>
+                                  <th className="px-3 py-2 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[35%] min-w-[280px]">Task</th>
+                                  <th className="px-3 py-2 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Due Date</th>
+                                  <th className="px-3 py-2 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Start Date</th>
+                                  <th className="px-3 py-2 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">End Date</th>
+                                  <th className="px-3 py-2 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Details / Notes</th>
                                   <th className="px-3 py-2 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-28">Status</th>
                                   <th className="px-3 py-2 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
                                   <th className="px-2 py-2 text-center w-10"></th>
@@ -1573,6 +2048,33 @@ const MarketingReportPage = () => {
                                         value={item.task || ''}
                                         onChange={(e) => handleMonthlyTaskChange(idx, 'task', e.target.value)}
                                         className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none text-slate-800 dark:text-slate-200"
+                                      />
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <input
+                                        type="text"
+                                        value={item.dueDate || ''}
+                                        onChange={(e) => handleMonthlyTaskChange(idx, 'dueDate', e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none text-slate-800 dark:text-slate-200"
+                                        placeholder="Due date"
+                                      />
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <input
+                                        type="text"
+                                        value={item.startDate || ''}
+                                        onChange={(e) => handleMonthlyTaskChange(idx, 'startDate', e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none text-slate-800 dark:text-slate-200"
+                                        placeholder="Start date"
+                                      />
+                                    </td>
+                                    <td className="px-3 py-2">
+                                      <input
+                                        type="text"
+                                        value={item.endDate || ''}
+                                        onChange={(e) => handleMonthlyTaskChange(idx, 'endDate', e.target.value)}
+                                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none text-slate-800 dark:text-slate-200"
+                                        placeholder="End date"
                                       />
                                     </td>
                                     <td className="px-3 py-2">
@@ -1767,7 +2269,442 @@ const MarketingReportPage = () => {
             </motion.div>
           </div>
         )}
+        {isWeeklyModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 backdrop-blur-sm pt-10 px-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -20 }}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-5xl shadow-2xl overflow-hidden mb-10 text-slate-900 dark:text-white"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Calendar className="text-indigo-600 dark:text-lime-400" size={20} />
+                    Weekly Report Consolidation
+                  </h3>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                    Select a date range to consolidate marketing reports into a single weekly report.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsWeeklyModalOpen(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Date Filter & Consolidate Controls */}
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/10 flex flex-wrap items-center gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={weeklyStartDate}
+                    onChange={(e) => setWeeklyStartDate(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                  />
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={weeklyEndDate}
+                    onChange={(e) => setWeeklyEndDate(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                  />
+                </div>
+                <div className="pt-5">
+                  <button
+                    type="button"
+                    onClick={handleFetchWeeklyData}
+                    disabled={isWeeklyLoading}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
+                  >
+                    {isWeeklyLoading ? (
+                      <>
+                        <Loader2 className="animate-spin" size={16} />
+                        Consolidating...
+                      </>
+                    ) : (
+                      <>
+                        <Calendar size={16} />
+                        Fetch & Consolidate
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body / Tab View */}
+              <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+                <div className="flex overflow-x-auto border-b border-slate-100 dark:border-slate-800 pb-3 gap-2 scrollbar-none">
+                  {[
+                    { id: 'basic', label: '1. Basic Details' },
+                    { id: 'taskSummary', label: '2. Task Summary' },
+                    { id: 'keyNumbers', label: '3. Key Numbers (KPIs)' },
+                    { id: 'blockers', label: '4. Blockers & Next Plan' },
+                    { id: 'summary', label: '5. Achievements & Planning' }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setWeeklyActiveTab(tab.id)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                        weeklyActiveTab === tab.id
+                          ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                          : 'bg-slate-100 dark:bg-slate-800/60 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tab Contents */}
+                {weeklyActiveTab === 'basic' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Employee Name</label>
+                      <input
+                        type="text"
+                        value={weeklyBasicDetails.employeeName || ''}
+                        onChange={(e) => setWeeklyBasicDetails({ ...weeklyBasicDetails, employeeName: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none text-slate-700 dark:text-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Employee ID</label>
+                      <input
+                        type="text"
+                        value={weeklyBasicDetails.employeeId || ''}
+                        onChange={(e) => setWeeklyBasicDetails({ ...weeklyBasicDetails, employeeId: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none text-slate-700 dark:text-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Designation</label>
+                      <input
+                        type="text"
+                        value={weeklyBasicDetails.designation || ''}
+                        onChange={(e) => setWeeklyBasicDetails({ ...weeklyBasicDetails, designation: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none text-slate-700 dark:text-slate-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Reporting To</label>
+                      <input
+                        type="text"
+                        value={weeklyBasicDetails.reportingTo || ''}
+                        onChange={(e) => setWeeklyBasicDetails({ ...weeklyBasicDetails, reportingTo: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3.5 py-2 text-sm focus:outline-none text-slate-700 dark:text-slate-200"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {weeklyActiveTab === 'taskSummary' && (
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Consolidated Task Summary</h4>
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800">
+                          <tr>
+                            <th className="px-3 py-2.5">Task</th>
+                            <th className="px-3 py-2.5">Details / Notes</th>
+                            <th className="px-3 py-2.5 w-24 text-center">Status</th>
+                            <th className="px-3 py-2.5">Remarks</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {weeklyTaskSummary.map((item, idx) => (
+                            <tr key={idx}>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={item.task || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyTaskSummary];
+                                    updated[idx].task = e.target.value;
+                                    setWeeklyTaskSummary(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <textarea
+                                  value={item.detailsNotes || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyTaskSummary];
+                                    updated[idx].detailsNotes = e.target.value;
+                                    setWeeklyTaskSummary(updated);
+                                  }}
+                                  rows={1}
+                                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none resize-y"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <select
+                                  value={item.status || 'Done'}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyTaskSummary];
+                                    updated[idx].status = e.target.value;
+                                    setWeeklyTaskSummary(updated);
+                                  }}
+                                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none text-center"
+                                >
+                                  <option value="Done">Done</option>
+                                  <option value="Ongoing">Ongoing</option>
+                                  <option value="Pending">Pending</option>
+                                </select>
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={item.remarks || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyTaskSummary];
+                                    updated[idx].remarks = e.target.value;
+                                    setWeeklyTaskSummary(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {weeklyActiveTab === 'keyNumbers' && (
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Consolidated KPIs (Key Numbers)</h4>
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800">
+                          <tr>
+                            <th className="px-3 py-2.5">KPI</th>
+                            <th className="px-3 py-2.5 w-32 text-center">Target (Aggregated)</th>
+                            <th className="px-3 py-2.5 w-32 text-center">Achieved (Aggregated)</th>
+                            <th className="px-3 py-2.5">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {weeklyKeyNumbers.map((item, idx) => (
+                            <tr key={idx}>
+                              <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-200">{item.kpi}</td>
+                              <td className="px-3 py-2 text-center">
+                                <input
+                                  type="text"
+                                  value={item.target || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyKeyNumbers];
+                                    updated[idx].target = e.target.value;
+                                    setWeeklyKeyNumbers(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs text-center focus:outline-none"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <input
+                                  type="text"
+                                  value={item.achievedToday || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyKeyNumbers];
+                                    updated[idx].achievedToday = e.target.value;
+                                    setWeeklyKeyNumbers(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs text-center focus:outline-none font-bold text-indigo-600 dark:text-lime-400"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={item.notes || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyKeyNumbers];
+                                    updated[idx].notes = e.target.value;
+                                    setWeeklyKeyNumbers(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {weeklyActiveTab === 'blockers' && (
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Consolidated Blockers & Next Plans</h4>
+                    <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800">
+                          <tr>
+                            <th className="px-3 py-2.5">Blockers</th>
+                            <th className="px-3 py-2.5 w-24 text-center">Priority</th>
+                            <th className="px-3 py-2.5">Next Main Task</th>
+                            <th className="px-3 py-2.5">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {weeklyBlockersTomorrowPlan.map((item, idx) => (
+                            <tr key={idx}>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={item.blockersToday || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyBlockersTomorrowPlan];
+                                    updated[idx].blockersToday = e.target.value;
+                                    setWeeklyBlockersTomorrowPlan(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <select
+                                  value={item.priority || 'Medium'}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyBlockersTomorrowPlan];
+                                    updated[idx].priority = e.target.value;
+                                    setWeeklyBlockersTomorrowPlan(updated);
+                                  }}
+                                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none text-center"
+                                >
+                                  <option value="High">High</option>
+                                  <option value="Medium">Medium</option>
+                                  <option value="Low">Low</option>
+                                </select>
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={item.tomorrowMainTask || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyBlockersTomorrowPlan];
+                                    updated[idx].tomorrowMainTask = e.target.value;
+                                    setWeeklyBlockersTomorrowPlan(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={item.notes || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyBlockersTomorrowPlan];
+                                    updated[idx].notes = e.target.value;
+                                    setWeeklyBlockersTomorrowPlan(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {weeklyActiveTab === 'summary' && (
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest mb-2">Achievements</label>
+                      <textarea
+                        value={weeklyAchievements}
+                        onChange={(e) => setWeeklyAchievements(e.target.value)}
+                        rows={4}
+                        className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200 resize-y"
+                        placeholder="Enter key achievements during this week..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest mb-2">Improvements Needed</label>
+                      <textarea
+                        value={weeklyImprovements}
+                        onChange={(e) => setWeeklyImprovements(e.target.value)}
+                        rows={4}
+                        className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200 resize-y"
+                        placeholder="Enter areas for improvement..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest mb-2">Next Week Planning</label>
+                      <textarea
+                        value={weeklyNextWeekPlanning}
+                        onChange={(e) => setWeeklyNextWeekPlanning(e.target.value)}
+                        rows={4}
+                        className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200 resize-y"
+                        placeholder="Enter plans and goals for next week..."
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
+                <button
+                  type="button"
+                  onClick={() => setIsWeeklyModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-350 font-semibold text-sm transition-all"
+                >
+                  Close
+                </button>
+                {weeklyTaskSummary.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadWeeklyPDF}
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10"
+                  >
+                    <Download size={16} />
+                    Download Weekly PDF
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
+
+      {/* Activity Detail Modal */}
+      {selectedActivityText && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+            <button
+              type="button"
+              onClick={() => setSelectedActivityText(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mb-4">Activity Details</h3>
+            <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
+              {selectedActivityText}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedActivityText(null)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

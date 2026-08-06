@@ -49,45 +49,60 @@ const authorizeLeadsAccess = async (req, res, next) => {
   next();
 };
 
+// Middleware to restrict edit/delete/mutation operations for Admin on Telecaller leads
+const restrictAdminMutations = (req, res, next) => {
+  const userRole = String(req.user?.role || req.user?.role_id || req.user?.roleId || '').toLowerCase().trim();
+  const isAdmin = ['1', '2', 'admin', 'superadmin'].includes(userRole);
+
+  if (isAdmin) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Admins have view-only access to telecaller leads and cannot edit or delete leads.'
+    });
+  }
+
+  next();
+};
+
 router.use(checkAuth);
 router.use(authorizeLeadsAccess);
 
 
-// GET ALL LEADS (supporting filters, search, and pagination)
+// GET ALL LEADS (supporting filters, search, and pagination) - View access allowed for Admin
 router.get('/', apiRateLimiter, leadController.getLeads);
 
-// GET SINGLE LEAD BY ID
+// GET SINGLE LEAD BY ID - View access allowed for Admin
 router.get('/:id', apiRateLimiter, leadController.getLeadById);
 
-// CREATE LEAD (with Zod validation, rate limiting)
-router.post('/create', leadMutationRateLimiter, validateBody(createLeadSchema), leadController.createLead);
+// CREATE LEAD (with Zod validation, rate limiting, blocked for Admin)
+router.post('/create', leadMutationRateLimiter, restrictAdminMutations, validateBody(createLeadSchema), leadController.createLead);
 
-// BULK UPDATE LEAD STATUS
-router.put('/update', leadMutationRateLimiter, validateBody(bulkUpdateStatusSchema), leadController.bulkUpdateStatus);
+// BULK UPDATE LEAD STATUS (blocked for Admin)
+router.put('/update', leadMutationRateLimiter, restrictAdminMutations, validateBody(bulkUpdateStatusSchema), leadController.bulkUpdateStatus);
 
-// UPDATE SINGLE LEAD
-router.put('/:id', leadMutationRateLimiter, validateBody(updateLeadSchema), leadController.updateLead);
-router.post('/update/:id', leadMutationRateLimiter, validateBody(updateLeadSchema), leadController.updateLead);
-router.post('/update', leadMutationRateLimiter, validateBody(updateLeadSchema), leadController.updateLead);
+// UPDATE SINGLE LEAD (blocked for Admin)
+router.put('/:id', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateLeadSchema), leadController.updateLead);
+router.post('/update/:id', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateLeadSchema), leadController.updateLead);
+router.post('/update', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateLeadSchema), leadController.updateLead);
 
-// LOG FOLLOW-UP ACTION
-router.post('/followup', leadMutationRateLimiter, validateBody(addFollowUpSchema), leadController.addFollowUp);
-router.post('/followup/:id', leadMutationRateLimiter, validateBody(addFollowUpSchema), leadController.addFollowUp);
+// LOG FOLLOW-UP ACTION (blocked for Admin)
+router.post('/followup', leadMutationRateLimiter, restrictAdminMutations, validateBody(addFollowUpSchema), leadController.addFollowUp);
+router.post('/followup/:id', leadMutationRateLimiter, restrictAdminMutations, validateBody(addFollowUpSchema), leadController.addFollowUp);
 
-// UPDATE LEAD STATUS
-router.patch('/status-update', leadMutationRateLimiter, validateBody(updateStatusSchema), leadController.updateStatus);
-router.patch('/status-update/:id', leadMutationRateLimiter, validateBody(updateStatusSchema), leadController.updateStatus);
-router.post('/status-update', leadMutationRateLimiter, validateBody(updateStatusSchema), leadController.updateStatus);
-router.post('/status-update/:id', leadMutationRateLimiter, validateBody(updateStatusSchema), leadController.updateStatus);
+// UPDATE LEAD STATUS (blocked for Admin)
+router.patch('/status-update', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateStatusSchema), leadController.updateStatus);
+router.patch('/status-update/:id', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateStatusSchema), leadController.updateStatus);
+router.post('/status-update', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateStatusSchema), leadController.updateStatus);
+router.post('/status-update/:id', leadMutationRateLimiter, restrictAdminMutations, validateBody(updateStatusSchema), leadController.updateStatus);
 
-// DELETE LEAD (with fallback mappings)
-router.delete('/delete/:id', leadMutationRateLimiter, leadController.deleteLead);
-router.post('/delete/:id', leadMutationRateLimiter, leadController.deleteLead);
-router.delete('/:id', leadMutationRateLimiter, leadController.deleteLead);
-router.delete('/delete', leadMutationRateLimiter, leadController.deleteLead);
-router.post('/delete', leadMutationRateLimiter, leadController.deleteLead);
+// DELETE LEAD (blocked for Admin)
+router.delete('/delete/:id', leadMutationRateLimiter, restrictAdminMutations, leadController.deleteLead);
+router.post('/delete/:id', leadMutationRateLimiter, restrictAdminMutations, leadController.deleteLead);
+router.delete('/:id', leadMutationRateLimiter, restrictAdminMutations, leadController.deleteLead);
+router.delete('/delete', leadMutationRateLimiter, restrictAdminMutations, leadController.deleteLead);
+router.post('/delete', leadMutationRateLimiter, restrictAdminMutations, leadController.deleteLead);
 
-// BULK IMPORT LEADS
-router.post('/import', leadMutationRateLimiter, leadController.importLeads);
+// BULK IMPORT LEADS (blocked for Admin)
+router.post('/import', leadMutationRateLimiter, restrictAdminMutations, leadController.importLeads);
 
 export default router;

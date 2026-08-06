@@ -3,21 +3,20 @@ import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X, Maximize2
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
+import SignatureUpload from '../components/SignatureUpload';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
 // Default items for Task Log
 const DEFAULT_TASK_LOG = [
-  { taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'Done', fileLink: '' },
-  { taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'N/A', fileLink: '' },
-  { taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'N/A', fileLink: '' },
-  { taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'N/A', fileLink: '' }
+  { taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: '', fileLink: '' },
+  { taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: '', fileLink: '' }
 ];
 
 // Default Key Numbers
@@ -29,7 +28,7 @@ const DEFAULT_KEY_NUMBERS = {
 
 // Default Blockers
 const DEFAULT_BLOCKERS = [
-  { issue: 'Laptop complaint', details: 'Laptop got from the repairing shop late', priority: 'High' }
+  { issue: '', details: '', priority: '' }
 ];
 
 // Default Tomorrow's Plan
@@ -40,7 +39,7 @@ const DEFAULT_TOMORROW = [
 const GraphicDesignerReportPage = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
@@ -80,6 +79,7 @@ const GraphicDesignerReportPage = () => {
   });
   
   const [taskLog, setTaskLog] = useState(DEFAULT_TASK_LOG);
+  const [selectedActivityText, setSelectedActivityText] = useState(null);
   const [keyNumbers, setKeyNumbers] = useState(DEFAULT_KEY_NUMBERS);
   const [blockers, setBlockers] = useState(DEFAULT_BLOCKERS);
   const [tomorrowTasks, setTomorrowTasks] = useState(DEFAULT_TOMORROW);
@@ -321,7 +321,7 @@ const GraphicDesignerReportPage = () => {
           ...apiBasicDetails,
           employeeName: userDetail.name || apiBasicDetails.employeeName || '',
           employeeId: userDetail.employeeId || apiBasicDetails.employeeId || '',
-          designation: userDetail.designation || apiBasicDetails.designation || '',
+          designation: userDetail.designationName || userDetail.designation || apiBasicDetails.designation || '',
           reportingTo: userDetail.reportingManager || apiBasicDetails.reportingTo || '',
           department: userDetail.department || apiBasicDetails.department || ''
         });
@@ -388,11 +388,7 @@ const GraphicDesignerReportPage = () => {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
             const mappedTasks = completedTasks.map(t => ({ taskProjectName: t.title, descriptionDetails: 'Auto-fetched', startTime: t.startTime || '', endTime: t.endTime || '', dueDate: t.dueDate || '', status: t.status === 'Done' ? 'Done' : 'Pending', fileLink: '' }));
-            mappedTasks.push({ taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'ongoing', fileLink: '' });
-            mappedTasks.push({ taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'ongoing', fileLink: '' });
             setTaskLog(mappedTasks);
-          } else {
-            setTaskLog(prev => [...prev, { taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'ongoing', fileLink: '' }, { taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'ongoing', fileLink: '' }]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
@@ -406,11 +402,7 @@ const GraphicDesignerReportPage = () => {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
             const mappedTasks = completedTasks.map(t => ({ taskProjectName: t.title, descriptionDetails: 'Auto-fetched', startTime: t.startTime || '', endTime: t.endTime || '', dueDate: t.dueDate || '', status: t.status === 'Done' ? 'Done' : 'Pending', fileLink: '' }));
-            mappedTasks.push({ taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'ongoing', fileLink: '' });
-            mappedTasks.push({ taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'ongoing', fileLink: '' });
             setTaskLog(mappedTasks);
-          } else {
-            setTaskLog(prev => [...prev, { taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'ongoing', fileLink: '' }, { taskProjectName: '', descriptionDetails: '', startTime: '', endTime: '', dueDate: '', status: 'ongoing', fileLink: '' }]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
@@ -471,7 +463,7 @@ const GraphicDesignerReportPage = () => {
     setBasicDetails({
       employeeName: userDetail.name || parsedCached?.employeeName || '',
       employeeId: userDetail.employeeId || parsedCached?.employeeId || '',
-      designation: userDetail.designation || parsedCached?.designation || 'Graphic Designer',
+      designation: userDetail.designationName || userDetail.designation || parsedCached?.designation || 'Graphic Designer',
       reportingTo: userDetail.reportingManager || parsedCached?.reportingTo || 'CMO',
       shiftTiming: parsedCached?.shiftTiming || '9:00 AM - 5:00 PM',
       preparedAt: parsedCached?.preparedAt || timeStr
@@ -723,7 +715,7 @@ const GraphicDesignerReportPage = () => {
               mergedBlockers.push({
                 issue: b.issue || '',
                 details: b.details || '',
-                priority: b.priority || 'None'
+                priority: b.priority || ''
               });
             }
           });
@@ -970,6 +962,30 @@ const GraphicDesignerReportPage = () => {
           2: { width: 60 },
           3: { width: 35, halign: 'center' }
         },
+        didDrawCell: (data) => {
+          if (data.column.index === 0 && data.cell.section === 'body') {
+            const rawVal = String(data.cell.raw || '');
+            if (rawVal.includes('(data:image/')) {
+              const parts = rawVal.split(' (');
+              const nameText = parts[0];
+              const signatureBase64 = parts[1] ? parts[1].slice(0, -1) : '';
+              if (signatureBase64.startsWith('data:image/')) {
+                data.cell.text = '';
+                const x = data.cell.x + 2;
+                const y = data.cell.y + 2;
+                doc.text(nameText, x, y + 2);
+                const imgY = y + 8;
+                const w = data.cell.width - 4;
+                const h = data.cell.height - 12;
+                try {
+                  doc.addImage(signatureBase64, 'PNG', x, imgY, w, h);
+                } catch (e) {
+                  console.error("Failed to add signature image to monthly PDF:", e);
+                }
+              }
+            }
+          }
+        },
         margin: { left: 14, right: 14 }
       });
       const pdfBlob = doc.output('blob');
@@ -1124,7 +1140,7 @@ const GraphicDesignerReportPage = () => {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-start sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setIsMonthlyModalOpen(true)}
@@ -1134,18 +1150,11 @@ const GraphicDesignerReportPage = () => {
                   Monthly Report
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleDownloadPDF}
-                  className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
-                >
-                  <Download size={16} />
-                  Download PDF
-                </button>
+                
 
                 <button
                   type="button"
-                  onClick={handleSaveReport}
+                  onClick={handleDownloadPDF}
                   disabled={saving}
                   className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
                 >
@@ -1154,7 +1163,7 @@ const GraphicDesignerReportPage = () => {
                   ) : (
                     <Save size={16} />
                   )}
-                  Save Report
+                  Save File
                 </button>
               </div>
             </div>
@@ -1266,14 +1275,14 @@ const GraphicDesignerReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-5 py-4 w-[25%]">Task / Project Name</th>
-                      <th className="px-5 py-4 w-[25%]">Due Date</th>
-                      <th className="px-5 py-4 w-[35%]">Description / Details</th>
+                      <th className="px-5 py-4 w-[30%]">Task / Project Name</th>
+                      <th className="px-5 py-4 w-[12%]">Due Date</th>
+                      <th className="px-5 py-4 w-[40%]">Description / Details</th>
                       <th className="px-5 py-4 w-[10%] text-center">Start Time</th>
                       <th className="px-5 py-4 w-[10%] text-center">End Time</th>
                       <th className="px-5 py-4 w-[10%] text-center">Status</th>
-                      <th className="px-5 py-4 w-[15%]">Drive File Link</th>
-                      <th className="px-5 py-4 w-[5%] text-center"></th>
+                      <th className="px-5 py-4 w-[10%]">Drive File Link</th>
+                      <th className="px-5 py-4 w-[3%] text-center"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1289,6 +1298,19 @@ const GraphicDesignerReportPage = () => {
                               setTaskLog(updated);
                             }}
                             placeholder="Design Task..."
+                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                          />
+                        </td>
+                        <td className="px-5 py-3">
+                          <input
+                            type="text"
+                            value={item.dueDate}
+                            onChange={(e) => {
+                              const updated = [...taskLog];
+                              updated[index].dueDate = e.target.value;
+                              setTaskLog(updated);
+                            }}
+                            placeholder="DD/MM"
                             className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
                           />
                         </td>
@@ -1571,7 +1593,7 @@ const GraphicDesignerReportPage = () => {
                                 updated[index].issue = e.target.value;
                                 setBlockers(updated);
                               }}
-                              placeholder="Laptop complaint, etc."
+                              placeholder="issue, etc."
                               className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
                             />
                           </td>
@@ -1598,6 +1620,7 @@ const GraphicDesignerReportPage = () => {
                               }}
                               className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none text-slate-700 dark:text-slate-200"
                             >
+                              <option value="">Select Priority</option>
                               <option value="None">None</option>
                               <option value="High">High</option>
                               <option value="Medium">Medium</option>
@@ -1726,12 +1749,10 @@ const GraphicDesignerReportPage = () => {
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Designer Signature (Initials)</label>
-                  <input
-                    type="text"
+                  <SignatureUpload
                     value={approval.designerSignature || ''}
-                    onChange={(e) => setApproval({ ...approval, designerSignature: e.target.value })}
-                    placeholder="Signature..."
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none text-slate-700 dark:text-slate-200"
+                    onChange={(val) => setApproval({ ...approval, designerSignature: val })}
+                    placeholder="Upload signature"
                   />
                 </div>
                 <div>
@@ -1765,7 +1786,7 @@ const GraphicDesignerReportPage = () => {
             </div>
 
             {/* Form Footer Action Buttons */}
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5">
+            <div className="flex flex-wrap items-center justify-start sm:justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5 w-full">
               <button
                 type="button"
                 onClick={() => setIsMonthlyModalOpen(true)}
@@ -1775,18 +1796,11 @@ const GraphicDesignerReportPage = () => {
                 Monthly Report
               </button>
 
-              <button
-                type="button"
-                onClick={handleDownloadPDF}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
-              >
-                <Download size={16} />
-                Download PDF
-              </button>
+              
 
               <button
                 type="button"
-                onClick={handleSaveReport}
+                onClick={handleDownloadPDF}
                 disabled={saving}
                 className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
               >
@@ -1795,7 +1809,7 @@ const GraphicDesignerReportPage = () => {
                 ) : (
                   <Save size={16} />
                 )}
-                Save Report
+                Save File
               </button>
             </div>
 
@@ -1860,7 +1874,7 @@ const GraphicDesignerReportPage = () => {
               <div className="p-6 max-h-[60vh] overflow-y-auto bg-white dark:bg-slate-900">
                 {monthlyActiveTab === 'range' && (
                   <div className="space-y-6 max-w-xl mx-auto py-6">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
                           Start Date
@@ -1982,9 +1996,9 @@ const GraphicDesignerReportPage = () => {
                       <table className="w-full text-left border-collapse text-sm">
                         <thead>
                           <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                            <th className="px-5 py-4 w-[25%]">Task / Project Name</th>
+                            <th className="px-5 py-4 w-[35%]">Task / Project Name</th>
                       <th className="px-5 py-4 w-[25%]">Due Date</th>
-                            <th className="px-5 py-4 w-[35%]">Description / Details</th>
+                            <th className="px-5 py-4 w-[45%]">Description / Details</th>
                             <th className="px-5 py-4 w-[10%] text-center">Start Time</th>
                             <th className="px-5 py-4 w-[10%] text-center">End Time</th>
                             <th className="px-5 py-4 w-[10%] text-center">Status</th>
@@ -2284,7 +2298,7 @@ const GraphicDesignerReportPage = () => {
                                     updated[index].issue = e.target.value;
                                     setMonthlyBlockers(updated);
                                   }}
-                                  placeholder="Laptop complaint, etc."
+                                  placeholder="issue, etc."
                                   className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
                                 />
                               </td>
@@ -2437,12 +2451,10 @@ const GraphicDesignerReportPage = () => {
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Designer Signature (Initials)</label>
-                        <input
-                          type="text"
+                        <SignatureUpload
                           value={monthlyApproval.designerSignature || ''}
-                          onChange={(e) => setMonthlyApproval({ ...monthlyApproval, designerSignature: e.target.value })}
-                          placeholder="Signature..."
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm focus:outline-none text-slate-700 dark:text-slate-200"
+                          onChange={(val) => setMonthlyApproval({ ...monthlyApproval, designerSignature: val })}
+                          placeholder="Upload signature"
                         />
                       </div>
                       <div>
@@ -2500,6 +2512,34 @@ const GraphicDesignerReportPage = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Activity Detail Modal */}
+      {selectedActivityText && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+            <button
+              type="button"
+              onClick={() => setSelectedActivityText(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mb-4">Activity Details</h3>
+            <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
+              {selectedActivityText}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedActivityText(null)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

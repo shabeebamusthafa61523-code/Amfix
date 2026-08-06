@@ -18,8 +18,8 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 const STATUS_CONFIG = {
   pending:  { label: 'Pending',     icon: Layout,       color: '#e26a6a', bg: 'bg-[#e26a6a]/10',  text: 'text-[#e26a6a]',  border: 'border-[#e26a6a]/25'  },
   current:  { label: 'In Progress', icon: Clock,        color: '#e5a23a', bg: 'bg-[#e5a23a]/10',  text: 'text-[#e5a23a]',  border: 'border-[#e5a23a]/25'  },
-  preview:  { label: 'In Review',   icon: Eye,          color: '#6366f1', bg: 'bg-indigo-500/10', text: 'text-indigo-500', border: 'border-indigo-500/25' },
-  done:     { label: 'Completed',   icon: CheckCircle2, color: '#9dd384', bg: 'bg-[#9dd384]/10',  text: 'text-[#9dd384]',  border: 'border-[#9dd384]/25'  },
+  preview:  { label: 'In Review',   icon: Eye,          color: '#442d82', bg: 'bg-indigo-500/10', text: 'text-indigo-500', border: 'border-indigo-500/25' },
+  done:     { label: 'Completed',   icon: CheckCircle2, color: '#b7d333', bg: 'bg-[#b7d333]/10',  text: 'text-[#b7d333]',  border: 'border-[#b7d333]/25'  },
 };
 
 /* ─────────────────────────────────────────────
@@ -54,7 +54,7 @@ const DonutChart = ({ segments, size = 130, strokeWidth = 14 }) => {
 };
 
 /* SVG Line/Area chart */
-const AreaChart = ({ points: rawPoints = [], color = '#6366f1', areaColor = '#6366f120', height = 120 }) => {
+const AreaChart = ({ points: rawPoints = [], color = '#442d82', areaColor = '#442d8220', height = 120 }) => {
   const max = Math.max(...rawPoints.map(p => p.value), 1);
   const W = 500, H = height, PL = 8, PR = 8, PT = 10, PB = 20;
   const cW = W - PL - PR, cH = H - PT - PB;
@@ -87,7 +87,7 @@ const AreaChart = ({ points: rawPoints = [], color = '#6366f1', areaColor = '#63
 };
 
 /* Horizontal progress bar */
-const ProgressBar = ({ pct = 0, color = '#9dd384', height = 6, animated = true }) => (
+const ProgressBar = ({ pct = 0, color = '#b7d333', height = 6, animated = true }) => (
   <div className={`w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden`} style={{ height }}>
     <motion.div
       className="h-full rounded-full"
@@ -126,7 +126,7 @@ const BigMetricCard = ({ label, value, icon: Icon, color, subtext, trend, delay 
         <Icon size={22} style={{ color }} />
       </div>
       {trend !== undefined && (
-        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black ${trend >= 0 ? 'bg-[#9dd384]/10 text-[#9dd384]' : 'bg-[#e26a6a]/10 text-[#e26a6a]'}`}>
+        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black ${trend >= 0 ? 'bg-[#b7d333]/10 text-[#b7d333]' : 'bg-[#e26a6a]/10 text-[#e26a6a]'}`}>
           <ChevronUp size={9} className={trend >= 0 ? '' : 'rotate-180'} />
           {Math.abs(trend)}%
         </div>
@@ -286,8 +286,8 @@ const GraphicDesignerDashboard = () => {
   const donutSegments = [
     { value: statusCounts.pending, color: '#e26a6a' },
     { value: statusCounts.current, color: '#e5a23a' },
-    { value: statusCounts.preview, color: '#6366f1' },
-    { value: statusCounts.done,    color: '#9dd384' },
+    { value: statusCounts.preview, color: '#442d82' },
+    { value: statusCounts.done,    color: '#b7d333' },
   ];
 
   /* ────── Loading screen ────── */
@@ -378,11 +378,11 @@ const GraphicDesignerDashboard = () => {
 
       {/* ══ ROW 1: 5 BIG METRIC CARDS ══ */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
-        <BigMetricCard label="Total Assigned"   value={myTasks.length}       icon={ListChecks}   color="#6366f1" subtext="Lifetime tasks"          delay={0}    />
+        <BigMetricCard label="Total Assigned"   value={myTasks.length}       icon={ListChecks}   color="#442d82" subtext="Lifetime tasks"          delay={0}    />
         <BigMetricCard label="In Progress"      value={statusCounts.current} icon={Zap}          color="#e5a23a" subtext="Active right now"        delay={0.06} />
-        <BigMetricCard label="In Review"        value={statusCounts.preview} icon={Eye}          color="#6366f1" subtext="Awaiting feedback"       delay={0.12} />
+        <BigMetricCard label="In Review"        value={statusCounts.preview} icon={Eye}          color="#442d82" subtext="Awaiting feedback"       delay={0.12} />
         <BigMetricCard label="Pending"          value={statusCounts.pending} icon={AlertCircle}  color="#e26a6a" subtext="Not started yet"         delay={0.18} />
-        <BigMetricCard label="Completed"        value={statusCounts.done}    icon={CheckCircle2} color="#9dd384" subtext={`${completionRate}% rate`} delay={0.24} />
+        <BigMetricCard label="Completed"        value={statusCounts.done}    icon={CheckCircle2} color="#b7d333" subtext={`${completionRate}% rate`} delay={0.24} />
       </div>
 
       {/* ══ ROW 2: Donut + Activity Chart + Progress Card ══ */}
@@ -448,7 +448,7 @@ const GraphicDesignerDashboard = () => {
             </div>
           </div>
 
-          <AreaChart points={weeklyActivity} color="#6366f1" height={120} />
+          <AreaChart points={weeklyActivity} color="#442d82" height={120} />
 
           {/* Summary row */}
           <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
@@ -475,7 +475,7 @@ const GraphicDesignerDashboard = () => {
               <h2 className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">Performance</h2>
               <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5">Individual metrics</p>
             </div>
-            <div className="p-2.5 rounded-2xl bg-[#9dd384]/10"><Award size={16} className="text-[#9dd384]" /></div>
+            <div className="p-2.5 rounded-2xl bg-[#b7d333]/10"><Award size={16} className="text-[#b7d333]" /></div>
           </div>
 
           {/* Big completion % */}
@@ -483,7 +483,7 @@ const GraphicDesignerDashboard = () => {
             <div className="relative mb-3">
               <svg width="110" height="110" viewBox="0 0 110 110">
                 <circle cx="55" cy="55" r="44" fill="none" stroke="#e2e8f0" strokeWidth="10" className="dark:stroke-slate-800" />
-                <motion.circle cx="55" cy="55" r="44" fill="none" stroke="#9dd384" strokeWidth="10"
+                <motion.circle cx="55" cy="55" r="44" fill="none" stroke="#b7d333" strokeWidth="10"
                   strokeDasharray={`${2*Math.PI*44}`}
                   initial={{ strokeDashoffset: 2*Math.PI*44 }}
                   animate={{ strokeDashoffset: 2*Math.PI*44 * (1 - completionRate/100) }}
@@ -499,7 +499,7 @@ const GraphicDesignerDashboard = () => {
 
           {/* Quick KPI bars */}
           {[
-            { label: 'Completed',   val: statusCounts.done,    max: myTasks.length || 1, color: '#9dd384' },
+            { label: 'Completed',   val: statusCounts.done,    max: myTasks.length || 1, color: '#b7d333' },
             { label: 'In Progress', val: statusCounts.current, max: myTasks.length || 1, color: '#e5a23a' },
             { label: 'Pending',     val: statusCounts.pending, max: myTasks.length || 1, color: '#e26a6a' },
           ].map((kpi, i) => (
@@ -541,7 +541,7 @@ const GraphicDesignerDashboard = () => {
               {devUserTasks.map((dev, i) => {
                 const pct  = dev.total ? Math.round((dev.done / dev.total) * 100) : 0;
                 const isMe = String(dev.aId) === String(currentUserId);
-                const barColor = pct >= 75 ? '#9dd384' : pct >= 40 ? '#e5a23a' : '#e26a6a';
+                const barColor = pct >= 75 ? '#b7d333' : pct >= 40 ? '#e5a23a' : '#e26a6a';
                 return (
                   <motion.div key={i}
                     initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
@@ -568,7 +568,7 @@ const GraphicDesignerDashboard = () => {
                       <ProgressBar pct={pct} color={barColor} height={6} />
                       <div className="flex items-center gap-4 mt-1.5">
                         <span className="text-[9px] font-bold text-slate-400">Total: <b className="text-slate-600 dark:text-slate-300">{dev.total}</b></span>
-                        <span className="text-[9px] font-bold text-[#9dd384]">✓ {dev.done} done</span>
+                        <span className="text-[9px] font-bold text-[#b7d333]">✓ {dev.done} done</span>
                         <span className="text-[9px] font-bold text-[#e5a23a]">⚡ {dev.current} active</span>
                         <span className="text-[9px] font-bold text-[#e26a6a]">⏳ {dev.pending} pending</span>
                         {dev.preview > 0 && <span className="text-[9px] font-bold text-indigo-400">🔍 {dev.preview} review</span>}
@@ -589,8 +589,8 @@ const GraphicDesignerDashboard = () => {
               <h2 className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider">Recently Done</h2>
               <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5">Latest completed tasks</p>
             </div>
-            <div className="p-2.5 rounded-2xl bg-[#9dd384]/10">
-              <Rocket size={14} className="text-[#9dd384]" />
+            <div className="p-2.5 rounded-2xl bg-[#b7d333]/10">
+              <Rocket size={14} className="text-[#b7d333]" />
             </div>
           </div>
 
@@ -608,9 +608,9 @@ const GraphicDesignerDashboard = () => {
                 <motion.div key={t.id || i}
                   initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.05 * i }}
-                  className="flex items-start gap-3 p-3.5 rounded-2xl bg-[#9dd384]/5 border border-[#9dd384]/15 hover:bg-[#9dd384]/10 transition-colors">
-                  <div className="mt-0.5 w-5 h-5 rounded-full bg-[#9dd384]/20 flex items-center justify-center shrink-0">
-                    <CheckCircle2 size={11} className="text-[#9dd384]" />
+                  className="flex items-start gap-3 p-3.5 rounded-2xl bg-[#b7d333]/5 border border-[#b7d333]/15 hover:bg-[#b7d333]/10 transition-colors">
+                  <div className="mt-0.5 w-5 h-5 rounded-full bg-[#b7d333]/20 flex items-center justify-center shrink-0">
+                    <CheckCircle2 size={11} className="text-[#b7d333]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate leading-tight">{t.title}</p>
@@ -626,9 +626,9 @@ const GraphicDesignerDashboard = () => {
       {/* ══ ROW 4: Quick Stats ══ */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
         {[
-          { icon: Brush,     label: 'Total Team Tasks', value: devUserTasks.reduce((sum, u) => sum + u.total, 0),                               color: '#6366f1' },
+          { icon: Brush,     label: 'Total Team Tasks', value: devUserTasks.reduce((sum, u) => sum + u.total, 0),                               color: '#442d82' },
           { icon: Users,      label: 'Team Members',     value: devUserTasks.length,                        color: '#e5a23a' },
-          { icon: Frame,  label: 'My Completion',    value: `${completionRate}%`,                       color: '#9dd384' },
+          { icon: Frame,  label: 'My Completion',    value: `${completionRate}%`,                       color: '#b7d333' },
           { icon: Flame,      label: 'Active Tasks',     value: statusCounts.current + statusCounts.preview, color: '#e26a6a' },
         ].map((s, i) => (
           <motion.div key={i}
@@ -741,7 +741,7 @@ const GraphicDesignerDashboard = () => {
                           <td className="px-6 py-4 max-w-[200px]">
                             <div className="flex items-center gap-2.5">
                               <div className="w-1.5 h-7 rounded-full shrink-0"
-                                style={{ backgroundColor: STATUS_CONFIG[(task.status||'pending').toLowerCase()]?.color || '#6366f1' }} />
+                                style={{ backgroundColor: STATUS_CONFIG[(task.status||'pending').toLowerCase()]?.color || '#442d82' }} />
                               <p className="text-[12px] font-bold text-slate-700 dark:text-slate-200 truncate leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">{task.title}</p>
                             </div>
                           </td>

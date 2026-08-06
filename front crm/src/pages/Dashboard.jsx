@@ -9,6 +9,7 @@ import {
   Activity, 
   ChevronRight, 
   Loader2,
+  LayoutDashboard,
   Users,
   TrendingUp,
   Building,
@@ -23,13 +24,15 @@ import {
   CheckCircle,
   AlertCircle,
   FileText,
-  BarChart2
+  BarChart2,
+  FolderKanban,
+  Briefcase
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-const Dashboard = () => {
+const Dashboard = ({ isEmbedded = false, mdData = null }) => {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [tasks, setTasks] = useState([]);
@@ -44,13 +47,17 @@ const Dashboard = () => {
   const [staffPerformance, setStaffPerformance] = useState([]);
   const [followupMetrics, setFollowupMetrics] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
+  const [clientsData, setClientsData] = useState({ clients: [], stats: {} });
+  const [projectsData, setProjectsData] = useState({ projects: [], stats: {} });
+  const [clientLeadsData, setClientLeadsData] = useState([]);
 
   // Filters & Search
   const [userSearch, setUserSearch] = useState("");
   const [taskFilter, setTaskFilter] = useState("all");
   const [taskSearch, setTaskSearch] = useState("");
-  const [activeAnalyticsDept, setActiveAnalyticsDept] = useState("all");
+  const [taskCurrentPage, setTaskCurrentPage] = useState(1);
   const [userPerformanceSort, setUserPerformanceSort] = useState("completion");
+  const [globalDepartment, setGlobalDepartment] = useState("all");
 
   const navigate = useNavigate();
 
@@ -107,15 +114,19 @@ const Dashboard = () => {
       const todayStr = getISTDate();
 
       if (privilegedMode) {
+        const deptParam = globalDepartment !== 'all' ? `?department=${encodeURIComponent(globalDepartment)}` : '';
         // Fetch Admin specific stats in parallel
-        const [taskRes, userRes, summaryRes, funnelRes, sourceRes, staffRes, followupRes] = await Promise.all([
+        const [taskRes, userRes, summaryRes, funnelRes, sourceRes, staffRes, followupRes, clientsRes, projectsRes, clientLeadsRes] = await Promise.all([
           fetch(`${API_BASE}/tasks/all`, { headers: getAuthHeaders() }),
           fetch(`${API_BASE}/v1/users`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/analytics/summary`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/analytics/conversion-rate`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/analytics/source-performance`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/analytics/staff-performance`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/analytics/followup-metrics`, { headers: getAuthHeaders() })
+          fetch(`${API_BASE}/v1/analytics/summary${deptParam}`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/v1/analytics/conversion-rate${deptParam}`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/v1/analytics/source-performance${deptParam}`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/v1/analytics/staff-performance${deptParam}`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/v1/analytics/followup-metrics${deptParam}`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/v1/clients?limit=10&sortBy=createdAt&sortOrder=desc`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/v1/projects?limit=10`, { headers: getAuthHeaders() }),
+          fetch(`${API_BASE}/v1/client-leads?limit=10`, { headers: getAuthHeaders() })
         ]);
 
         // TASKS
@@ -174,6 +185,30 @@ const Dashboard = () => {
           }
         }
 
+        // CLIENTS
+        if (clientsRes.ok) {
+          const cd = await clientsRes.json();
+          if (cd.success) {
+            setClientsData({ clients: cd.data?.clients || [], stats: cd.data?.stats || {} });
+          }
+        }
+
+        // PROJECTS
+        if (projectsRes.ok) {
+          const pd = await projectsRes.json();
+          if (pd.success) {
+            setProjectsData({ projects: pd.data?.projects || [], stats: pd.data?.stats || {} });
+          }
+        }
+
+        // CLIENT LEADS
+        if (clientLeadsRes.ok) {
+          const cld = await clientLeadsRes.json();
+          if (cld.success) {
+            setClientLeadsData(Array.isArray(cld.data) ? cld.data : []);
+          }
+        }
+
       } else {
         // Standard User fetching
         const [taskRes, attRes] = await Promise.all([
@@ -204,7 +239,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, globalDepartment]);
 
   const handleSync = () => {
     if (user?.user_id) {
@@ -221,8 +256,32 @@ const Dashboard = () => {
       parsedUser.user_id = storedUserId;
       setUser(parsedUser);
 
-      // Check if user has administrative/privileged role
+      // Check if user is MD -> redirect to MD Dashboard
       const currentUserRole = String(parsedUser.role_id || parsedUser.roleId || parsedUser.role || '').toLowerCase().trim();
+      const currentUserDesignation = String(parsedUser.designation || '').toLowerCase().trim();
+      const currentUserDesignationId = String(parsedUser.designationId?._id || parsedUser.designationId || parsedUser.designation_id || '').trim();
+
+      const isMd = currentUserDesignation.includes('md') || 
+                   currentUserDesignation.includes('managing director') || 
+                   currentUserDesignationId === '6a7187de0bdbef63c8658832' || 
+                   ['md', 'coo', 'executive_director'].includes(currentUserRole);
+
+      if (isMd && !isEmbedded) {
+        navigate('/md-dashboard', { replace: true });
+        return;
+      }
+
+      // Check if user is HR -> redirect to HR Dashboard
+      const isHr = currentUserRole === 'hr' || 
+                   currentUserDesignation.includes('hr') || 
+                   currentUserDesignationId === '6a2f8efea2fe388770a38987';
+
+      if (isHr && !isEmbedded) {
+        navigate('/hr-dashboard', { replace: true });
+        return;
+      }
+
+      // Check if user has administrative/privileged role
       let currentUserDept = '';
       if (parsedUser.departmentId) {
         if (typeof parsedUser.departmentId === 'object' && parsedUser.departmentId._id) {
@@ -231,15 +290,27 @@ const Dashboard = () => {
           currentUserDept = String(parsedUser.departmentId).trim();
         }
       }
-      const privileged = ['1', '2', 'hr', 'admin'].includes(currentUserRole) || currentUserDept === '6a3caed51194353cbc8a3686';
+      const privileged = isEmbedded ||
+                         ['1', '2', 'admin'].includes(currentUserRole) || 
+                         currentUserDept === '6a3caed51194353cbc8a3686' || 
+                         currentUserDept === '6a55c7e8b613a280003481d8';
       setIsAdmin(privileged);
-
-      fetchData(storedUserId, privileged);
     }
 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
-  }, [fetchData]);
+  }, []);
+
+  useEffect(() => {
+    if (user?.user_id) {
+      fetchData(user.user_id, isAdmin);
+    }
+  }, [globalDepartment, user?.user_id, isAdmin, fetchData]);
+
+  // Reset pagination on filter or search changes
+  useEffect(() => {
+    setTaskCurrentPage(1);
+  }, [taskSearch, taskFilter]);
 
   // Operator specific filtered tasks
   const myTasks = useMemo(() => {
@@ -272,9 +343,29 @@ const Dashboard = () => {
     return found ? found.name : `Operator ID: ${String(assignedTo).slice(0, 8)}`;
   };
 
+  const uniqueDepartments = useMemo(() => {
+    const depts = new Set();
+    allUsers.forEach(u => {
+      const deptName = u.departmentId?.name || u.department;
+      if (deptName) depts.add(deptName);
+    });
+    return Array.from(depts).sort();
+  }, [allUsers]);
+
+  const getOperatorDept = useCallback((assignedTo) => {
+    if (!assignedTo) return "";
+    const userId = (typeof assignedTo === "object") ? (assignedTo.id || assignedTo._id) : assignedTo;
+    const found = allUsers.find(u => String(u.id || u._id) === String(userId));
+    return found ? (found.departmentId?.name || found.department || "") : "";
+  }, [allUsers]);
+
   // Filtered operators list
   const filteredUsers = useMemo(() => {
     return allUsers.filter(u => {
+      if (globalDepartment !== "all") {
+        const deptName = u.departmentId?.name || u.department || "";
+        if (deptName.toLowerCase() !== globalDepartment.toLowerCase()) return false;
+      }
       const search = userSearch.toLowerCase().trim();
       if (!search) return true;
       return (
@@ -284,11 +375,15 @@ const Dashboard = () => {
         String(u.role || "").toLowerCase().includes(search)
       );
     });
-  }, [allUsers, userSearch]);
+  }, [allUsers, userSearch, globalDepartment]);
 
   // Filtered administrative tasks list
   const filteredTasks = useMemo(() => {
     return tasks.filter(t => {
+      if (globalDepartment !== "all") {
+        const dept = getOperatorDept(t.assigned_to);
+        if (dept.toLowerCase() !== globalDepartment.toLowerCase()) return false;
+      }
       const search = taskSearch.toLowerCase().trim();
       const statusMatch = taskFilter === "all" || String(t.status || "").toLowerCase() === taskFilter.toLowerCase();
       
@@ -298,7 +393,34 @@ const Dashboard = () => {
 
       return statusMatch && searchMatch;
     });
-  }, [tasks, taskSearch, taskFilter, allUsers]);
+  }, [tasks, taskSearch, taskFilter, allUsers, globalDepartment, getOperatorDept]);
+
+  // System Task Monitor Pagination calculations
+  const tasksPerPage = 5;
+  const totalTaskPages = Math.ceil(filteredTasks.length / tasksPerPage);
+
+  const paginatedTasks = useMemo(() => {
+    const activePage = Math.min(taskCurrentPage, totalTaskPages || 1);
+    const start = (activePage - 1) * tasksPerPage;
+    return filteredTasks.slice(start, start + tasksPerPage);
+  }, [filteredTasks, taskCurrentPage, totalTaskPages]);
+
+  const taskPaginationItems = useMemo(() => {
+    const pages = [];
+    for (let i = 1; i <= totalTaskPages; i++) {
+      if (i === 1 || i === totalTaskPages || (i >= taskCurrentPage - 1 && i <= taskCurrentPage + 1)) {
+        pages.push(i);
+      }
+    }
+    const rendered = [];
+    for (let i = 0; i < pages.length; i++) {
+      if (i > 0 && pages[i] - pages[i - 1] > 1) {
+        rendered.push({ type: 'ellipsis' });
+      }
+      rendered.push({ type: 'page', value: pages[i] });
+    }
+    return rendered;
+  }, [totalTaskPages, taskCurrentPage]);
 
   // Dynamic department list from allUsers
   const departmentsList = useMemo(() => {
@@ -353,6 +475,9 @@ const Dashboard = () => {
 
   // Processed user todo performance list (filtered by department and sorted)
   const processedUserTodoPerformance = useMemo(() => {
+    // Departments that belong to MD view only — excluded from admin Operational Task Analytics
+    const MD_ONLY_DEPTS = ["academy", "hr analytics", "hr/admin", "hr", "daily task tracker"];
+
     let list = allUsers.map(u => {
       const userIdStr = String(u.id || u._id || "").trim();
       const userTasks = tasks.filter(t => {
@@ -375,8 +500,17 @@ const Dashboard = () => {
     });
 
     // Filter by active department selection
-    if (activeAnalyticsDept !== "all") {
-      list = list.filter(u => String(u.department || "").toLowerCase().trim() === activeAnalyticsDept.toLowerCase().trim());
+    if (globalDepartment !== "all") {
+      list = list.filter(u => {
+        const deptName = u.departmentId?.name || u.department || "";
+        return deptName.toLowerCase().trim() === globalDepartment.toLowerCase().trim();
+      });
+    } else if (!isEmbedded) {
+      // Admin "all" view: exclude MD-only departments from Operational Task Analytics
+      list = list.filter(u => {
+        const deptName = (u.departmentId?.name || u.department || "").toLowerCase().trim();
+        return !MD_ONLY_DEPTS.includes(deptName);
+      });
     }
 
     // Sort by selected criteria
@@ -389,7 +523,8 @@ const Dashboard = () => {
     }
 
     return list;
-  }, [allUsers, tasks, activeAnalyticsDept, userPerformanceSort]);
+  }, [allUsers, tasks, globalDepartment, userPerformanceSort, isEmbedded]);
+
 
   // SVG Bar Chart Generator for User Todo Performance (Premium Edition)
   const renderUserTodoPerformanceChart = () => {
@@ -420,11 +555,11 @@ const Dashboard = () => {
           <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
             <defs>
               <linearGradient id="userTodoGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#8b5cf6" />
-                <stop offset="100%" stopColor="#ec4899" />
+                <stop offset="0%" stopColor="#442d82" />
+                <stop offset="100%" stopColor="#b7d333" />
               </linearGradient>
               <filter id="shadow-user" x="-10%" y="-20%" width="120%" height="150%">
-                <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#ec4899" floodOpacity="0.25" />
+                <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#442d82" floodOpacity="0.25" />
               </filter>
             </defs>
 
@@ -434,7 +569,7 @@ const Dashboard = () => {
               return (
                 <g key={idx} className="opacity-15 dark:opacity-[0.05]">
                   <line x1={x} y1={headerHeight} x2={x} y2={height - 15} stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" className="text-slate-400" />
-                  <text x={x} y={headerHeight - 5} textAnchor="middle" className="text-[8px] font-black text-slate-500 fill-current">{ratio * 100}%</text>
+                  <text x={x} y={headerHeight - 5} textAnchor="middle" className="text-[8px] font-black text-slate-550 fill-current">{ratio * 100}%</text>
                 </g>
               );
             })}
@@ -445,7 +580,7 @@ const Dashboard = () => {
               const barWidth = (user.completionRate / 100) * chartWidth;
 
               return (
-                <g key={user.name || idx} className="group/row cursor-pointer transition-all duration-300 hover:opacity-90">
+                <g key={user.id || user._id || `user-perf-${idx}`} className="group/row cursor-pointer transition-all duration-300 hover:opacity-90">
                   {/* User Name */}
                   <text
                     x={paddingLeft - 12}
@@ -492,7 +627,7 @@ const Dashboard = () => {
                     x={width - 5}
                     y={y + 8}
                     textAnchor="end"
-                    className="text-[9px] font-black text-pink-500 dark:text-pink-400 fill-current tracking-wider"
+                    className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 fill-current tracking-wider"
                   >
                     {user.completionRate}% Done
                   </text>
@@ -602,9 +737,9 @@ const Dashboard = () => {
     const chartHeight = height - paddingTop - paddingBottom;
 
     const lineColors = [
-      "#6366f1", // indigo
+      "#442d82", // indigo
       "#ec4899", // pink
-      "#10b981", // emerald
+      "#b7d333", // emerald
       "#f59e0b", // amber
       "#3b82f6", // blue
       "#a855f7", // purple
@@ -655,7 +790,7 @@ const Dashboard = () => {
               const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
 
               return (
-                <g key={user.name}>
+                <g key={`trend-line-${user.name || uIdx}`}>
                   <defs>
                     <filter id={`glow-${uIdx}`} x="-10%" y="-20%" width="120%" height="150%">
                       <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" floodColor={userColor} floodOpacity="0.25" />
@@ -684,6 +819,7 @@ const Dashboard = () => {
                         cy={p.y} 
                         r="3.5" 
                         fill={userColor}
+                        style={{ transformOrigin: `${p.x}px ${p.y}px` }}
                         className="stroke-white dark:stroke-slate-900 stroke-2 transition-transform duration-300 group-hover/dot:scale-[1.35]" 
                       />
                       <text 
@@ -705,7 +841,7 @@ const Dashboard = () => {
         {/* Legend */}
         <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-4 justify-center border-t border-slate-50 dark:border-slate-850 pt-3">
           {usersTrend.map((user, idx) => (
-            <div key={user.name} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-400">
+            <div key={`legend-${user.name || idx}`} className="flex items-center gap-1.5 text-[9px] font-bold text-slate-600 dark:text-slate-400">
               <span className="w-2.5 h-1.5 rounded-full" style={{ backgroundColor: lineColors[idx % lineColors.length] }} />
               <span>{user.name}</span>
             </div>
@@ -722,9 +858,34 @@ const Dashboard = () => {
     return list;
   }, [staffPerformance]);
 
-  // SVG Bar Chart Generator for Staff Performance
+  const leadSourceData = useMemo(() => {
+    if (!sourcePerformance) return [];
+    return sourcePerformance.slice(0, 6).map((src, i) => {
+      const colors = ["#442d82", "#b7d333", "#f59e0b", "#ec4899", "#06b6d4", "#8b5cf6"];
+      return {
+        label: src.source || "Unknown",
+        value: src.totalLeads || 0,
+        rate: src.conversionRate || 0,
+        color: colors[i % colors.length]
+      };
+    });
+  }, [sourcePerformance]);
+
+  const operatorConversionData = useMemo(() => {
+    if (!processedStaffPerformance) return [];
+    return processedStaffPerformance.slice(0, 6).map((staff, i) => {
+      const colors = ["#8b5cf6", "#3b82f6", "#b7d333", "#f59e0b", "#ec4899", "#06b6d4"];
+      return {
+        label: staff.name || "Unknown",
+        value: Math.round(staff.conversionRate || 0),
+        color: colors[i % colors.length]
+      };
+    });
+  }, [processedStaffPerformance]);
+
+  // SVG Pie/Donut Chart Generator for Staff Performance
   const renderStaffPerformanceChart = () => {
-    const data = processedStaffPerformance.slice(0, 5); // top 5 operators
+    const data = operatorConversionData;
 
     if (data.length === 0) {
       return (
@@ -737,97 +898,52 @@ const Dashboard = () => {
       );
     }
 
-    const width = 500;
-    const rowHeight = 35;
-    const headerHeight = 20;
-    const paddingLeft = 110; // for names
-    const paddingRight = 85; // for values & leads count
-    const chartWidth = width - paddingLeft - paddingRight;
-    const height = headerHeight + (data.length * rowHeight) + 15;
+    const total = data.reduce((acc, curr) => acc + curr.value, 0);
+    const avg = data.length ? Math.round(total / data.length) : 0;
+    let accumulated = 0;
 
     return (
-      <div className="w-full h-full flex flex-col justify-between">
-        <div className="relative flex-1" style={{ minHeight: `${height}px` }}>
-          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
-            <defs>
-              <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#6366f1" />
-                <stop offset="100%" stopColor="#a855f7" />
-              </linearGradient>
-            </defs>
-
-            {/* Grid Lines */}
-            {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
-              const x = paddingLeft + ratio * chartWidth;
+      <div className="flex flex-col sm:flex-row items-center gap-6 py-2">
+        <div className="relative w-40 h-40 shrink-0">
+          <svg viewBox="0 0 120 120" className="w-full h-full transform -rotate-90">
+            {data.map((slice, i) => {
+              const percent = total > 0 ? slice.value / total : 0;
+              const strokeDasharray = `${percent * 314.159} ${314.159 - (percent * 314.159)}`;
+              const strokeDashoffset = -((accumulated / total) * 314.159);
+              accumulated += slice.value;
               return (
-                <g key={idx} className="opacity-15 dark:opacity-[0.07]">
-                  <line x1={x} y1={headerHeight} x2={x} y2={height - 15} stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" className="text-slate-400" />
-                  <text x={x} y={headerHeight - 5} textAnchor="middle" className="text-[8px] font-black text-slate-500 fill-current">{ratio * 100}%</text>
-                </g>
-              );
-            })}
-
-            {/* Rows */}
-            {data.map((staff, idx) => {
-              const y = headerHeight + (idx * rowHeight) + 10;
-              const rate = staff.conversionRate ? Math.round(staff.conversionRate) : 0;
-              const barWidth = (rate / 100) * chartWidth;
-
-              return (
-                <g key={staff.name || idx} className="group/row">
-                  {/* Operator Name */}
-                  <text
-                    x={paddingLeft - 10}
-                    y={y + 10}
-                    textAnchor="end"
-                    className="text-[9px] font-black text-slate-705 dark:text-slate-355 fill-current truncate cursor-pointer hover:fill-indigo-500 transition-colors"
-                  >
-                    {staff.name}
-                  </text>
-
-                  {/* Background Bar */}
-                  <rect
-                    x={paddingLeft}
-                    y={y}
-                    width={chartWidth}
-                    height="12"
-                    rx="3"
-                    className="fill-slate-100 dark:fill-slate-900 transition-all duration-300"
-                  />
-
-                  {/* Progress Bar */}
-                  <rect
-                    x={paddingLeft}
-                    y={y}
-                    width={Math.max(barWidth, 2)}
-                    height="12"
-                    rx="3"
-                    fill="url(#barGrad)"
-                    className="transition-all duration-500"
-                  />
-
-                  {/* Value Label */}
-                  <text
-                    x={paddingLeft + Math.max(barWidth, 2) + 6}
-                    y={y + 9}
-                    className="text-[9px] font-black text-slate-800 dark:text-slate-200 fill-current"
-                  >
-                    {rate}%
-                  </text>
-
-                  {/* Total Assigned Badge */}
-                  <text
-                    x={width - 5}
-                    y={y + 9}
-                    textAnchor="end"
-                    className="text-[8px] font-bold text-slate-450 fill-current"
-                  >
-                    {staff.totalAssigned} leads
-                  </text>
-                </g>
+                <circle
+                  key={i}
+                  cx="60"
+                  cy="60"
+                  r="50"
+                  fill="transparent"
+                  stroke={slice.color}
+                  strokeWidth="12"
+                  strokeDasharray={strokeDasharray}
+                  strokeDashoffset={strokeDashoffset}
+                  className="transition-all duration-300 hover:stroke-[14px] cursor-pointer"
+                  title={`${slice.label}: ${slice.value}%`}
+                />
               );
             })}
           </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Avg Conv</span>
+            <span className="text-xl font-black text-slate-800 dark:text-white">{avg}%</span>
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0 w-full space-y-2">
+          {data.map((slice, i) => (
+            <div key={i} className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
+                <span className="truncate uppercase text-[10px] tracking-wide">{slice.label}</span>
+              </div>
+              <span className="font-mono text-indigo-500">{slice.value}%</span>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -894,8 +1010,8 @@ const Dashboard = () => {
           <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
             <defs>
               <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#6366f1" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
+                <stop offset="0%" stopColor="#442d82" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#442d82" stopOpacity="0.0" />
               </linearGradient>
             </defs>
 
@@ -919,7 +1035,7 @@ const Dashboard = () => {
               <path 
                 d={pathD} 
                 fill="none" 
-                stroke="#6366f1" 
+                stroke="#442d82" 
                 strokeWidth="2.5" 
                 strokeLinecap="round" 
                 className="drop-shadow-[0_2px_6px_rgba(99,102,241,0.35)]" 
@@ -933,7 +1049,7 @@ const Dashboard = () => {
                   cx={p.x} 
                   cy={p.y} 
                   r="4" 
-                  fill="#6366f1" 
+                  fill="#442d82" 
                   stroke="#fff" 
                   strokeWidth="1.5" 
                   className="cursor-pointer transition-all duration-300 group-hover/anchor:r-5 group-hover/anchor:fill-lime-400" 
@@ -959,13 +1075,30 @@ const Dashboard = () => {
   // RENDER ADMIN VIEW
   // ----------------------------------------------------
   const renderAdminView = () => {
-    const activeStaffCount = allUsers.filter(u => u.isActive !== false).length;
-    const doneTasksCount = tasks.filter(t => String(t.status).toLowerCase() === "done").length;
-    const totalTasksCount = tasks.length;
+    const filteredUsersCount = allUsers.filter(u => {
+      if (globalDepartment === "all") return true;
+      const deptName = u.departmentId?.name || u.department || "";
+      return deptName.toLowerCase() === globalDepartment.toLowerCase();
+    });
+    const activeStaffCount = filteredUsersCount.filter(u => u.isActive !== false).length;
+
+    const tasksForDept = tasks.filter(t => {
+      if (globalDepartment === "all") return true;
+      const dept = getOperatorDept(t.assigned_to);
+      return dept.toLowerCase() === globalDepartment.toLowerCase();
+    });
+    const doneTasksCount = tasksForDept.filter(t => String(t.status).toLowerCase() === "done").length;
+    const totalTasksCount = tasksForDept.length;
     const taskCompletionRate = totalTasksCount ? Math.round((doneTasksCount / totalTasksCount) * 100) : 0;
 
     const stats = adminStats || {};
     const funnelList = funnelData?.funnel || [];
+    const normalizedDept = String(globalDepartment || '').toLowerCase().replace(/\s+/g, '');
+    const showLeadsArea = normalizedDept === "all" || 
+                          normalizedDept.includes("marketing") || 
+                          normalizedDept.includes("sales&growth") || 
+                          normalizedDept.includes("salesandgrowth") || 
+                          normalizedDept.includes("sales");
 
     return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10 pb-24 pt-4 max-w-7xl mx-auto px-4">
@@ -973,60 +1106,131 @@ const Dashboard = () => {
         {/* HEADER */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
-            <div className="flex items-center gap-2 mb-1">
+            {/* <div className="flex items-center gap-2 mb-1">
               <Shield size={14} className="text-indigo-500" />
               <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em]">
                 System Control Console
               </p>
-            </div>
+            </div> */}
             <h1 className="text-4xl font-black text-slate-900 dark:text-slate-100 italic uppercase tracking-tighter">
-              Admin <span className="text-indigo-650 dark:text-indigo-400">Dashboard</span>
+               <span className="text-indigo-650 dark:text-indigo-400">Dashboard</span>
             </h1>
           </div>
 
           <div className="flex items-center gap-3">
             <button
               onClick={handleSync}
-              className="px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 transition-all active:scale-95 shadow-sm"
+              className="px-5 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 transition-all active:scale-95 shadow-sm cursor-pointer"
             >
               <RefreshCw size={14} />
               <span>Sync System</span>
             </button>
-           <div className="px-5 py-3 bg-indigo-600/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-xs font-black text-white uppercase tracking-wider">
-  {currentTime.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}
-</div>
+            <div className="px-5 py-3 bg-indigo-600/5 dark:bg-indigo-500/10 border border-indigo-500/20 rounded-2xl text-xs font-black text-white uppercase tracking-wider">
+              {currentTime.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}
+            </div>
           </div>
         </div>
 
+        {/* DEPARTMENT & EXECUTIVE VIEW FILTER PILLS */}
+        <div className="flex items-center gap-2.5 overflow-x-auto pb-3.5 scrollbar-none border-b border-slate-100 dark:border-slate-800/80">
+          <button
+            onClick={() => setGlobalDepartment("all")}
+            className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+              globalDepartment === "all"
+                ? "bg-indigo-700 text-white shadow-md shadow-indigo-600/20"
+                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-350 dark:hover:border-slate-700"
+            }`}
+          >
+            Admin Dashboard
+          </button>
+
+          {/* MD-only tabs — only shown when accessed via MdDashboard */}
+          {isEmbedded && (
+            <>
+              <button
+                onClick={() => setGlobalDepartment("Academy")}
+                className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                  globalDepartment.toLowerCase() === "academy"
+                    ? "bg-indigo-700 text-white shadow-md shadow-indigo-600/20"
+                    : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-350 dark:hover:border-slate-700"
+                }`}
+              >
+                Academy
+              </button>
+
+              <button
+                onClick={() => setGlobalDepartment("HR Analytics")}
+                className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                  globalDepartment.toLowerCase() === "hr analytics" || globalDepartment.toLowerCase() === "hr/admin" || globalDepartment.toLowerCase() === "hr"
+                    ? "bg-indigo-700 text-white shadow-md shadow-indigo-600/20"
+                    : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-350 dark:hover:border-slate-700"
+                }`}
+              >
+                HR Analytics
+              </button>
+
+              <button
+                onClick={() => setGlobalDepartment("Daily Task Tracker")}
+                className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                  globalDepartment.toLowerCase() === "daily task tracker"
+                    ? "bg-indigo-700 text-white shadow-md shadow-indigo-600/20"
+                    : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-350 dark:hover:border-slate-700"
+                }`}
+              >
+                Daily Task Tracker
+              </button>
+            </>
+          )}
+
+          {uniqueDepartments
+            .map(dept => (
+              <button
+                key={dept}
+                onClick={() => setGlobalDepartment(dept)}
+                className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                  globalDepartment.toLowerCase() === dept.toLowerCase()
+                    ? "bg-indigo-700 text-white shadow-md shadow-indigo-800/20"
+                    : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-350 dark:hover:border-slate-700"
+                }`}
+              >
+                {dept}
+              </button>
+            ))}
+        </div>
+
         {/* METRICS GRID */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+        <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 ${showLeadsArea ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-5`}>
+          {showLeadsArea && (
+            <>
+              <StatCard
+                label="Leads Pipeline"
+                value={stats.totalLeads?.value || 0}
+                icon={TrendingUp}
+                color="text-indigo-600 dark:text-indigo-400"
+                borderColor="bg-indigo-600 dark:bg-indigo-500"
+                bgColor="bg-indigo-50 dark:bg-indigo-950/20"
+                trend={stats.totalLeads?.trend}
+                subtext="Total Registered Leads"
+              />
+            </>
+          )}
           <StatCard
-            label="Leads Pipeline"
-            value={stats.totalLeads?.value || 0}
-            icon={TrendingUp}
-            color="text-indigo-600 dark:text-indigo-400"
-            borderColor="bg-indigo-600 dark:bg-indigo-500"
-            bgColor="bg-indigo-50 dark:bg-indigo-950/20"
-            trend={stats.totalLeads?.trend}
-            subtext="Total Registered Leads"
+            label="Total Clients"
+            value={clientsData.stats?.total || clientsData.clients?.length || 0}
+            icon={Building}
+            color="text-blue-600 dark:text-blue-400"
+            borderColor="bg-blue-600"
+            bgColor="bg-blue-50 dark:bg-blue-950/20"
+            subtext={`${clientsData.stats?.active || 0} Active Accounts`}
           />
           <StatCard
-            label="Admission Ok"
-            value={stats.admissionsConfirmed?.value || 0}
-            icon={CheckCircle}
-            color="text-teal-600 dark:text-teal-400"
-            borderColor="bg-teal-500"
-            bgColor="bg-teal-50 dark:bg-teal-950/20"
-            subtext="Ok to Take Admission"
-          />
-          <StatCard
-            label="Conversion Rate"
-            value={`${stats.convertedLeads?.rate || 0}%`}
-            icon={Activity}
-            color="text-emerald-600 dark:text-emerald-400"
-            borderColor="bg-emerald-500"
-            bgColor="bg-emerald-50 dark:bg-emerald-950/20"
-            subtext={`${stats.convertedLeads?.value || 0} Converted Leads`}
+            label="Total Projects"
+            value={projectsData.stats?.total || projectsData.projects?.length || 0}
+            icon={FolderKanban}
+            color="text-purple-600 dark:text-purple-400"
+            borderColor="bg-purple-600"
+            bgColor="bg-purple-50 dark:bg-purple-950/20"
+            subtext={`${projectsData.stats?.completed || 0} Completed`}
           />
           <StatCard
             label="Active Staff"
@@ -1035,7 +1239,7 @@ const Dashboard = () => {
             color="text-lime-600 dark:text-lime-400"
             borderColor="bg-lime-500"
             bgColor="bg-lime-50 dark:bg-lime-950/20"
-            subtext={`${allUsers.length} Operators Enrolled`}
+            subtext={`${filteredUsersCount.length} Operators Enrolled`}
           />
           <StatCard
             label="Tasks Completed"
@@ -1049,6 +1253,7 @@ const Dashboard = () => {
         </div>
 
         {/* CHARTS SECTION 1 - SVG TIMELINE & LEAD STAGE FUNNEL */}
+        {!["academy", "hr analytics", "hr/admin", "daily task tracker"].includes(globalDepartment.toLowerCase()) && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* UNIFIED DEPARTMENT & USER TODO ANALYTICS CONSOLE (Full-Width Premium Dashboard Card) */}
           <div className="lg:col-span-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between">
@@ -1063,21 +1268,6 @@ const Dashboard = () => {
               </div>
               
               <div className="flex items-center gap-3 flex-wrap">
-                {/* Department Dropdown Selector */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black uppercase text-slate-450 dark:text-slate-500">Department:</span>
-                  <select
-                    value={activeAnalyticsDept}
-                    onChange={(e) => setActiveAnalyticsDept(e.target.value)}
-                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-[9px] font-black uppercase tracking-wider text-slate-750 dark:text-slate-350 focus:outline-none cursor-pointer hover:border-indigo-500/50 transition-colors"
-                  >
-                    <option value="all">All Departments</option>
-                    {departmentsList.map(dept => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                  </select>
-                </div>
-
                 {/* Sort Users Selector */}
                 <div className="flex items-center gap-2">
                   <span className="text-[9px] font-black uppercase text-slate-455 dark:text-slate-500">Sort Users:</span>
@@ -1118,165 +1308,174 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+        )}
+
 
         {/* CHARTS SECTION 2 - LEADS FUNNEL, MARKETING SOURCES, AND OPERATOR PERFORMANCE */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* LEAD PIPELINE FUNNEL CHART */}
-          <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                  Leads Funnel
-                </h2>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
-                  Lead stage distribution summary
-                </p>
+        {showLeadsArea && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* LEAD PIPELINE FUNNEL CHART */}
+            <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                    Leads Funnel
+                  </h2>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
+                    Lead stage distribution summary
+                  </p>
+                </div>
+                <span className="text-[9px] font-black uppercase text-indigo-500 bg-indigo-500/5 border border-indigo-500/10 px-2.5 py-0.5 rounded">
+                  Funnel Stages
+                </span>
               </div>
-              <span className="text-[9px] font-black uppercase text-indigo-500 bg-indigo-500/5 border border-indigo-500/10 px-2.5 py-0.5 rounded">
-                Funnel Stages
-              </span>
-            </div>
 
-            {funnelList && funnelList.length > 0 ? (
-              <div className="space-y-4">
-                {funnelList.map((item, index) => {
-                  const colors = {
-                    'New': 'from-blue-500 to-indigo-500 bg-blue-500',
-                    'Contacted': 'from-indigo-500 to-violet-500 bg-indigo-500',
-                    'Follow Up': 'from-violet-500 to-purple-500 bg-violet-500',
-                    'Interested': 'from-amber-500 to-orange-500 bg-amber-500',
-                    'Converted': 'from-emerald-500 to-lime-500 bg-emerald-500',
-                    'Lost': 'from-rose-500 to-red-500 bg-rose-500'
-                  };
-                  const barColor = colors[item.stage] || 'from-slate-400 to-slate-500 bg-slate-400';
+              {funnelList && funnelList.length > 0 ? (
+                <div className="space-y-4">
+                  {funnelList.map((item, index) => {
+                    const colors = {
+                      'New': 'from-blue-500 to-indigo-500 bg-blue-500',
+                      'Contacted': 'from-indigo-500 to-violet-500 bg-indigo-500',
+                      'Follow Up': 'from-violet-500 to-purple-500 bg-violet-500',
+                      'Interested': 'from-amber-500 to-orange-500 bg-amber-500',
+                      'Converted': 'from-emerald-500 to-lime-500 bg-emerald-500',
+                      'Lost': 'from-rose-500 to-red-500 bg-rose-500'
+                    };
+                    const barColor = colors[item.stage] || 'from-slate-400 to-slate-500 bg-slate-400';
 
-                  return (
-                    <div key={item.stage} className="space-y-1">
-                      <div className="flex justify-between text-[11px] font-bold text-slate-700 dark:text-slate-350">
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-                          {item.stage}
-                        </span>
-                        <span>{item.count} ({item.percentage}%)</span>
-                      </div>
-                      <div className="h-2.5 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${item.percentage}%` }}
-                          transition={{ duration: 0.8, delay: index * 0.05 }}
-                          className={`h-full rounded-full bg-gradient-to-r ${barColor}`}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex flex-col justify-center items-center py-12 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50 dark:bg-slate-950/40 h-full">
-                <BarChart2 className="mx-auto text-slate-350 dark:text-slate-655 mb-2" size={24} />
-                <p className="text-[10px] font-bold text-slate-550 dark:text-slate-450 uppercase tracking-widest">
-                  No Funnel Data Registered
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* LEAD SOURCE ATTRIBUTION */}
-          <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                  Lead Sources Attribution
-                </h3>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
-                  Marketing channels comparison metrics
-                </p>
-              </div>
-              <span className="text-[9px] font-black text-lime-500 bg-lime-500/5 px-2 py-0.5 border border-lime-500/10 rounded uppercase">
-                Channels
-              </span>
-            </div>
-
-            {sourcePerformance && sourcePerformance.length > 0 ? (
-              <div className="space-y-4 flex-1 flex flex-col justify-center">
-                {sourcePerformance.slice(0, 5).map((src, i) => {
-                  const totalLeadsCount = Math.max(...sourcePerformance.map(s => s.totalLeads), 1);
-                  const widthPercent = Math.round((src.totalLeads / totalLeadsCount) * 100);
-
-                  return (
-                    <div key={src.source || i} className="space-y-1">
-                      <div className="flex justify-between items-baseline text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        <span className="uppercase text-[10px] tracking-wide">{src.source || "Unknown Source"}</span>
-                        <div className="flex gap-3 text-slate-500 dark:text-slate-400">
-                          <span>{src.totalLeads} Leads</span>
-                          <span className="text-indigo-500 font-black">{src.conversionRate}% Conv.</span>
+                    return (
+                      <div key={item.stage} className="space-y-1">
+                        <div className="flex justify-between text-[11px] font-bold text-slate-700 dark:text-slate-355">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                            {item.stage}
+                          </span>
+                          <span>{item.count} ({item.percentage}%)</span>
+                        </div>
+                        <div className="h-2.5 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${item.percentage}%` }}
+                            transition={{ duration: 0.8, delay: index * 0.05 }}
+                            className={`h-full rounded-full bg-gradient-to-r ${barColor}`}
+                          />
                         </div>
                       </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col justify-center items-center py-12 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50 dark:bg-slate-950/40 h-full">
+                  <BarChart2 className="mx-auto text-slate-350 dark:text-slate-655 mb-2" size={24} />
+                  <p className="text-[10px] font-bold text-slate-550 dark:text-slate-455 uppercase tracking-widest">
+                    No Funnel Data Registered
+                  </p>
+                </div>
+              )}
+            </div>
 
-                      <div className="relative h-2 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${widthPercent}%` }}
-                          transition={{ duration: 0.8, delay: i * 0.06 }}
-                          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-650"
-                        />
+            {/* LEAD SOURCE ATTRIBUTION */}
+            <div className="lg:col-span-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                    Lead Sources Attribution
+                  </h3>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
+                    Marketing channels comparison metrics and attribution
+                  </p>
+                </div>
+                <span className="text-[9px] font-black text-lime-500 bg-lime-500/5 px-2 py-0.5 border border-lime-500/10 rounded uppercase">
+                  Channels
+                </span>
+              </div>
+
+              {sourcePerformance && sourcePerformance.length > 0 ? (() => {
+                const totalLeads = leadSourceData.reduce((acc, curr) => acc + curr.value, 0);
+                let accumulatedLeads = 0;
+                return (
+                  <div className="flex flex-col sm:flex-row items-center gap-6 py-2 flex-1">
+                    <div className="relative w-36 h-36 shrink-0">
+                      <svg viewBox="0 0 120 120" className="w-full h-full transform -rotate-90">
+                        {leadSourceData.map((slice, i) => {
+                          const percent = totalLeads > 0 ? slice.value / totalLeads : 0;
+                          const strokeDasharray = `${percent * 314.159} ${314.159 - (percent * 314.159)}`;
+                          const strokeDashoffset = -((accumulatedLeads / totalLeads) * 314.159);
+                          accumulatedLeads += slice.value;
+                          return (
+                            <circle
+                              key={i}
+                              cx="60"
+                              cy="60"
+                              r="50"
+                              fill="transparent"
+                              stroke={slice.color}
+                              strokeWidth="12"
+                              strokeDasharray={strokeDasharray}
+                              strokeDashoffset={strokeDashoffset}
+                              className="transition-all duration-300 hover:stroke-[14px] cursor-pointer"
+                              title={`${slice.label}: ${slice.value} leads`}
+                            />
+                          );
+                        })}
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-wider">Leads</span>
+                        <span className="text-xl font-black text-slate-800 dark:text-white">{totalLeads}</span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex flex-col justify-center items-center py-12 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50 dark:bg-slate-950/40 h-full">
-                <TrendingUp className="mx-auto text-slate-350 dark:text-slate-650 mb-2" size={24} />
-                <p className="text-[10px] font-bold text-slate-550 dark:text-slate-450 uppercase tracking-widest">
-                  No Lead Sources Registered
-                </p>
-              </div>
-            )}
-          </div>
 
-          {/* OPERATOR CONVERSION LEADERBOARD */}
-          <div className="lg:col-span-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                  Operator Conversion Analytics
-                </h3>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
-                  Lead conversion rate comparison leaderboard
-                </p>
-              </div>
-              <span className="text-[9px] font-black text-indigo-500 bg-indigo-500/5 px-2 py-0.5 border border-indigo-500/10 rounded uppercase">
-                Leaderboard
-              </span>
-            </div>
-
-            <div className="flex-1 min-h-[200px]">
-              {renderStaffPerformanceChart()}
+                    <div className="flex-1 min-w-0 w-full space-y-2">
+                      {leadSourceData.map((slice, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
+                            <span className="truncate uppercase text-[9px] tracking-wide">{slice.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2 font-mono text-[10px] text-slate-500">
+                            <span>{slice.value}</span>
+                            <span className="text-indigo-500">({slice.rate.toFixed(2)}%)</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div className="flex flex-col justify-center items-center py-12 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50 dark:bg-slate-950/40 h-full">
+                  <TrendingUp className="mx-auto text-slate-350 dark:text-slate-655 mb-2" size={24} />
+                  <p className="text-[10px] font-bold text-slate-550 dark:text-slate-455 uppercase tracking-widest">
+                    No Lead Sources Registered
+                  </p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        )}
 
         {/* MIDDLE SECTION - QUICK ACTIONS & OPERATORS */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* QUICK ADMINISTRATIVE ACTIONS */}
-          <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm">
+          {/* QUICK ADMINISTRATIVE ACTIONS */}
+          <div className="lg:col-span-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm">
             <h2 className="text-xs font-black text-slate-800 dark:text-slate-255 uppercase tracking-wider mb-6">
               Console Navigation
             </h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid grid-cols-2 ${showLeadsArea ? 'sm:grid-cols-4' : 'sm:grid-cols-3'} gap-4`}>
               <ActionCard
                 title="Users Hub"
                 desc="Enrolled staff list"
                 icon={Users}
                 onClick={() => navigate("/users")}
               />
-              <ActionCard
-                title="Leads Hub"
-                desc="Directories index"
-                icon={TrendingUp}
-                onClick={() => navigate("/leads")}
-              />
+              {showLeadsArea && (
+                <ActionCard
+                  title="Leads Hub"
+                  desc="Directories index"
+                  icon={TrendingUp}
+                  onClick={() => navigate("/leads")}
+                />
+              )}
               <ActionCard
                 title="Departments"
                 desc="Corporate hierarchy"
@@ -1290,118 +1489,6 @@ const Dashboard = () => {
                 onClick={() => navigate("/todo")}
               />
             </div>
-            
-            <button
-              onClick={() => navigate("/attendance")}
-              className="mt-4 flex items-center justify-between w-full p-4 bg-slate-50 hover:bg-slate-100 dark:bg-slate-950/40 dark:hover:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-500/5 dark:bg-indigo-500/10 text-indigo-500 rounded-xl">
-                  <Timer size={16} />
-                </div>
-                <div className="text-left">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-355">Attendance Portal</p>
-                  <p className="text-[9px] text-slate-400 uppercase tracking-tight mt-0.5">Operator check-in roster logs</p>
-                </div>
-              </div>
-              <ChevronRight size={14} className="text-slate-400 group-hover:translate-x-1 transition-transform" />
-            </button>
-          </div>
-
-          {/* ACTIVE STAFF ROSTER */}
-          <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm flex flex-col justify-between">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-              <div>
-                <h2 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                  CRM Operator Roster
-                </h2>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
-                  Enrolled employee directory list
-                </p>
-              </div>
-
-              <div className="relative w-full sm:w-60">
-                <input
-                  type="text"
-                  placeholder="Search staff..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="w-full pl-4 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-855 dark:text-slate-255 focus:outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-400"
-                />
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-x-auto scrollbar-thin">
-              {filteredUsers.length === 0 ? (
-                <div className="py-12 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50 dark:bg-slate-950/40">
-                  <p className="text-[9px] font-bold text-slate-455 uppercase tracking-widest">
-                    No operators match your query
-                  </p>
-                </div>
-              ) : (
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-100 dark:border-slate-800/80 text-[10px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider">
-                      <th className="pb-3 pr-4">Staff Operator</th>
-                      <th className="pb-3 pr-4">Role / Dept</th>
-                      <th className="pb-3 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.slice(0, 4).map((u) => (
-                      <tr key={u.id || u._id} className="border-b border-slate-50 dark:border-slate-800/30 last:border-none group">
-                        <td className="py-3 pr-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 shrink-0">
-                              <img
-                                src={u.avatar || `https://ui-avatars.com/api/?name=${u.name}&background=6366f1&color=fff`}
-                                className="w-full h-full object-cover"
-                                alt="staff avatar"
-                              />
-                            </div>
-                            <div>
-                              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-255 group-hover:text-indigo-500 transition-colors">
-                                {u.name}
-                              </h4>
-                              <p className="text-[9px] text-slate-555 dark:text-slate-455 leading-tight">{u.email}</p>
-                              {u.phone && (
-                                <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">{u.phone}</p>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span className="text-[9px] font-black text-slate-700 dark:text-slate-355 uppercase tracking-tight block">
-                            {u.role || "Operator"}
-                          </span>
-                          <span className="text-[9px] text-slate-500 dark:text-slate-455 uppercase font-medium block">
-                            {u.department || "No Department"}
-                          </span>
-                        </td>
-                        <td className="py-3 text-right">
-                          <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-lg uppercase ${
-                            u.isActive !== false
-                              ? "text-emerald-500 bg-emerald-500/5 border border-emerald-500/10"
-                              : "text-rose-500 bg-rose-500/5 border border-rose-500/10"
-                          }`}>
-                            {u.isActive !== false ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            {filteredUsers.length > 4 && (
-              <button
-                onClick={() => navigate("/users")}
-                className="mt-4 text-center w-full py-2.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-950/40 dark:hover:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-xl text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider transition-all"
-              >
-                View Full Operators Directory ({allUsers.length})
-              </button>
-            )}
           </div>
         </div>
 
@@ -1456,7 +1543,7 @@ const Dashboard = () => {
                 </p>
               </div>
             ) : (
-              filteredTasks.slice(0, 5).map((task) => {
+              paginatedTasks.map((task) => {
                 const isDone = String(task.status).toLowerCase() === "done";
                 return (
                   <div
@@ -1486,8 +1573,8 @@ const Dashboard = () => {
                     <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
                       <span className={`text-[9px] font-black px-3 py-1 rounded-lg uppercase tracking-tight ${
                         isDone
-                          ? "text-emerald-500 bg-emerald-500/5 border border-emerald-500/10"
-                          : "text-amber-500 bg-amber-500/5 border border-amber-500/10"
+                          ? "text-emerald-550 bg-emerald-550/5 border border-emerald-550/10"
+                          : "text-amber-550 bg-amber-550/5 border border-amber-550/10"
                       }`}>
                         {task.status || "Pending"}
                       </span>
@@ -1498,7 +1585,57 @@ const Dashboard = () => {
             )}
           </div>
 
-          {filteredTasks.length > 5 && (
+          {/* Pagination Controls */}
+          {totalTaskPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-slate-100 dark:border-slate-800/50">
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                Showing <span className="text-slate-800 dark:text-slate-300">{(Math.min(taskCurrentPage, totalTaskPages || 1) - 1) * tasksPerPage + 1}</span> to{" "}
+                <span className="text-slate-800 dark:text-slate-300">
+                  {Math.min(Math.min(taskCurrentPage, totalTaskPages || 1) * tasksPerPage, filteredTasks.length)}
+                </span>{" "}
+                of <span className="text-slate-800 dark:text-slate-300">{filteredTasks.length}</span> tasks
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setTaskCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={Math.min(taskCurrentPage, totalTaskPages || 1) === 1}
+                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-200 dark:disabled:hover:border-slate-800 transition cursor-pointer"
+                >
+                  Prev
+                </button>
+                <div className="flex items-center gap-1">
+                  {taskPaginationItems.map((item, idx) => {
+                    if (item.type === 'ellipsis') {
+                      return <span key={`ellipsis-${idx}`} className="px-1 text-slate-400 text-[10px] font-bold">...</span>;
+                    }
+                    const activePage = Math.min(taskCurrentPage, totalTaskPages || 1);
+                    return (
+                      <button
+                        key={`page-${item.value}`}
+                        onClick={() => setTaskCurrentPage(item.value)}
+                        className={`w-8 h-8 rounded-xl text-[10px] font-black uppercase tracking-wider transition cursor-pointer ${
+                          activePage === item.value
+                            ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/20"
+                            : "bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-indigo-500/50"
+                        }`}
+                      >
+                        {item.value}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => setTaskCurrentPage(prev => Math.min(prev + 1, totalTaskPages))}
+                  disabled={Math.min(taskCurrentPage, totalTaskPages || 1) === totalTaskPages}
+                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-400 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-slate-200 dark:disabled:hover:border-slate-800 transition cursor-pointer"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+
+          {tasks.length > 0 && (
             <button
               onClick={() => navigate("/todo")}
               className="mt-4 text-center w-full py-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-950/40 dark:hover:bg-slate-950 border border-slate-150 dark:border-slate-850 rounded-2xl text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-wider transition-all"
@@ -1507,6 +1644,250 @@ const Dashboard = () => {
             </button>
           )}
         </div>
+
+        {/* CLIENTS SECTION */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 italic uppercase tracking-tight flex items-center gap-2">
+                <Building size={20} className="text-blue-500" />
+                Clients
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-450 font-medium mt-0.5">Active accounts and client overview</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex gap-4 text-[11px] font-black uppercase tracking-wider">
+                <span className="px-3 py-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl border border-blue-500/20">
+                  Total: {clientsData.stats?.total || clientsData.clients?.length || 0}
+                </span>
+                <span className="px-3 py-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20">
+                  Active: {clientsData.stats?.active || 0}
+                </span>
+              </div>
+              <button
+                onClick={() => navigate("/clients")}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center gap-1.5"
+              >
+                View All <ChevronRight size={12} />
+              </button>
+            </div>
+          </div>
+
+          {clientsData.clients && clientsData.clients.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800">
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">#</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Client Name</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Type</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Status</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Priority</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3">Contact</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {clientsData.clients.slice(0, 8).map((c, i) => (
+                    <tr key={c._id || i} className="hover:bg-slate-50 dark:hover:bg-slate-950/30 transition-colors">
+                      <td className="py-3 pr-4 font-black text-slate-400">{i + 1}</td>
+                      <td className="py-3 pr-4 font-bold text-slate-800 dark:text-slate-200">{c.name || c.clientName || '—'}</td>
+                      <td className="py-3 pr-4 font-bold text-slate-500">{c.clientType || c.type || '—'}</td>
+                      <td className="py-3 pr-4">
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${
+                          String(c.status || '').toLowerCase() === 'active'
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : String(c.status || '').toLowerCase() === 'inactive'
+                            ? 'bg-slate-100 text-slate-500 dark:bg-slate-800'
+                            : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                        }`}>
+                          {c.status || '—'}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${
+                          String(c.priority || '').toLowerCase() === 'high'
+                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                            : String(c.priority || '').toLowerCase() === 'medium'
+                            ? 'bg-amber-500/10 text-amber-600'
+                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
+                        }`}>
+                          {c.priority || '—'}
+                        </span>
+                      </td>
+                      <td className="py-3 font-medium text-slate-500">{c.email || c.contactEmail || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="py-10 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50 dark:bg-slate-950/40">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No clients registered yet</p>
+            </div>
+          )}
+        </div>
+
+        {/* PROJECTS SECTION */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 italic uppercase tracking-tight flex items-center gap-2">
+                <FolderKanban size={20} className="text-purple-500" />
+                Projects
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-450 font-medium mt-0.5">Ongoing and completed project tracker</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex gap-4 text-[11px] font-black uppercase tracking-wider">
+                <span className="px-3 py-1.5 bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-xl border border-purple-500/20">
+                  Total: {projectsData.stats?.total || projectsData.projects?.length || 0}
+                </span>
+                <span className="px-3 py-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20">
+                  Completed: {projectsData.stats?.completed || 0}
+                </span>
+              </div>
+              <button
+                onClick={() => navigate("/projects")}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-purple-500/20 active:scale-95 flex items-center gap-1.5"
+              >
+                View All <ChevronRight size={12} />
+              </button>
+            </div>
+          </div>
+
+          {projectsData.projects && projectsData.projects.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800">
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">#</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Project Name</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Stage</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Status</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Priority</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3">Client</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {projectsData.projects.slice(0, 8).map((p, i) => (
+                    <tr key={p._id || i} className="hover:bg-slate-50 dark:hover:bg-slate-950/30 transition-colors">
+                      <td className="py-3 pr-4 font-black text-slate-400">{i + 1}</td>
+                      <td className="py-3 pr-4 font-bold text-slate-800 dark:text-slate-200">{p.name || p.projectName || '—'}</td>
+                      <td className="py-3 pr-4 font-bold text-slate-500">{p.stage || p.currentStage || '—'}</td>
+                      <td className="py-3 pr-4">
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${
+                          String(p.status || '').toLowerCase() === 'completed'
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : String(p.status || '').toLowerCase() === 'on-hold'
+                            ? 'bg-slate-100 text-slate-500 dark:bg-slate-800'
+                            : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                        }`}>
+                          {p.status || '—'}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${
+                          String(p.priority || '').toLowerCase() === 'high'
+                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                            : String(p.priority || '').toLowerCase() === 'medium'
+                            ? 'bg-amber-500/10 text-amber-600'
+                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
+                        }`}>
+                          {p.priority || '—'}
+                        </span>
+                      </td>
+                      <td className="py-3 font-medium text-slate-500">{p.clientId?.name || p.client?.name || p.clientName || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="py-10 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50 dark:bg-slate-950/40">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No projects registered yet</p>
+            </div>
+          )}
+        </div>
+
+        {/* CLIENT LEADS SECTION */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 italic uppercase tracking-tight flex items-center gap-2">
+                <Briefcase size={20} className="text-amber-500" />
+                Client Leads
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-450 font-medium mt-0.5">Latest incoming client lead pipeline</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="px-3 py-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl border border-amber-500/20 text-[11px] font-black uppercase tracking-wider">
+                Showing: {Math.min(clientLeadsData.length, 10)} leads
+              </span>
+              <button
+                onClick={() => navigate("/client-leads")}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-500/20 active:scale-95 flex items-center gap-1.5"
+              >
+                View All <ChevronRight size={12} />
+              </button>
+            </div>
+          </div>
+
+          {clientLeadsData && clientLeadsData.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800">
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">#</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Lead Name</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Company</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Status</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3 pr-4">Priority</th>
+                    <th className="text-left font-black uppercase tracking-wider text-slate-400 pb-3">Contact</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {clientLeadsData.slice(0, 10).map((l, i) => (
+                    <tr key={l._id || i} className="hover:bg-slate-50 dark:hover:bg-slate-950/30 transition-colors">
+                      <td className="py-3 pr-4 font-black text-slate-400">{i + 1}</td>
+                      <td className="py-3 pr-4 font-bold text-slate-800 dark:text-slate-200">{l.leadName || l.name || '—'}</td>
+                      <td className="py-3 pr-4 font-bold text-slate-500">{l.companyName || '—'}</td>
+                      <td className="py-3 pr-4">
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${
+                          String(l.status || '').toLowerCase() === 'converted'
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : String(l.status || '').toLowerCase() === 'lost'
+                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                            : String(l.status || '').toLowerCase() === 'new'
+                            ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                            : 'bg-amber-500/10 text-amber-600'
+                        }`}>
+                          {l.status || '—'}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${
+                          String(l.priority || '').toLowerCase() === 'high'
+                            ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                            : String(l.priority || '').toLowerCase() === 'medium'
+                            ? 'bg-amber-500/10 text-amber-600'
+                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800'
+                        }`}>
+                          {l.priority || '—'}
+                        </span>
+                      </td>
+                      <td className="py-3 font-medium text-slate-500">{l.phone || l.email || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="py-10 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50 dark:bg-slate-950/40">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No client leads registered yet</p>
+            </div>
+          )}
+        </div>
+
       </motion.div>
     );
   };
@@ -1529,23 +1910,25 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Shift start block */}
-          <div
-            onClick={() => navigate("/attendance")}
-            className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-[2rem] flex items-center gap-4 hover:border-indigo-500/30 dark:hover:border-indigo-500/50 transition-all shadow-sm"
-          >
-            <div className="p-3 bg-white-500/10 dark:bg-indigo-100/20 rounded-xl text-indigo-500 dark:text-indigo-400"><Timer size={20} /></div>
-            <div>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Shift Start</p>
-              <p className="text-lg font-black text-slate-900 dark:text-slate-100 uppercase">
-                {attendanceRecord?.check_in_time
-                  ? parseAsUTC(attendanceRecord.check_in_time).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
-                  })
-                  : 'OFFLINE'}
-              </p>
+          <div className="flex items-center gap-3">
+            {/* Shift start block */}
+            <div
+              onClick={() => navigate("/attendance")}
+              className="cursor-pointer bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-[2rem] flex items-center gap-4 hover:border-indigo-500/30 dark:hover:border-indigo-500/50 transition-all shadow-sm"
+            >
+              <div className="p-3 bg-white-500/10 dark:bg-indigo-100/20 rounded-xl text-indigo-500 dark:text-indigo-400"><Timer size={20} /></div>
+              <div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase">Shift Start</p>
+                <p className="text-lg font-black text-slate-900 dark:text-slate-100 uppercase">
+                  {attendanceRecord?.check_in_time
+                    ? parseAsUTC(attendanceRecord.check_in_time).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true
+                    })
+                    : 'OFFLINE'}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -1614,8 +1997,25 @@ const Dashboard = () => {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0b0c10] flex items-center justify-center transition-colors duration-500">
-      <Loader2 className="text-indigo-500 animate-spin" size={40} />
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 transition-colors duration-500">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9 }} 
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex flex-col items-center gap-5"
+      >
+        <div className="relative">
+          <div className="p-5 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl">
+            <LayoutDashboard size={40} className="text-indigo-500" />
+          </div>
+          <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-lime-400 border-2 border-white dark:border-slate-950 animate-bounce" />
+        </div>
+        <div className="flex items-center gap-2">
+          <Loader2 size={16} className="text-indigo-400 animate-spin" />
+          <p className="text-[11px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest">
+            Loading Admin Dashboard
+          </p>
+        </div>
+      </motion.div>
     </div>
   );
 
@@ -1663,7 +2063,7 @@ const ActionCard = ({ title, desc, icon: Icon, onClick }) => (
   >
     <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-500/5 rounded-bl-full group-hover:bg-indigo-500/10 transition-all" />
     <div className="p-3 bg-indigo-500/5 dark:bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 rounded-xl w-fit mb-4 group-hover:scale-110 transition-transform">
-      <Icon size={18} />
+      <Icon size={18} className="text-white" />
     </div>
     <div className="flex items-center gap-1">
       <h3 className="text-xs font-black text-slate-850 dark:text-slate-200 uppercase tracking-tight group-hover:text-indigo-500 transition-colors">

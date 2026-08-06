@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, Mail, Lock, ShieldPlus, Phone, Briefcase, Building,
-  ShieldCheck, CreditCard, DollarSign, 
+  ShieldCheck, CreditCard, IndianRupee, 
   Eye, EyeOff, MapPin, Calendar, Image as ImageIcon, Loader2, AlertTriangle, Sun, Moon
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -216,7 +216,7 @@ const Register = () => {
         </button>
       </div>
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-5xl">
-        <div className="bg-white dark:bg-slate-900 p-10 rounded-2xl border border-[#374b69] dark:border-[#2c3e5a] shadow-xl transition-colors">
+        <div className="bg-white dark:bg-slate-900 p-10 rounded-2xl border border-[#442d82] dark:border-[#35216b] shadow-xl transition-colors">
           <header className="mb-8">
             <h2 className="text-4xl font-black text-slate-900 dark:text-slate-100 tracking-tighter italic uppercase">Create Staff Profile</h2>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium uppercase tracking-widest">Enterprise Human Resources Portal</p>
@@ -253,7 +253,7 @@ const Register = () => {
                   required 
                   name="password" 
                   type={showPassword ? "text" : "password"} 
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 pr-12 text-slate-900 dark:text-slate-100 outline-none focus:border-[#374b69] focus:ring-2 focus:ring-[#374b69] transition-all peer" 
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 pr-12 text-slate-900 dark:text-slate-100 outline-none focus:border-[#442d82] focus:ring-2 focus:ring-[#442d82] transition-all peer" 
                   onChange={handleChange} 
                   value={formData.password}
                 />
@@ -279,7 +279,7 @@ const Register = () => {
     name="role_id"
     value={formData.role_id}
     onChange={handleChange}
-    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 text-slate-900 dark:text-slate-100 outline-none appearance-none focus:border-[#374b69] focus:ring-2 focus:ring-[#374b69] transition-all cursor-pointer"
+    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 text-slate-900 dark:text-slate-100 outline-none appearance-none focus:border-[#442d82] focus:ring-2 focus:ring-[#442d82] transition-all cursor-pointer"
   >
     {roles.map(r => (
       <option key={r.id} value={r.id}>
@@ -300,7 +300,7 @@ const Register = () => {
                 />
                 <select 
                   name="designation_id" 
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 text-slate-900 dark:text-slate-100 outline-none appearance-none focus:border-[#374b69] focus:ring-2 focus:ring-[#374b69] transition-all cursor-pointer peer" 
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 text-slate-900 dark:text-slate-100 outline-none appearance-none focus:border-[#442d82] focus:ring-2 focus:ring-[#442d82] transition-all cursor-pointer peer" 
                   onChange={handleChange} 
                   value={formData.designation_id}
                 >
@@ -323,7 +323,7 @@ const Register = () => {
                 />
                 <select 
                   name="department_id" 
-                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 text-slate-900 dark:text-slate-100 outline-none appearance-none focus:border-[#374b69] focus:ring-2 focus:ring-[#374b69] transition-all cursor-pointer peer" 
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 text-slate-900 dark:text-slate-100 outline-none appearance-none focus:border-[#442d82] focus:ring-2 focus:ring-[#442d82] transition-all cursor-pointer peer" 
                   onChange={handleChange} 
                   value={formData.department_id}
                 >
@@ -336,7 +336,7 @@ const Register = () => {
               </div>
             </div>
 
-            <FormInput label="Monthly Salary" name="salary" type="number" icon={<DollarSign size={16}/>} onChange={handleChange} value={formData.salary} />
+            <FormInput label="Monthly Salary" name="salary" type="number" icon={<IndianRupee size={16}/>} onChange={handleChange} value={formData.salary} />
 
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase ml-2 tracking-widest">Phone</label>
@@ -372,7 +372,7 @@ const Register = () => {
   className={`absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-all duration-200 text-slate-500
   ${formData.identityType ? "opacity-0" : "opacity-100"}`}
   size={16}
-/>                <select name="identityType" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 text-slate-900 dark:text-slate-100 outline-none appearance-none focus:border-[#374b69] focus:ring-2 focus:ring-[#374b69] transition-all cursor-pointer peer" onChange={handleChange} value={formData.identityType}>
+/>                <select name="identityType" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 text-slate-900 dark:text-slate-100 outline-none appearance-none focus:border-[#442d82] focus:ring-2 focus:ring-[#442d82] transition-all cursor-pointer peer" onChange={handleChange} value={formData.identityType}>
                   <option value="aadhaar" className="dark:bg-slate-900">Aadhar</option>
                   <option value="pancard" className="dark:bg-slate-900">PAN</option>
                   <option value="passport" className="dark:bg-slate-900">Passport</option>
@@ -393,14 +393,14 @@ const Register = () => {
   className={`absolute left-4 top-6 text-slate-500 pointer-events-none transition-all duration-200
   ${formData.address ? "opacity-0" : "opacity-100"}`}
   size={16}
-/>                <textarea required name="address" rows="2" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 text-slate-900 dark:text-slate-100 outline-none focus:border-[#374b69] focus:ring-2 focus:ring-[#374b69] transition-all peer" onChange={handleChange} value={formData.address}></textarea>
+/>                <textarea required name="address" rows="2" className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl py-3 pl-12 text-slate-900 dark:text-slate-100 outline-none focus:border-[#442d82] focus:ring-2 focus:ring-[#442d82] transition-all peer" onChange={handleChange} value={formData.address}></textarea>
               </div>
             </div>
 
             <button 
               type="submit" 
               disabled={isSubmitting}
-              className="lg:col-span-3 w-full py-4 bg-[#374b69] hover:bg-[#2c3e5a] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#374b69]/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4"
+              className="lg:col-span-3 w-full py-4 bg-[#442d82] hover:bg-[#35216b] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-[#442d82]/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-4"
             >
               {isSubmitting ? (
                 <>

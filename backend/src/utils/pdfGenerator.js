@@ -87,29 +87,43 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
         const rowHeight = 20;
 
         data.forEach(([key, val]) => {
-          checkPageOverflow(rowHeight + 4);
+          const isSignatureImage = String(key).toLowerCase().includes('signature') && String(val || '').startsWith('data:image/');
+          const currentRowHeight = isSignatureImage ? 40 : rowHeight;
+
+          checkPageOverflow(currentRowHeight + 4);
           const currentY = doc.y;
 
           // Key cell background
-          doc.rect(startX, currentY, keyWidth, rowHeight).fill('#f8fafc');
+          doc.rect(startX, currentY, keyWidth, currentRowHeight).fill('#f8fafc');
           
           // Val cell background
-          doc.rect(startX + keyWidth, currentY, valWidth, rowHeight).fill('#ffffff');
+          doc.rect(startX + keyWidth, currentY, valWidth, currentRowHeight).fill('#ffffff');
 
           // Borders
           doc.strokeColor('#e2e8f0').lineWidth(0.5)
-             .rect(startX, currentY, keyWidth, rowHeight).stroke()
-             .rect(startX + keyWidth, currentY, valWidth, rowHeight).stroke();
+             .rect(startX, currentY, keyWidth, currentRowHeight).stroke()
+             .rect(startX + keyWidth, currentY, valWidth, currentRowHeight).stroke();
 
           // Key text
           doc.fillColor(labelColor).font('Helvetica-Bold').fontSize(8)
-             .text(String(key), startX + 8, currentY + 6, { width: keyWidth - 16, align: 'left', lineBreak: false });
+             .text(String(key), startX + 8, currentY + (currentRowHeight / 2) - 4, { width: keyWidth - 16, align: 'left', lineBreak: false });
 
-          // Val text
-          doc.fillColor(textColor).font('Helvetica').fontSize(8)
-             .text(String(val || ''), startX + keyWidth + 8, currentY + 6, { width: valWidth - 16, align: 'left', lineBreak: false });
+          if (isSignatureImage) {
+            try {
+              const base64Data = val.replace(/^data:image\/\w+;base64,/, "");
+              const imgBuffer = Buffer.from(base64Data, 'base64');
+              doc.image(imgBuffer, startX + keyWidth + 8, currentY + 4, { height: currentRowHeight - 8 });
+            } catch (err) {
+              doc.fillColor(textColor).font('Helvetica').fontSize(8)
+                 .text('[Invalid Signature Image]', startX + keyWidth + 8, currentY + (currentRowHeight / 2) - 4, { width: valWidth - 16, align: 'left', lineBreak: false });
+            }
+          } else {
+            // Val text
+            doc.fillColor(textColor).font('Helvetica').fontSize(8)
+               .text(String(val || ''), startX + keyWidth + 8, currentY + (currentRowHeight / 2) - 4, { width: valWidth - 16, align: 'left', lineBreak: false });
+          }
 
-          doc.y = currentY + rowHeight;
+          doc.y = currentY + currentRowHeight;
         });
 
         doc.y += 10;
@@ -220,11 +234,17 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
 
         drawSectionHeader('2. Daily Task Summary');
         
-        const headers = ['Activity', 'Due Date', 'Status', 'Remarks'];
-        const columnWidths = [195, 70, 90, 160]; // total 515
+        const hasTaskDates = report[summaryKey].some(t => t.startDate || t.endDate);
+        const headers = hasTaskDates
+          ? ['Activity', 'Due Date', 'Start Date', 'End Date', 'Status', 'Remarks']
+          : ['Activity', 'Due Date', 'Status', 'Remarks'];
+        const columnWidths = hasTaskDates
+          ? [145, 60, 75, 75, 60, 100]
+          : [195, 70, 90, 160]; // total 515
         const rows = report[summaryKey].map(t => [
           t.activity || t.task || '',
           t.dueDate || '',
+          ...(hasTaskDates ? [t.startDate || '', t.endDate || ''] : []),
           t.status || '',
           t.remarks || t.remark || ''
         ]);
@@ -313,9 +333,6 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
           sectionIndex++;
         } else if (val && typeof val === 'object' && !Array.isArray(val)) {
           // Single nested tracking object (e.g. performanceTracker)
-          const title = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ');
-          drawSectionHeader(`${sectionIndex}. ${title}`);
-          
           const fields = [];
           Object.entries(val).forEach(([k, v]) => {
             if (k !== '_id' && k !== 'id') {
@@ -327,25 +344,32 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
                   .map(([sk, sv]) => `${sk.replace(/([A-Z])/g, ' $1').trim()}: ${sv}`)
                   .join(' | ');
               }
-              fields.push([label, displayVal]);
+              if (displayVal !== undefined && displayVal !== null && String(displayVal).trim() !== '') {
+                fields.push([label, displayVal]);
+              }
             }
           });
 
-          drawKeyValueTable(fields);
-          sectionIndex++;
+          if (fields.length > 0) {
+            const title = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ');
+            drawSectionHeader(`${sectionIndex}. ${title}`);
+            drawKeyValueTable(fields);
+            sectionIndex++;
+          }
         }
       }
 
       // 4. APPROVAL SIGNATURES
       if (report.approval) {
-        drawSectionHeader('Approvals & Handover');
-        
-        const app = report.approval;
-        const approvalDetails = Object.entries(app)
-          .filter(([k]) => k !== '_id' && k !== 'id' && app[k])
+        const appObj = report.approval.toObject ? report.approval.toObject() : report.approval;
+        const approvalDetails = Object.entries(appObj)
+          .filter(([k, v]) => k !== '_id' && k !== 'id' && v !== null && v !== undefined && String(v).trim() !== '')
           .map(([k, v]) => [k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' '), v]);
         
-        drawKeyValueTable(approvalDetails);
+        if (approvalDetails.length > 0) {
+          drawSectionHeader('Approvals & Handover');
+          drawKeyValueTable(approvalDetails);
+        }
       }
 
       // --- PAGE FOOTER FUNCTION ---
@@ -356,7 +380,7 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
         doc.text(
           `Page ${i + 1} of ${pages.count}  |  KOD.brand Command Center © ${new Date().getFullYear()}`,
           40,
-          805,
+          790,
           { align: 'center', width: 515 }
         );
       }

@@ -4,7 +4,8 @@ import {
   getReportByDate,
   saveReport,
   getOpsStaffList,
-  getSubmittedDates
+  getSubmittedDates,
+  getLeadStats
 } from '../controllers/opsReport.controller.js';
 
 const router = Router();
@@ -16,5 +17,6 @@ router.get('/by-date', getReportByDate);
 router.post('/', saveReport);
 router.get('/ops-staff', getOpsStaffList);
 router.get('/submitted-dates', getSubmittedDates);
+router.get('/lead-stats', getLeadStats);
 
 export default router;

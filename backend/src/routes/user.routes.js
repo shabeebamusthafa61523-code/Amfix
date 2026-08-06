@@ -121,6 +121,16 @@ router.patch(
   userController.changeUserRole
 );
 
+// UPDATE PERMISSIONS & SIDEBAR ACCESS
+router.put(
+  '/:id/permissions',
+  userController.updatePermissions
+);
+router.post(
+  '/:id/permissions',
+  userController.updatePermissions
+);
+
 // DEACTIVATE USER
 router.patch(
   '/:id/deactivate',

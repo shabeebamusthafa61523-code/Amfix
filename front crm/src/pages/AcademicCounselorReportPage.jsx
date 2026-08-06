@@ -2,39 +2,42 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  FileText, Calendar, Plus, Trash2, Save, Download, 
+  FileText, Calendar, CalendarDays, Plus, Trash2, Save, Download, 
   CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
+import SignatureUpload from '../components/SignatureUpload';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
 // Default items for Daily Course Counseling & Sales Activity
 const DEFAULT_SALES_ACTIVITY = [
   { activity: 'New Leads Generated', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Qualified Lead', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
   { activity: 'Total Calls Made', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Total Follow up', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
   { activity: 'Hot Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
   { activity: 'Warm Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
   { activity: 'Cold Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Call back Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  // { activity: 'Call back Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
   { activity: 'RNT Leads (Ring Next Time)', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
   { activity: 'Switch Off Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Wrong lead', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Follow-ups Completed', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Wrong leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  // { activity: 'Total Pending Follow-ups', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Total Pending Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
   { activity: 'Client/Student Meetings Fixed', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Admissions/Closings Done', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Pending Follow-ups', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' }
+  { activity: 'Admissions/Closings Done', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' }
 ];
 
 // Default items for Daily Operations Summary
 const DEFAULT_DAILY_OPERATIONS = [
-  { activity: 'Team Attendance Verified', status: 'Done', dueDate: '', remarks: '' },
-  { activity: 'Daily Sales Targets Assigned', status: 'Pending', dueDate: '', remarks: '' },
-  { activity: 'Lead Follow-up Reviewed', status: 'Done', dueDate: '', remarks: '' },
-  { activity: 'Client Meetings Conducted', status: 'Done', dueDate: '', remarks: '' }
+  { activity: 'Team Attendance Verified', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' },
+  { activity: 'Daily Sales Targets Assigned', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' },
+  { activity: 'Lead Follow-up Reviewed', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' },
+  { activity: 'Client Meetings Conducted', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' }
 ];
 
 // Default items for Performance KPI
@@ -48,7 +51,7 @@ const DEFAULT_PERFORMANCE_KPIS = [
 const AcademicCounselorReportPage = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
@@ -130,6 +133,33 @@ const AcademicCounselorReportPage = () => {
   const [monthlyReportsCollectedDone, setMonthlyReportsCollectedDone] = useState(false);
   const [monthlyIssuesFeedback, setMonthlyIssuesFeedback] = useState([]);
   const [isMonthlyConsolidated, setIsMonthlyConsolidated] = useState(false);
+
+  // Weekly Report States
+  const [isWeeklyModalOpen, setIsWeeklyModalOpen] = useState(false);
+  const [weeklyStartDate, setWeeklyStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [weeklyEndDate, setWeeklyEndDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [isWeeklyLoading, setIsWeeklyLoading] = useState(false);
+  const [weeklyActiveTab, setWeeklyActiveTab] = useState('range');
+  const [weeklyBasicDetails, setWeeklyBasicDetails] = useState({
+    employeeName: '',
+    designation: '',
+    department: '',
+    shiftTiming: '',
+    reportingTo: '',
+    dateRange: ''
+  });
+  const [weeklySalesActivity, setWeeklySalesActivity] = useState([]);
+  const [weeklyPerformanceKpis, setWeeklyPerformanceKpis] = useState([]);
+  const [weeklyDailyOperations, setWeeklyDailyOperations] = useState([]);
+  const [weeklyReportsCollectedDone, setWeeklyReportsCollectedDone] = useState(false);
+  const [weeklyIssuesFeedback, setWeeklyIssuesFeedback] = useState([]);
+  const [isWeeklyConsolidated, setIsWeeklyConsolidated] = useState(false);
 
   // Fetch token headers helper
   const getAuthHeaders = useCallback(() => {
@@ -285,7 +315,7 @@ const AcademicCounselorReportPage = () => {
           ...apiBasicDetails,
           employeeName: userDetail.name || apiBasicDetails.employeeName || '',
           employeeId: userDetail.employeeId || apiBasicDetails.employeeId || '',
-          designation: userDetail.designation || apiBasicDetails.designation || '',
+          designation: userDetail.designationName || userDetail.designation || apiBasicDetails.designation || '',
           reportingTo: userDetail.reportingManager || apiBasicDetails.reportingTo || '',
           department: userDetail.department || apiBasicDetails.department || ''
         });
@@ -298,17 +328,20 @@ const AcademicCounselorReportPage = () => {
         setFinalHandover(report.finalHandover || { crmUpdated: 'No', reportsSubmitted: 'No' });
         setApproval(report.approval || {});
       } else {
-        initializeBlankReport(userId, dateStr);
+        await initializeBlankReport(userId, dateStr);
         // Auto-fetch completed tasks for new blank reports
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ activity: t.title, count: '1', digitalMktg: '', web: '', dueDate: t.dueDate || '', remarks: 'Auto-fetched' }));
-            mappedTasks.push({ activity: '', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' });
-            mappedTasks.push({ activity: '', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' });
+            const mappedTasks = completedTasks.map(t => ({
+              activity: t.title,
+              dueDate: t.dueDate || '',
+              startDate: t.startTime || '',
+              endDate: t.endTime || '',
+              status: t.status || 'Done',
+              remarks: t.description || ''
+            }));
             setDailyOperations(mappedTasks);
-          } else {
-            setDailyOperations(prev => [...prev, { activity: '', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' }, { activity: '', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' }]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
@@ -316,17 +349,20 @@ const AcademicCounselorReportPage = () => {
 
       }
     } catch (err) {
-      initializeBlankReport(userId, dateStr);
+      await initializeBlankReport(userId, dateStr);
         // Auto-fetch completed tasks for new blank reports
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ activity: t.title, count: '1', digitalMktg: '', web: '', dueDate: t.dueDate || '', remarks: 'Auto-fetched' }));
-            mappedTasks.push({ activity: '', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' });
-            mappedTasks.push({ activity: '', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' });
+            const mappedTasks = completedTasks.map(t => ({
+              activity: t.title,
+              dueDate: t.dueDate || '',
+              startDate: t.startTime || '',
+              endDate: t.endTime || '',
+              status: t.status || 'Done',
+              remarks: t.description || ''
+            }));
             setDailyOperations(mappedTasks);
-          } else {
-            setDailyOperations(prev => [...prev, { activity: '', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' }, { activity: '', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' }]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
@@ -355,7 +391,7 @@ const AcademicCounselorReportPage = () => {
     }
   }, [basicDetails, selectedUserId]);
 
-    const initializeBlankReport = (userId, dateStr) => {
+    const initializeBlankReport = async (userId, dateStr) => {
     let freshestUser = currentUser;
     try {
       const su = localStorage.getItem('user');
@@ -380,13 +416,28 @@ const AcademicCounselorReportPage = () => {
       day: dayName,
       employeeName: userDetail.name || parsedCached?.employeeName || '',
       employeeId: userDetail.employeeId || parsedCached?.employeeId || '',
-      designation: userDetail.designation || parsedCached?.designation || 'Sales Executive / Tele Caller & Academic Counselor',
+      designation: userDetail.designationName || userDetail.designation || parsedCached?.designation || 'Sales Executive / Tele Caller & Academic Counselor',
       department: userDetail.department || parsedCached?.department || 'Sales & Growth / Academy',
       shiftTiming: parsedCached?.shiftTiming || '9:00 AM - 5.00 PM',
       reportingTo: userDetail.reportingManager || parsedCached?.reportingTo || 'Manager - OPS Sales & Growth'
     });
 
-    setSalesActivity(DEFAULT_SALES_ACTIVITY);
+    // Auto-fetch lead stats from CRM for the selected date
+    try {
+      const res = await fetch(`${API_BASE}/v1/ops-reports/lead-stats?date=${dateStr}`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setSalesActivity(data.data);
+      } else {
+        setSalesActivity(DEFAULT_SALES_ACTIVITY);
+      }
+    } catch (e) {
+      console.error('Failed to auto-fetch lead stats:', e);
+      setSalesActivity(DEFAULT_SALES_ACTIVITY);
+    }
+
     setDailyOperations(DEFAULT_DAILY_OPERATIONS);
     setReportsCollectedDone(false);
     setPerformanceKpis(DEFAULT_PERFORMANCE_KPIS);
@@ -407,11 +458,9 @@ const AcademicCounselorReportPage = () => {
     try {
       setSaving(true);
 
-      const cleanSalesActivity = salesActivity.filter(t => (t.leadName || '').trim() !== '' || (t.contactNumber || '').trim() !== '' || (t.courseInterested || '').trim() !== '');
+      const cleanSalesActivity = salesActivity.filter(t => (t.activity || '').trim() !== '');
       const cleanDailyOperations = dailyOperations.filter(t => (t.activity || '').trim() !== '');
-      const cleanReportsCollectedDone = reportsCollectedDone.filter(t => (t.reportName || '').trim() !== '');
       const cleanIssuesFeedback = issuesFeedback.filter(t => (t.issue || '').trim() !== '');
-      const cleanFinalHandover = finalHandover.filter(t => (t.description || '').trim() !== '');
 
       const payload = {
         userId: selectedUserId,
@@ -419,10 +468,10 @@ const AcademicCounselorReportPage = () => {
         basicDetails,
         salesActivity: cleanSalesActivity,
         dailyOperations: cleanDailyOperations,
-        reportsCollectedDone: cleanReportsCollectedDone,
+        reportsCollectedDone,
         performanceKpis,
         issuesFeedback: cleanIssuesFeedback,
-        finalHandover: cleanFinalHandover,
+        finalHandover,
         approval
       };
 
@@ -505,44 +554,57 @@ const AcademicCounselorReportPage = () => {
     }
     setIsMonthlyLoading(true);
     try {
-      const start = new Date(monthlyStartDate);
-      const end = new Date(monthlyEndDate);
-      const dates = [];
-      let temp = new Date(start);
-      while (temp <= end) {
-        dates.push(temp.toISOString().split('T')[0]);
-        temp.setDate(temp.getDate() + 1);
+      let validReports = [];
+      try {
+        const res = await fetch(`${API_BASE}/v1/academic-counselor-reports/range?userId=${selectedUserId}&startDate=${monthlyStartDate}&endDate=${monthlyEndDate}`, {
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          validReports = data.data;
+        }
+      } catch (e) {
+        console.error("Error fetching monthly reports range:", e);
       }
 
-      if (dates.length === 0) {
-        showToast("Invalid date range.", "error");
-        return;
-      }
-
-      const fetchedResults = await Promise.all(
-        dates.map(async (d) => {
-          try {
-            const res = await fetch(`${API_BASE}/v1/academic-counselor-reports/by-date?userId=${selectedUserId}&dateString=${d}`, {
-              headers: getAuthHeaders()
-            });
-            const data = await res.json();
-            if (data.success && data.data) {
-              return data.data;
-            }
-          } catch (err) {
-            console.error(`Error fetching for date ${d}:`, err);
-          }
-          return null;
-        })
-      );
-
-      const validReports = fetchedResults.filter(Boolean);
       if (validReports.length === 0) {
-        showToast("No reports found in the selected date range.", "warning");
+        const start = new Date(monthlyStartDate);
+        const end = new Date(monthlyEndDate);
+        const dates = [];
+        let temp = new Date(start);
+        while (temp <= end) {
+          dates.push(temp.toISOString().split('T')[0]);
+          temp.setDate(temp.getDate() + 1);
+        }
+        const fetchedResults = await Promise.all(
+          dates.map(async (d) => {
+            try {
+              const res = await fetch(`${API_BASE}/v1/academic-counselor-reports/by-date?userId=${selectedUserId}&dateString=${d}`, {
+                headers: getAuthHeaders()
+              });
+              const data = await res.json();
+              if (data.success && data.data) return data.data;
+            } catch (err) {}
+            return null;
+          })
+        );
+        validReports = fetchedResults.filter(Boolean);
+      }
+
+      if (validReports.length === 0) {
+        showToast("No saved reports found in selected monthly date range.", "warning");
       }
 
       const lastReport = validReports[validReports.length - 1];
-      const details = lastReport?.basicDetails || basicDetails;
+      const selectedCounselor = counselors.find(c => (c._id || c.id) === selectedUserId);
+      const details = lastReport?.basicDetails || {
+        employeeName: selectedCounselor?.name || basicDetails.employeeName || '',
+        designation: selectedCounselor?.designation || basicDetails.designation || 'Sales Executive / Tele Caller & Academic Counselor',
+        department: selectedCounselor?.department || basicDetails.department || 'Sales & Growth / Academy',
+        shiftTiming: basicDetails.shiftTiming || '9:00 AM - 5.00 PM',
+        reportingTo: selectedCounselor?.reportingManager || basicDetails.reportingTo || 'Manager - OPS Sales & Growth'
+      };
+
       setMonthlyBasicDetails({
         employeeName: details.employeeName || '',
         designation: details.designation || 'Sales Executive / Tele Caller & Academic Counselor',
@@ -603,6 +665,9 @@ const AcademicCounselorReportPage = () => {
         let doneCount = 0;
         let pendingCount = 0;
         let naCount = 0;
+        let dueDateVal = '';
+        let startDateVal = '';
+        let endDateVal = '';
 
         validReports.forEach(report => {
           const opsItem = report.dailyOperations?.find(o => o.activity === item.activity);
@@ -612,6 +677,9 @@ const AcademicCounselorReportPage = () => {
             else naCount++;
             
             if (opsItem.remarks) remarksList.push(opsItem.remarks);
+            if (opsItem.dueDate && !dueDateVal) dueDateVal = opsItem.dueDate;
+            if (opsItem.startDate && !startDateVal) startDateVal = opsItem.startDate;
+            if (opsItem.endDate && !endDateVal) endDateVal = opsItem.endDate;
           }
         });
 
@@ -622,7 +690,10 @@ const AcademicCounselorReportPage = () => {
         return {
           activity: item.activity,
           status: finalStatus,
-          dueDate: '', remarks: Array.from(new Set(remarksList)).join('; ')
+          dueDate: dueDateVal,
+          startDate: startDateVal,
+          endDate: endDateVal,
+          remarks: Array.from(new Set(remarksList)).join('; ')
         };
       });
       setMonthlyDailyOperations(consolidatedOps);
@@ -676,6 +747,10 @@ const AcademicCounselorReportPage = () => {
       let currentY = 15;
       
       const drawSectionHeader = (title) => {
+        if (currentY + 25 > 280) {
+          doc.addPage();
+          currentY = 15;
+        }
         doc.setFillColor(60, 35, 117);
         doc.rect(14, currentY, 182, 7, 'F');
         doc.setFont('helvetica', 'bold');
@@ -756,20 +831,25 @@ const AcademicCounselorReportPage = () => {
         margin: { left: 14, right: 14 }
       });
 
-      doc.addPage();
-      currentY = 15;
+      currentY = doc.lastAutoTable.finalY + 4;
 
       drawSectionHeader("3. OPERATIONS SUMMARY (CONSOLIDATED)");
       
-      const opsHeaders = [["Activity", "Status", "Remarks"]];
+      const opsHeaders = [["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"]];
       const opsRows = monthlyDailyOperations.map(t => [
         t.activity || '',
+        t.dueDate || '',
+        t.startDate || '',
+        t.endDate || '',
         t.status || '',
         t.remarks || ''
       ]);
       
       opsRows.push([
         "Reports Collected from Team",
+        "",
+        "",
+        "",
         monthlyReportsCollectedDone ? "Done" : "Pending",
         ""
       ]);
@@ -782,9 +862,12 @@ const AcademicCounselorReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 8, cellPadding: 2.5, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 70 },
-          1: { width: 35, halign: 'center' },
-          2: { width: 77 }
+          0: { width: 50 },
+          1: { width: 25, halign: 'center' },
+          2: { width: 25, halign: 'center' },
+          3: { width: 25, halign: 'center' },
+          4: { width: 25, halign: 'center' },
+          5: { width: 32 }
         },
         margin: { left: 14, right: 14 }
       });
@@ -864,6 +947,409 @@ const AcademicCounselorReportPage = () => {
   const removeMonthlyIssueRow = (index) => {
     if (monthlyIssuesFeedback.length > 1) {
       setMonthlyIssuesFeedback(monthlyIssuesFeedback.filter((_, i) => i !== index));
+    }
+  };
+
+  // Weekly Consolidation Logic
+  const handleFetchWeeklyData = async () => {
+    if (!selectedUserId) {
+      showToast("Please select an Academic Counselor first", "warning");
+      return;
+    }
+
+    try {
+      setIsWeeklyLoading(true);
+      let validReports = [];
+      try {
+        const res = await fetch(`${API_BASE}/v1/academic-counselor-reports/range?userId=${selectedUserId}&startDate=${weeklyStartDate}&endDate=${weeklyEndDate}`, {
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          validReports = data.data;
+        }
+      } catch (e) {
+        console.error("Error fetching weekly reports range:", e);
+      }
+
+      if (validReports.length === 0) {
+        const start = new Date(weeklyStartDate);
+        const end = new Date(weeklyEndDate);
+        const datesList = [];
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          datesList.push(d.toISOString().split('T')[0]);
+        }
+        const fetchedResults = await Promise.all(
+          datesList.map(async (d) => {
+            try {
+              const res = await fetch(`${API_BASE}/v1/academic-counselor-reports/by-date?userId=${selectedUserId}&dateString=${d}`, {
+                headers: getAuthHeaders()
+              });
+              const data = await res.json();
+              if (data.success && data.data) return data.data;
+            } catch (err) {}
+            return null;
+          })
+        );
+        validReports = fetchedResults.filter(Boolean);
+      }
+
+      if (validReports.length === 0) {
+        showToast("No saved reports found in the selected weekly date range.", "warning");
+      }
+
+      const lastReport = validReports[validReports.length - 1];
+      const selectedCounselor = counselors.find(c => (c._id || c.id) === selectedUserId);
+      const details = lastReport?.basicDetails || {
+        employeeName: selectedCounselor?.name || basicDetails.employeeName || '',
+        designation: selectedCounselor?.designation || basicDetails.designation || 'Sales Executive / Tele Caller & Academic Counselor',
+        department: selectedCounselor?.department || basicDetails.department || 'Sales & Growth / Academy',
+        shiftTiming: basicDetails.shiftTiming || '9:00 AM - 5.00 PM',
+        reportingTo: selectedCounselor?.reportingManager || basicDetails.reportingTo || 'Manager - OPS Sales & Growth'
+      };
+
+      setWeeklyBasicDetails({
+        employeeName: details.employeeName || '',
+        designation: details.designation || 'Sales Executive / Tele Caller & Academic Counselor',
+        department: details.department || 'Sales & Growth / Academy',
+        shiftTiming: details.shiftTiming || '9:00 AM - 5.00 PM',
+        reportingTo: details.reportingTo || 'Manager - OPS Sales & Growth',
+        dateRange: `${new Date(weeklyStartDate).toLocaleDateString('en-GB')} to ${new Date(weeklyEndDate).toLocaleDateString('en-GB')}`
+      });
+
+      const consolidatedSales = DEFAULT_SALES_ACTIVITY.map(item => {
+        let totalCount = 0;
+        let totalDigitalMktg = 0;
+        let totalWeb = 0;
+        const remarksList = [];
+
+        validReports.forEach(report => {
+          const activityItem = report.salesActivity?.find(a => a.activity === item.activity);
+          if (activityItem) {
+            totalCount += parseNumber(activityItem.count);
+            totalDigitalMktg += parseNumber(activityItem.digitalMktg);
+            totalWeb += parseNumber(activityItem.web);
+            if (activityItem.remarks) remarksList.push(activityItem.remarks);
+          }
+        });
+
+        return {
+          activity: item.activity,
+          count: totalCount || '',
+          digitalMktg: totalDigitalMktg || '',
+          web: totalWeb || '',
+          dueDate: '', remarks: Array.from(new Set(remarksList)).join('; ')
+        };
+      });
+      setWeeklySalesActivity(consolidatedSales);
+
+      const consolidatedKpis = DEFAULT_PERFORMANCE_KPIS.map(item => {
+        let totalTarget = 0;
+        let totalAchieved = 0;
+
+        validReports.forEach(report => {
+          const kpiItem = report.performanceKpis?.find(k => k.kpi === item.kpi);
+          if (kpiItem) {
+            totalTarget += parseNumber(kpiItem.target);
+            totalAchieved += parseNumber(kpiItem.achieved);
+          }
+        });
+
+        return {
+          kpi: item.kpi,
+          target: totalTarget || '',
+          achieved: totalAchieved || ''
+        };
+      });
+      setWeeklyPerformanceKpis(consolidatedKpis);
+
+      const consolidatedOps = DEFAULT_DAILY_OPERATIONS.map(item => {
+        const remarksList = [];
+        let doneCount = 0;
+        let pendingCount = 0;
+        let naCount = 0;
+        let dueDateVal = '';
+        let startDateVal = '';
+        let endDateVal = '';
+
+        validReports.forEach(report => {
+          const opsItem = report.dailyOperations?.find(o => o.activity === item.activity);
+          if (opsItem) {
+            if (opsItem.status === 'Done') doneCount++;
+            else if (opsItem.status === 'Pending') pendingCount++;
+            else naCount++;
+            
+            if (opsItem.remarks) remarksList.push(opsItem.remarks);
+            if (opsItem.dueDate && !dueDateVal) dueDateVal = opsItem.dueDate;
+            if (opsItem.startDate && !startDateVal) startDateVal = opsItem.startDate;
+            if (opsItem.endDate && !endDateVal) endDateVal = opsItem.endDate;
+          }
+        });
+
+        let finalStatus = 'Done';
+        if (pendingCount > 0) finalStatus = 'Pending';
+        else if (doneCount === 0 && naCount > 0) finalStatus = 'NA';
+
+        return {
+          activity: item.activity,
+          status: finalStatus,
+          dueDate: dueDateVal,
+          startDate: startDateVal,
+          endDate: endDateVal,
+          remarks: Array.from(new Set(remarksList)).join('; ')
+        };
+      });
+      setWeeklyDailyOperations(consolidatedOps);
+
+      const collectedCount = validReports.filter(r => r.reportsCollectedDone).length;
+      setWeeklyReportsCollectedDone(collectedCount > 0);
+
+      const mergedIssues = [];
+      validReports.forEach(report => {
+        if (Array.isArray(report.issuesFeedback)) {
+          report.issuesFeedback.forEach(issue => {
+            if (issue.issue) {
+              mergedIssues.push({
+                issue: issue.issue,
+                priority: issue.priority || 'Medium',
+                supportNeeded: issue.supportNeeded || ''
+              });
+            }
+          });
+        }
+      });
+      if (mergedIssues.length === 0) {
+        mergedIssues.push({ issue: '', priority: 'Medium', supportNeeded: '' });
+      }
+      setWeeklyIssuesFeedback(mergedIssues);
+
+      showToast(`Successfully consolidated ${validReports.length} reports for weekly view!`, 'success');
+    } catch (error) {
+      console.error("Weekly Consolidation error:", error);
+      showToast("Failed to fetch and consolidate weekly data.", "error");
+    } finally {
+      setIsWeeklyLoading(false);
+    }
+  };
+
+  const handleFetchAndConsolidateWeekly = async () => {
+    await handleFetchWeeklyData();
+    setIsWeeklyConsolidated(true);
+    setWeeklyActiveTab('basicDetails');
+  };
+
+  const handleDownloadWeeklyPDF = async () => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      let currentY = 15;
+      
+      const drawSectionHeader = (title) => {
+        if (currentY + 25 > 280) {
+          doc.addPage();
+          currentY = 15;
+        }
+        doc.setFillColor(60, 35, 117);
+        doc.rect(14, currentY, 182, 7, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(255, 255, 255);
+        doc.text(title.toUpperCase(), 17, currentY + 5);
+        currentY += 7;
+      };
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor(132, 204, 22);
+      doc.text("KOD.", 14, 21);
+      
+      doc.setTextColor(60, 35, 117);
+      doc.text("brand", 34, 21);
+
+      doc.setFontSize(14);
+      doc.setTextColor(60, 35, 117);
+      doc.text("WEEKLY CONSOLIDATED REPORT", 100, 16);
+      
+      doc.setFontSize(7);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      doc.text("SALES EXECUTIVE / TELE CALLER & ACADEMIC COUNSELOR", 100, 22);
+
+      currentY = 27;
+
+      drawSectionHeader("1. BASIC DETAILS");
+      
+      const basicDetailsRows = [
+        ["Date Range", weeklyBasicDetails.dateRange || '', "Employee Name", weeklyBasicDetails.employeeName || ''],
+        ["Designation", weeklyBasicDetails.designation || '', "Department", weeklyBasicDetails.department || ''],
+        ["Shift Timing", weeklyBasicDetails.shiftTiming || '', "Reporting To", weeklyBasicDetails.reportingTo || '']
+      ];
+
+      autoTable(doc, {
+        body: basicDetailsRows,
+        startY: currentY,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 30 },
+          1: { width: 61 },
+          2: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 30 },
+          3: { width: 61 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      drawSectionHeader("2. COURSE COUNSELING & SALES ACTIVITY (CONSOLIDATED)");
+      
+      const salesHeaders = [["Activity", "Count", "Digital Mktg", "Web", "Remarks"]];
+      const salesRows = weeklySalesActivity.map(t => [
+        t.activity || '',
+        t.count || '',
+        t.digitalMktg || '',
+        t.web || '',
+        t.remarks || ''
+      ]);
+
+      autoTable(doc, {
+        head: salesHeaders,
+        body: salesRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 60 },
+          1: { width: 18, halign: 'center' },
+          2: { width: 22, halign: 'center' },
+          3: { width: 22, halign: 'center' },
+          4: { width: 60 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      drawSectionHeader("3. OPERATIONS SUMMARY (CONSOLIDATED)");
+      
+      const opsHeaders = [["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"]];
+      const opsRows = weeklyDailyOperations.map(t => [
+        t.activity || '',
+        t.dueDate || '',
+        t.startDate || '',
+        t.endDate || '',
+        t.status || '',
+        t.remarks || ''
+      ]);
+      
+      opsRows.push([
+        "Reports Collected from Team",
+        "",
+        "",
+        "",
+        weeklyReportsCollectedDone ? "Done" : "Pending",
+        ""
+      ]);
+
+      autoTable(doc, {
+        head: opsHeaders,
+        body: opsRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 8, cellPadding: 2.5, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 50 },
+          1: { width: 25, halign: 'center' },
+          2: { width: 25, halign: 'center' },
+          3: { width: 25, halign: 'center' },
+          4: { width: 25, halign: 'center' },
+          5: { width: 32 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      drawSectionHeader("4. PERFORMANCE KPI (CONSOLIDATED)");
+      
+      const kpiHeaders = [["KPI", "Target", "Achieved"]];
+      const kpiRows = weeklyPerformanceKpis.map(t => [
+        t.kpi || '',
+        t.target || '',
+        t.achieved || ''
+      ]);
+
+      autoTable(doc, {
+        head: kpiHeaders,
+        body: kpiRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 8, cellPadding: 2.5, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 70 },
+          1: { width: 56, halign: 'center' },
+          2: { width: 56, halign: 'center' }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      drawSectionHeader("5. ISSUES & FEEDBACK (CONSOLIDATED)");
+      
+      const issueHeaders = [["Issue", "Priority", "Support Needed"]];
+      const issueRows = weeklyIssuesFeedback.map(t => [
+        t.issue || '',
+        t.priority || '',
+        t.supportNeeded || ''
+      ]);
+
+      autoTable(doc, {
+        head: issueHeaders,
+        body: issueRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 8, cellPadding: 2.5, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 70 },
+          1: { width: 35, halign: 'center' },
+          2: { width: 77 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      const pdfBlob = doc.output('blob');
+      const filename = `Weekly_Consolidated_Report_Counseling_${weeklyBasicDetails.employeeName || 'Counselor'}_${weeklyStartDate}_to_${weeklyEndDate}.pdf`;
+      try {
+        await uploadCompiledPDFReport(selectedUserId, `${weeklyStartDate}_to_${weeklyEndDate}`, pdfBlob, filename, 'academiccounselor', 'weekly');
+        console.log("Weekly PDF saved successfully");
+      } catch (uploadErr) {
+        console.error("Failed to upload weekly PDF:", uploadErr);
+      }
+      doc.save(filename);
+      showToast("Weekly PDF report downloaded successfully!", "success");
+    } catch (e) {
+      console.error(e);
+      showToast("Failed to generate weekly PDF.", "error");
+    }
+  };
+
+  const addWeeklyIssueRow = () => {
+    setWeeklyIssuesFeedback([...weeklyIssuesFeedback, { issue: '', priority: 'Medium', supportNeeded: '' }]);
+  };
+
+  const removeWeeklyIssueRow = (index) => {
+    if (weeklyIssuesFeedback.length > 1) {
+      setWeeklyIssuesFeedback(weeklyIssuesFeedback.filter((_, i) => i !== index));
     }
   };
 
@@ -983,7 +1469,7 @@ const AcademicCounselorReportPage = () => {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-start sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setIsMonthlyModalOpen(true)}
@@ -995,16 +1481,18 @@ const AcademicCounselorReportPage = () => {
 
                 <button
                   type="button"
-                  onClick={handleDownloadPDF}
+                  onClick={() => setIsWeeklyModalOpen(true)}
                   className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
                 >
-                  <Download size={16} />
-                  Download PDF
+                  <CalendarDays size={16} />
+                  Weekly Report
                 </button>
+
+                
 
                 <button
                   type="button"
-                  onClick={handleSaveReport}
+                  onClick={handleDownloadPDF}
                   disabled={saving}
                   className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
                 >
@@ -1013,7 +1501,7 @@ const AcademicCounselorReportPage = () => {
                   ) : (
                     <Save size={16} />
                   )}
-                  Save Report
+                  Save File
                 </button>
               </div>
             </div>
@@ -1136,12 +1624,11 @@ const AcademicCounselorReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-5 py-4 w-[35%]">Activity</th>
-                      <th className="px-5 py-4 w-[35%]">Due Date</th>
+                      <th className="px-5 py-4 w-[40%]">Activity</th>
                       <th className="px-5 py-4 w-[15%] text-center">Count</th>
                       <th className="px-5 py-4 w-[15%] text-center">Digital Mktg</th>
                       <th className="px-5 py-4 w-[15%] text-center">Web</th>
-                      <th className="px-5 py-4 w-[20%]">Remarks</th>
+                      <th className="px-5 py-4 w-[15%]">Remarks</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1216,7 +1703,7 @@ const AcademicCounselorReportPage = () => {
                 </h2>
                 <button
                   type="button"
-                  onClick={() => setDailyOperations([...dailyOperations, { activity: '', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' }])}
+                  onClick={() => setDailyOperations([...dailyOperations, { activity: '', dueDate: '', startDate: '', endDate: '', status: 'Pending', remarks: '' }])}
                   className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
                 >
                   <Plus size={14} /> Add Row
@@ -1227,14 +1714,16 @@ const AcademicCounselorReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-5 py-4 w-[40%]">Activity</th>
-                      <th className="px-5 py-4 w-[40%]">Due Date</th>
-                      <th className="px-5 py-4 w-[25%] text-center">Status</th>
-                      <th className="px-5 py-4 w-[30%]">Remarks</th>
-                      <th className="px-5 py-4 w-[5%] text-center"></th>
+                      <th className="px-5 py-4 w-[35%] min-w-[280px]">Activity</th>
+                      <th className="px-5 py-4 w-36">Due Date</th>
+                      <th className="px-5 py-4 w-44">Start Date</th>
+                      <th className="px-5 py-4 w-44">End Date</th>
+                      <th className="px-5 py-4 w-40 text-center">Status</th>
+                      <th className="px-5 py-4">Remarks</th>
+                      <th className="px-5 py-4 w-12 text-center">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
                     {dailyOperations.map((item, index) => (
                       <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
                         <td className="px-5 py-3">
@@ -1250,9 +1739,48 @@ const AcademicCounselorReportPage = () => {
                             placeholder="Activity name"
                           />
                         </td>
+                        <td className="px-5 py-3">
+                          <input
+                            type="text"
+                            value={item.dueDate || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyOperations];
+                              updated[index].dueDate = e.target.value;
+                              setDailyOperations(updated);
+                            }}
+                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
+                            placeholder="Due date"
+                          />
+                        </td>
+                        <td className="px-5 py-3">
+                          <input
+                            type="text"
+                            value={item.startDate || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyOperations];
+                              updated[index].startDate = e.target.value;
+                              setDailyOperations(updated);
+                            }}
+                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
+                            placeholder="Start date"
+                          />
+                        </td>
+                        <td className="px-5 py-3">
+                          <input
+                            type="text"
+                            value={item.endDate || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyOperations];
+                              updated[index].endDate = e.target.value;
+                              setDailyOperations(updated);
+                            }}
+                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
+                            placeholder="End date"
+                          />
+                        </td>
                         <td className="px-5 py-3 text-center">
                           <select
-                            value={item.status}
+                            value={item.status || 'Pending'}
                             onChange={(e) => {
                               const updated = [...dailyOperations];
                               updated[index].status = e.target.value;
@@ -1262,13 +1790,14 @@ const AcademicCounselorReportPage = () => {
                           >
                             <option value="Done">Done</option>
                             <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
                             <option value="NA">NA</option>
                           </select>
                         </td>
                         <td className="px-5 py-3">
                           <input
                             type="text"
-                            value={item.remarks}
+                            value={item.remarks || ''}
                             onChange={(e) => {
                               const updated = [...dailyOperations];
                               updated[index].remarks = e.target.value;
@@ -1510,12 +2039,10 @@ const AcademicCounselorReportPage = () => {
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Counselor Initials / Sign</label>
-                      <input
-                        type="text"
+                      <SignatureUpload
                         value={approval.counselorSignature || ''}
-                        onChange={(e) => setApproval({ ...approval, counselorSignature: e.target.value })}
-                        placeholder="Sign..."
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200"
+                        onChange={(val) => setApproval({ ...approval, counselorSignature: val })}
+                        placeholder="Upload signature"
                       />
                     </div>
                     <div>
@@ -1543,7 +2070,7 @@ const AcademicCounselorReportPage = () => {
             </div>
 
             {/* Form Footer Action Buttons */}
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5">
+            <div className="flex flex-wrap items-center justify-start sm:justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5 w-full">
               <button
                 type="button"
                 onClick={() => setIsMonthlyModalOpen(true)}
@@ -1553,18 +2080,11 @@ const AcademicCounselorReportPage = () => {
                 Monthly Report
               </button>
 
-              <button
-                type="button"
-                onClick={handleDownloadPDF}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
-              >
-                <Download size={16} />
-                Download PDF
-              </button>
+              
 
               <button
                 type="button"
-                onClick={handleSaveReport}
+                onClick={handleDownloadPDF}
                 disabled={saving}
                 className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
               >
@@ -1573,7 +2093,7 @@ const AcademicCounselorReportPage = () => {
                 ) : (
                   <Save size={16} />
                 )}
-                Save Report
+                Save File
               </button>
             </div>
 
@@ -1683,7 +2203,7 @@ const AcademicCounselorReportPage = () => {
               <div className="p-6 overflow-y-auto max-h-[60vh]">
                 {monthlyActiveTab === 'range' && (
                   <div className="space-y-6 max-w-xl mx-auto py-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                           Start Date
@@ -1797,12 +2317,11 @@ const AcademicCounselorReportPage = () => {
                         <table className="w-full text-left border-collapse text-sm">
                           <thead>
                             <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                              <th className="px-5 py-4 w-[35%]">Activity</th>
-                      <th className="px-5 py-4 w-[35%]">Due Date</th>
+                              <th className="px-5 py-4 w-[40%]">Activity</th>
                               <th className="px-5 py-4 w-[15%] text-center">Count</th>
                               <th className="px-5 py-4 w-[15%] text-center">Digital Mktg</th>
                               <th className="px-5 py-4 w-[15%] text-center">Web</th>
-                              <th className="px-5 py-4 w-[20%]">Remarks</th>
+                              <th className="px-5 py-4 w-[15%]">Remarks</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1869,19 +2388,60 @@ const AcademicCounselorReportPage = () => {
                         <table className="w-full text-left border-collapse text-sm">
                           <thead>
                             <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                              <th className="px-5 py-4 w-[40%]">Activity</th>
-                      <th className="px-5 py-4 w-[40%]">Due Date</th>
-                              <th className="px-5 py-4 w-[25%] text-center">Status</th>
-                              <th className="px-5 py-4 w-[35%]">Remarks</th>
+                              <th className="px-5 py-4 w-[35%] min-w-[280px]">Activity</th>
+                              <th className="px-5 py-4 w-36">Due Date</th>
+                              <th className="px-5 py-4 w-44">Start Date</th>
+                              <th className="px-5 py-4 w-44">End Date</th>
+                              <th className="px-5 py-4 w-40 text-center">Status</th>
+                              <th className="px-5 py-4">Remarks</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {monthlyDailyOperations.map((item, index) => (
                               <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
                                 <td className="px-5 py-3 font-semibold text-slate-700 dark:text-slate-300">{item.activity}</td>
+                                <td className="px-5 py-3">
+                                  <input
+                                    type="text"
+                                    value={item.dueDate || ''}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyDailyOperations];
+                                      updated[index].dueDate = e.target.value;
+                                      setMonthlyDailyOperations(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                    placeholder="Due date"
+                                  />
+                                </td>
+                                <td className="px-5 py-3">
+                                  <input
+                                    type="text"
+                                    value={item.startDate || ''}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyDailyOperations];
+                                      updated[index].startDate = e.target.value;
+                                      setMonthlyDailyOperations(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                    placeholder="Start date"
+                                  />
+                                </td>
+                                <td className="px-5 py-3">
+                                  <input
+                                    type="text"
+                                    value={item.endDate || ''}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyDailyOperations];
+                                      updated[index].endDate = e.target.value;
+                                      setMonthlyDailyOperations(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                    placeholder="End date"
+                                  />
+                                </td>
                                 <td className="px-5 py-3 text-center">
                                   <select
-                                    value={item.status}
+                                    value={item.status || 'Pending'}
                                     onChange={(e) => {
                                       const updated = [...monthlyDailyOperations];
                                       updated[index].status = e.target.value;
@@ -1891,13 +2451,14 @@ const AcademicCounselorReportPage = () => {
                                   >
                                     <option value="Done">Done</option>
                                     <option value="Pending">Pending</option>
+                                    <option value="In Progress">In Progress</option>
                                     <option value="NA">NA</option>
                                   </select>
                                 </td>
                                 <td className="px-5 py-3">
                                   <input
                                     type="text"
-                                    value={item.remarks}
+                                    value={item.remarks || ''}
                                     onChange={(e) => {
                                       const updated = [...monthlyDailyOperations];
                                       updated[index].remarks = e.target.value;
@@ -2075,6 +2636,494 @@ const AcademicCounselorReportPage = () => {
                   >
                     <Download size={16} />
                     Download Monthly PDF
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* WEEKLY CONSOLIDATION MODAL */}
+        {isWeeklyModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-6 sm:pt-10 overflow-y-auto bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -20 }}
+              className="relative w-full max-w-5xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 flex flex-col mb-10 max-h-[90vh]"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-white">Weekly Academic Counselor Consolidation</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Aggregate multiple daily reports into a single weekly shift report</p>
+                </div>
+                <button
+                  onClick={() => setIsWeeklyModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1 text-xl font-bold"
+                >
+                  &times;
+                </button>
+              </div>
+
+              {/* Modal Tabs */}
+              <div className="flex bg-slate-100 dark:bg-slate-950 p-1 gap-1 border-b border-slate-100 dark:border-slate-800 text-xs font-semibold overflow-x-auto">
+                <button
+                  onClick={() => setWeeklyActiveTab('range')}
+                  className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === 'range' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                >
+                  1. Choose Date Range
+                </button>
+                <button
+                  onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab('basicDetails') : showToast("Please fetch data first", "warning")}
+                  className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === 'basicDetails' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                >
+                  2. Basic Details
+                </button>
+                <button
+                  onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab('salesActivity') : showToast("Please fetch data first", "warning")}
+                  className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === 'salesActivity' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                >
+                  3. Sales Activity
+                </button>
+                <button
+                  onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab('dailyOperations') : showToast("Please fetch data first", "warning")}
+                  className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === 'dailyOperations' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                >
+                  4. Operations Summary
+                </button>
+                <button
+                  onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab('performanceKpis') : showToast("Please fetch data first", "warning")}
+                  className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === 'performanceKpis' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                >
+                  5. Performance KPI
+                </button>
+                <button
+                  onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab('issuesFeedback') : showToast("Please fetch data first", "warning")}
+                  className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === 'issuesFeedback' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                >
+                  6. Issues & Feedback
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {weeklyActiveTab === 'range' && (
+                  <div className="space-y-5 max-w-md mx-auto py-6">
+                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200">Select weekly report duration</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Start Date</label>
+                        <input
+                          type="date"
+                          value={weeklyStartDate}
+                          onChange={(e) => setWeeklyStartDate(e.target.value)}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">End Date</label>
+                        <input
+                          type="date"
+                          value={weeklyEndDate}
+                          onChange={(e) => setWeeklyEndDate(e.target.value)}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleFetchAndConsolidateWeekly}
+                      disabled={isWeeklyLoading}
+                      className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-all shadow-md shadow-indigo-600/10 flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      {isWeeklyLoading ? <Loader2 className="animate-spin" size={16} /> : <CalendarDays size={16} />}
+                      Fetch & Consolidate Weekly Data
+                    </button>
+                  </div>
+                )}
+
+                {isWeeklyConsolidated && (
+                  <>
+                    {weeklyActiveTab === 'basicDetails' && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Date Range</label>
+                          <input
+                            type="text"
+                            value={weeklyBasicDetails.dateRange || ''}
+                            onChange={(e) => setWeeklyBasicDetails({ ...weeklyBasicDetails, dateRange: e.target.value })}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Employee Name</label>
+                          <input
+                            type="text"
+                            value={weeklyBasicDetails.employeeName || ''}
+                            onChange={(e) => setWeeklyBasicDetails({ ...weeklyBasicDetails, employeeName: e.target.value })}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Designation</label>
+                          <input
+                            type="text"
+                            value={weeklyBasicDetails.designation || ''}
+                            onChange={(e) => setWeeklyBasicDetails({ ...weeklyBasicDetails, designation: e.target.value })}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Department</label>
+                          <input
+                            type="text"
+                            value={weeklyBasicDetails.department || ''}
+                            onChange={(e) => setWeeklyBasicDetails({ ...weeklyBasicDetails, department: e.target.value })}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Shift Timing</label>
+                          <input
+                            type="text"
+                            value={weeklyBasicDetails.shiftTiming || ''}
+                            onChange={(e) => setWeeklyBasicDetails({ ...weeklyBasicDetails, shiftTiming: e.target.value })}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">Reporting Manager</label>
+                          <input
+                            type="text"
+                            value={weeklyBasicDetails.reportingTo || ''}
+                            onChange={(e) => setWeeklyBasicDetails({ ...weeklyBasicDetails, reportingTo: e.target.value })}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {weeklyActiveTab === 'salesActivity' && (
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+                        <table className="w-full text-left border-collapse text-sm">
+                          <thead>
+                            <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                              <th className="px-5 py-4 w-[40%]">Activity</th>
+                              <th className="px-5 py-4 w-[15%] text-center">Count</th>
+                              <th className="px-5 py-4 w-[15%] text-center">Digital Mktg</th>
+                              <th className="px-5 py-4 w-[15%] text-center">Web</th>
+                              <th className="px-5 py-4 w-[15%]">Remarks</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {weeklySalesActivity.map((item, index) => (
+                              <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                                <td className="px-5 py-3 font-semibold text-slate-700 dark:text-slate-300">{item.activity}</td>
+                                <td className="px-5 py-3 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.count}
+                                    onChange={(e) => {
+                                      const updated = [...weeklySalesActivity];
+                                      updated[index].count = e.target.value;
+                                      setWeeklySalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg text-center focus:outline-none text-slate-700 dark:text-slate-200 py-1"
+                                  />
+                                </td>
+                                <td className="px-5 py-3 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.digitalMktg}
+                                    onChange={(e) => {
+                                      const updated = [...weeklySalesActivity];
+                                      updated[index].digitalMktg = e.target.value;
+                                      setWeeklySalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg text-center focus:outline-none text-slate-700 dark:text-slate-200 py-1"
+                                  />
+                                </td>
+                                <td className="px-5 py-3 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.web}
+                                    onChange={(e) => {
+                                      const updated = [...weeklySalesActivity];
+                                      updated[index].web = e.target.value;
+                                      setWeeklySalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg text-center focus:outline-none text-slate-700 dark:text-slate-200 py-1"
+                                  />
+                                </td>
+                                <td className="px-5 py-3">
+                                  <input
+                                    type="text"
+                                    value={item.remarks}
+                                    onChange={(e) => {
+                                      const updated = [...weeklySalesActivity];
+                                      updated[index].remarks = e.target.value;
+                                      setWeeklySalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {weeklyActiveTab === 'dailyOperations' && (
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+                        <table className="w-full text-left border-collapse text-sm">
+                          <thead>
+                            <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                              <th className="px-5 py-4 w-[35%] min-w-[280px]">Activity</th>
+                              <th className="px-5 py-4 w-36">Due Date</th>
+                              <th className="px-5 py-4 w-44">Start Date</th>
+                              <th className="px-5 py-4 w-44">End Date</th>
+                              <th className="px-5 py-4 w-40 text-center">Status</th>
+                              <th className="px-5 py-4">Remarks</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {weeklyDailyOperations.map((item, index) => (
+                              <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                                <td className="px-5 py-3 font-semibold text-slate-700 dark:text-slate-300">{item.activity}</td>
+                                <td className="px-5 py-3">
+                                  <input
+                                    type="text"
+                                    value={item.dueDate || ''}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyDailyOperations];
+                                      updated[index].dueDate = e.target.value;
+                                      setWeeklyDailyOperations(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                    placeholder="Due date"
+                                  />
+                                </td>
+                                <td className="px-5 py-3">
+                                  <input
+                                    type="text"
+                                    value={item.startDate || ''}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyDailyOperations];
+                                      updated[index].startDate = e.target.value;
+                                      setWeeklyDailyOperations(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                    placeholder="Start date"
+                                  />
+                                </td>
+                                <td className="px-5 py-3">
+                                  <input
+                                    type="text"
+                                    value={item.endDate || ''}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyDailyOperations];
+                                      updated[index].endDate = e.target.value;
+                                      setWeeklyDailyOperations(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                    placeholder="End date"
+                                  />
+                                </td>
+                                <td className="px-5 py-3 text-center">
+                                  <select
+                                    value={item.status || 'Pending'}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyDailyOperations];
+                                      updated[index].status = e.target.value;
+                                      setWeeklyDailyOperations(updated);
+                                    }}
+                                    className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1 text-xs focus:outline-none text-slate-700 dark:text-slate-200"
+                                  >
+                                    <option value="Done">Done</option>
+                                    <option value="Pending">Pending</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="NA">NA</option>
+                                  </select>
+                                </td>
+                                <td className="px-5 py-3">
+                                  <input
+                                    type="text"
+                                    value={item.remarks}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyDailyOperations];
+                                      updated[index].remarks = e.target.value;
+                                      setWeeklyDailyOperations(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                            <tr className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                              <td className="px-5 py-4 font-bold text-slate-700 dark:text-slate-300">Reports Collected from Team</td>
+                              <td colSpan={3}></td>
+                              <td className="px-5 py-4 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={weeklyReportsCollectedDone}
+                                  onChange={(e) => setWeeklyReportsCollectedDone(e.target.checked)}
+                                  className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                                />
+                              </td>
+                              <td></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {weeklyActiveTab === 'performanceKpis' && (
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+                        <table className="w-full text-left border-collapse text-sm">
+                          <thead>
+                            <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                              <th className="px-5 py-4 w-[40%]">KPI</th>
+                              <th className="px-5 py-4 w-[30%] text-center">Target</th>
+                              <th className="px-5 py-4 w-[30%] text-center">Achieved</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {weeklyPerformanceKpis.map((item, index) => (
+                              <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                                <td className="px-5 py-3 font-semibold text-slate-700 dark:text-slate-300">{item.kpi}</td>
+                                <td className="px-5 py-3 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.target}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyPerformanceKpis];
+                                      updated[index].target = e.target.value;
+                                      setWeeklyPerformanceKpis(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg text-center focus:outline-none text-slate-700 dark:text-slate-200 py-1"
+                                  />
+                                </td>
+                                <td className="px-5 py-3 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.achieved}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyPerformanceKpis];
+                                      updated[index].achieved = e.target.value;
+                                      setWeeklyPerformanceKpis(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg text-center focus:outline-none text-slate-700 dark:text-slate-200 py-1"
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {weeklyActiveTab === 'issuesFeedback' && (
+                      <div className="space-y-4">
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={addWeeklyIssueRow}
+                            className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
+                          >
+                            <Plus size={14} /> Add Row
+                          </button>
+                        </div>
+                        <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+                          <table className="w-full text-left border-collapse text-sm">
+                            <thead>
+                              <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                                <th className="px-5 py-4 w-[40%]">Issue</th>
+                                <th className="px-5 py-4 w-[20%] text-center">Priority</th>
+                                <th className="px-5 py-4 w-[35%]">Support Needed</th>
+                                <th className="px-5 py-4 w-[5%] text-center">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                              {weeklyIssuesFeedback.map((item, index) => (
+                                <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                                  <td className="px-5 py-3">
+                                    <input
+                                      type="text"
+                                      value={item.issue}
+                                      onChange={(e) => {
+                                        const updated = [...weeklyIssuesFeedback];
+                                        updated[index].issue = e.target.value;
+                                        setWeeklyIssuesFeedback(updated);
+                                      }}
+                                      className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                    />
+                                  </td>
+                                  <td className="px-5 py-3 text-center">
+                                    <select
+                                      value={item.priority}
+                                      onChange={(e) => {
+                                        const updated = [...weeklyIssuesFeedback];
+                                        updated[index].priority = e.target.value;
+                                        setWeeklyIssuesFeedback(updated);
+                                      }}
+                                      className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none text-slate-700 dark:text-slate-200"
+                                    >
+                                      <option value="High">High</option>
+                                      <option value="Medium">Medium</option>
+                                      <option value="Low">Low</option>
+                                    </select>
+                                  </td>
+                                  <td className="px-5 py-3">
+                                    <input
+                                      type="text"
+                                      value={item.supportNeeded}
+                                      onChange={(e) => {
+                                        const updated = [...weeklyIssuesFeedback];
+                                        updated[index].supportNeeded = e.target.value;
+                                        setWeeklyIssuesFeedback(updated);
+                                      }}
+                                      className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                    />
+                                  </td>
+                                  <td className="px-5 py-3 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => removeWeeklyIssueRow(index)}
+                                      disabled={weeklyIssuesFeedback.length === 1}
+                                      className="text-rose-500 hover:text-rose-700 disabled:opacity-30 transition-colors"
+                                    >
+                                      <Trash2 size={15} />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                <button
+                  onClick={() => setIsWeeklyModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-750 dark:text-slate-355 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-all bg-white dark:bg-slate-900"
+                >
+                  Close
+                </button>
+
+                {isWeeklyConsolidated && (
+                  <button
+                    onClick={handleDownloadWeeklyPDF}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10"
+                  >
+                    <Download size={16} />
+                    Download Weekly PDF
                   </button>
                 )}
               </div>

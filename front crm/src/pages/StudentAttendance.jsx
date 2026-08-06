@@ -91,17 +91,33 @@ const StudentAttendance = () => {
   const fetchStudents = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/user/?role=student&limit=${PAGE_SIZE}&page=${currentPage}`, { headers: getHeaders() });
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/users?role=student&limit=500`
+        : `${cleanBase}/v1/users?role=student&limit=500`;
+
+      const res = await fetch(endpoint, { headers: getHeaders() });
       
-      if (!res.ok) return;
+      if (!res.ok) {
+        // Fallback to legacy endpoint
+        const fallbackRes = await fetch(`${cleanBase}/user/?role=student&limit=500`, { headers: getHeaders() });
+        if (!fallbackRes.ok) return;
+        const fbData = await fallbackRes.json();
+        const fbUsers = fbData?.users || fbData?.data?.users || fbData?.data || fbData?.results || [];
+        setStudents(fbUsers);
+        setTotalStudents(fbData?.pagination?.total || fbData?.total || fbUsers.length);
+        await syncAttendance();
+        return;
+      }
       
       const responseData = await res.json();
-      const allUsers = responseData?.users || responseData?.data?.users || responseData?.data || responseData?.results || [];
+      const allUsers = responseData?.users || responseData?.data?.users || responseData?.data || responseData?.results || (Array.isArray(responseData) ? responseData : []);
       
-      const studentList = allUsers.filter(u => {
-        const roleId = u.role_id ?? u.role ?? u.role?.id ?? u.role?.role_id;
-        return String(roleId) === STUDENT_ROLE_ID || String(roleId).toLowerCase() === 'student';
-      });
+      const studentList = Array.isArray(allUsers) ? allUsers.filter(u => {
+        const rawRole = u.role_id ?? u.role ?? u.role?.id ?? u.role?.role_id;
+        const roleId = String(rawRole || '').toLowerCase();
+        return roleId === '10' || roleId === '4' || roleId === 'student';
+      }) : [];
 
       setStudents(studentList);
       setTotalStudents(responseData?.pagination?.total || responseData?.total || studentList.length);
@@ -111,7 +127,7 @@ const StudentAttendance = () => {
     } finally {
       setLoading(false);
     }
-  }, [getHeaders, currentPage, syncAttendance]);
+  }, [getHeaders, syncAttendance]);
 
   useEffect(() => {
     fetchStudents();
@@ -238,7 +254,7 @@ const StudentAttendance = () => {
           designation_id: '10', joining_date: new Date().toISOString().split('T')[0],
           address: '', identityType: 'aadhaar', identityNumber: '', profile_image: ''
         });
-        showToast("Scholar enrolled successfully!", "success");
+        showToast("Student Added successfully!", "success");
       } else {
         let errMsg = "Enrollment failed.";
         try {
@@ -316,8 +332,8 @@ const StudentAttendance = () => {
               <ShieldCheck className="text-white" size={32} />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight uppercase">Attendance <span className="text-indigo-600 italic">Control</span></h1>
-              <p className="text-[10px] font-black tracking-[0.2em] text-slate-500 dark:text-slate-400 uppercase mt-1 italic">Verified Student Administration Session</p>
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight uppercase">Students <span className="text-indigo-600 italic">Attendance</span></h1>
+              {/* <p className="text-[10px] font-black tracking-[0.2em] text-slate-500 dark:text-slate-400 uppercase mt-1 italic">Verified Student Administration Session</p> */}
             </div>
           </div>
 
@@ -340,7 +356,7 @@ const StudentAttendance = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           {[
-            { label: 'Total Enrolled Students', value: totalStudents, icon: GraduationCap },
+            { label: 'Total Students', value: totalStudents, icon: GraduationCap },
             { label: 'Verified Present Today', value: activePresenceCount, icon: UserCheck },
             { label: 'Confirmed Absent Today', value: unresolvedAbsentCount, icon: AlertCircle },
           ].map((stat, i) => (
@@ -373,7 +389,7 @@ const StudentAttendance = () => {
               <Download size={16} /> Excel Report
             </button>
             <button onClick={() => setIsModalOpen(true)} className="flex-1 lg:flex-none bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-600/20 cursor-pointer">
-              <UserPlus size={16} /> Enroll Scholar
+              <UserPlus size={16} /> Add Student
             </button>
           </div>
         </div>
@@ -423,7 +439,7 @@ const StudentAttendance = () => {
                           className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
                             isPresent 
                             ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/10' 
-                            : 'bg-slate-50 dark:bg-slate-950 text-emerald-600 border border-slate-100 dark:border-slate-850 hover:bg-emerald-500 hover:text-white hover:border-emerald-500'
+                            : 'bg-slate-50 dark:bg-slate-950 text-emerald-600 border border-slate-100 dark:border-slate-850 hover:bg-emerald-500 hover:text-green hover:border-emerald-500'
                           }`}
                         >
                           <CheckCircle2 size={14} /> {isPresent ? 'Saved' : 'Present'}
@@ -433,7 +449,7 @@ const StudentAttendance = () => {
                           className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
                             isAbsent 
                             ? 'bg-red-600 text-white shadow-lg shadow-red-600/10' 
-                            : 'bg-slate-50 dark:bg-slate-950 text-red-600 border border-slate-100 dark:border-slate-850 hover:bg-red-500 hover:text-white hover:border-red-500'
+                            : 'bg-slate-50 dark:bg-slate-950 text-red-600 border border-slate-100 dark:border-slate-850 hover:bg-red-500 hover:text-red hover:border-red-500'
                           }`}
                         >
                           <XCircle size={14} /> {isAbsent ? 'Saved' : 'Absent'}
@@ -555,7 +571,7 @@ const StudentAttendance = () => {
                 <header className="mb-10 flex justify-between items-start">
                   <div>
                     <h2 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-slate-100 italic uppercase tracking-tighter">
-                      Enroll <span className="text-indigo-600">Scholar</span>
+                      Add <span className="text-indigo-600">Student</span>
                     </h2>
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.4em] mt-2">
                       Verified Institutional Student Registration Node
@@ -616,7 +632,7 @@ const StudentAttendance = () => {
                       className="w-full py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-lg shadow-indigo-600/20 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
                     >
                       {isAddingStudent ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
-                      Confirm Enrollment
+                      Confirm 
                     </button>
                   </div>
                 </form>

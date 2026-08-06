@@ -4,7 +4,8 @@ import {
   getReportByDate,
   saveReport,
   getCounselorsList,
-  getSubmittedDates
+  getSubmittedDates,
+  getReportsByRange
 } from '../controllers/academicCounselorReport.controller.js';
 
 const router = Router();
@@ -13,6 +14,7 @@ const router = Router();
 router.use(protectRoute);
 
 router.get('/by-date', getReportByDate);
+router.get('/range', getReportsByRange);
 router.post('/', saveReport);
 router.get('/counselors', getCounselorsList);
 router.get('/submitted-dates', getSubmittedDates);

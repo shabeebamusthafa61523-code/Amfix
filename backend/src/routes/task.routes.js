@@ -41,7 +41,7 @@ router.use(verifyJWT);
 // CREATE TASK
 router.post(
   '/create',
-  upload.single('file'),
+  upload.any(),
   validateBody(createTaskSchema),
   createTask
 );
@@ -84,7 +84,7 @@ router.put(
 router.put(
   '/update/:task_id',
   validateParams(taskIdParamsSchema),
-  upload.single('file'),
+  upload.any(),
   validateBody(updateTaskSchema),
   updateTask
 );

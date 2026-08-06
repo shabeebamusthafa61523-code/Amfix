@@ -3,68 +3,75 @@ import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X, Maximize2
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { fetchCompletedTasks } from '../utils/taskUtils';
+import { fetchCompletedTasks, fetchDelegatedTasks } from '../utils/taskUtils';
+import SignatureUpload from '../components/SignatureUpload';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
 // Default data for Operations Manager Shift Report
+const DEFAULT_KPI_TRACKING = [
+  { project: '', kpi: '', target: '', achieved: '' },
+  { project: '', kpi: '', target: '', achieved: '' },
+  { project: '', kpi: '', target: '', achieved: '' }
+];
+
 const DEFAULT_DAILY_OPERATIONS = [
-  { activity: 'Team Attendance Verified', status: 'Done', dueDate: '', remarks: '' },
-  { activity: 'Daily Sales Targets Assigned', status: 'Done', dueDate: '', remarks: '' },
-  { activity: 'Lead Follow-up Reviewed', status: 'Done', dueDate: '', remarks: '' },
-  { activity: 'Client Meetings Conducted', status: 'NO', dueDate: '', remarks: '' },
-  { activity: 'Academy Coordination Completed', status: 'NA', dueDate: '', remarks: '' },
-  { activity: 'Reports Collected from Team', status: 'Done', dueDate: '', remarks: '' }
+  { activity: 'Team Attendance Verified', status: '', dueDate: '', remarks: '', isTodoTask: false },
+  { activity: 'Daily Sales Targets Assigned', status: '', dueDate: '', remarks: '', isTodoTask: false },
+  { activity: 'Lead Follow-up Reviewed', status: '', dueDate: '', remarks: '', isTodoTask: false },
+  { activity: 'Client Meetings Conducted', status: '', dueDate: '', remarks: '', isTodoTask: false },
+  { activity: 'Academy Coordination Completed', status: '', dueDate: '', remarks: '', isTodoTask: false },
+  { activity: 'Reports Collected from Team', status: '', dueDate: '', remarks: '', isTodoTask: false }
 ];
 
 const DEFAULT_SALES_ACTIVITY = [
-  { activity: 'New Leads Generated from marketing team', count: '1 (Inbound)', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Qualified Lead', count: '0', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Total Calls Made', count: '41', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Total Follow up', count: '40', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Hot Leads', count: '1', digitalMktg: '', web: '1', dueDate: '', remarks: '' },
-  { activity: 'Warm Leads', count: '0', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Cold Leads', count: '0', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Call back Leads', count: '2', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'RNT Leads (Ring Next Time)', count: '23', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Switch Off Leads', count: '1', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Wrong leads', count: '14', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Total Pending Follow-ups', count: '0', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Total Pending Leads', count: '0', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Client/Student Meetings Fixed', count: '0', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Admissions/Closings Done', count: '0', digitalMktg: '', web: '', dueDate: '', remarks: '' }
+  { activity: 'New Leads Generated', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Qualified Lead', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Total Calls Made', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Total Follow up', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Hot Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Warm Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Cold Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  // { activity: 'Call back Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'RNT Leads (Ring Next Time)', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Switch Off Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Wrong leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  // { activity: 'Total Pending Follow-ups', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Total Pending Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Client/Student Meetings Fixed', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
+  { activity: 'Admissions/Closings Done', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' }
 ];
 
 const DEFAULT_SALES_PERFORMANCE = [
-  { staffName: 'Sales Executive', taskAssigned: 'Ms. Rajalakshmi KM', leads: '41', closings: '41', status: 'DONE' },
-  { staffName: 'Tele Caller', taskAssigned: 'NIL', leads: '', closings: '', status: '' },
-  { staffName: 'Freelance Exec.', taskAssigned: 'NIL', leads: '', closings: '', status: '' },
-  { staffName: 'Intern/Trainee', taskAssigned: 'NIL', leads: '', closings: '', status: '' }
+  { staffName: 'Sales Executive', taskAssigned: '', leads: '', closings: '', status: '' },
+  { staffName: 'Tele Caller', taskAssigned: '', leads: '', closings: '', status: '' },
+  { staffName: 'Freelance Exec.', taskAssigned: '', leads: '', closings: '', status: '' },
+  { staffName: 'Intern/Trainee', taskAssigned: '', leads: '', closings: '', status: '' }
 ];
 
 const DEFAULT_REVENUE_TRACKING = [
-  { category: 'Sales Revenue', amount: '₹00' },
-  { category: 'Academy Revenue', amount: '₹00' },
-  { category: 'Pending Payments', amount: '₹00' },
-  { category: 'Total Revenue', amount: '₹00' }
+  { category: 'Sales Revenue', amount: '' },
+  { category: 'Academy Revenue', amount: '' },
+  { category: 'Pending Payments', amount: '' },
+  { category: 'Total Revenue', amount: '' }
 ];
 
 const DEFAULT_ACADEMY_STATUS = [
-  { activity: 'Classes Conducted', status: 'No', dueDate: '', remarks: '' },
-  { activity: 'Mentor Coordination', status: 'No', dueDate: '', remarks: '' },
-  { activity: 'Student Follow-up', status: 'No', dueDate: '', remarks: '' },
-  { activity: 'Admissions Follow-up', status: 'No', dueDate: '', remarks: '' }
+  { activity: 'Classes Conducted', status: '', dueDate: '', remarks: '' },
+  { activity: 'Mentor Coordination', status: '', dueDate: '', remarks: '' },
+  { activity: 'Student Follow-up', status: '', dueDate: '', remarks: '' },
+  { activity: 'Admissions Follow-up', status: '', dueDate: '', remarks: '' }
 ];
 
 const OpsReportPage = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
@@ -94,6 +101,7 @@ const OpsReportPage = () => {
   const [weeklySalesPerformance, setWeeklySalesPerformance] = useState(DEFAULT_SALES_PERFORMANCE);
   const [weeklyRevenueTracking, setWeeklyRevenueTracking] = useState(DEFAULT_REVENUE_TRACKING);
   const [weeklyAcademyStatus, setWeeklyAcademyStatus] = useState(DEFAULT_ACADEMY_STATUS);
+  const [weeklyKpiTracking, setWeeklyKpiTracking] = useState([]);
   const [weeklyIssuesEscalations, setWeeklyIssuesEscalations] = useState({
     issue: '',
     priority: '',
@@ -109,6 +117,10 @@ const OpsReportPage = () => {
     opsName: '',
     directorName: 'Executive Director Approval'
   });
+
+  const [weeklyAchievements, setWeeklyAchievements] = useState('');
+  const [weeklyImprovements, setWeeklyImprovements] = useState('');
+  const [weeklyNextWeekPlanning, setWeeklyNextWeekPlanning] = useState('');
 
   // Monthly Report States
   const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
@@ -135,6 +147,7 @@ const OpsReportPage = () => {
   const [monthlySalesPerformance, setMonthlySalesPerformance] = useState(DEFAULT_SALES_PERFORMANCE);
   const [monthlyRevenueTracking, setMonthlyRevenueTracking] = useState(DEFAULT_REVENUE_TRACKING);
   const [monthlyAcademyStatus, setMonthlyAcademyStatus] = useState(DEFAULT_ACADEMY_STATUS);
+  const [monthlyKpiTracking, setMonthlyKpiTracking] = useState([]);
   const [monthlyIssuesEscalations, setMonthlyIssuesEscalations] = useState({
     issue: '',
     priority: '',
@@ -212,10 +225,12 @@ const OpsReportPage = () => {
   });
 
   const [dailyOperations, setDailyOperations] = useState(DEFAULT_DAILY_OPERATIONS);
+  const [selectedActivityText, setSelectedActivityText] = useState(null);
   const [salesActivity, setSalesActivity] = useState(DEFAULT_SALES_ACTIVITY);
   const [salesPerformance, setSalesPerformance] = useState(DEFAULT_SALES_PERFORMANCE);
   const [revenueTracking, setRevenueTracking] = useState(DEFAULT_REVENUE_TRACKING);
   const [academyStatus, setAcademyStatus] = useState(DEFAULT_ACADEMY_STATUS);
+  const [kpiTracking, setKpiTracking] = useState(DEFAULT_KPI_TRACKING);
   
   const [issuesEscalations, setIssuesEscalations] = useState({
     issue: '',
@@ -359,7 +374,7 @@ const OpsReportPage = () => {
           ...apiBasicDetails,
           employeeName: userDetail.name || apiBasicDetails.employeeName || '',
           employeeId: userDetail.employeeId || apiBasicDetails.employeeId || '',
-          designation: userDetail.designation || apiBasicDetails.designation || '',
+          designation: userDetail.designationName || userDetail.designation || apiBasicDetails.designation || '',
           reportingTo: userDetail.reportingManager || apiBasicDetails.reportingTo || '',
           department: userDetail.department || apiBasicDetails.department || ''
         });
@@ -369,42 +384,87 @@ const OpsReportPage = () => {
         setSalesPerformance(Array.isArray(report.salesPerformance) ? report.salesPerformance : []);
         setRevenueTracking(Array.isArray(report.revenueTracking) ? report.revenueTracking : []);
         setAcademyStatus(Array.isArray(report.academyStatus) ? report.academyStatus : []);
+
+        const savedKpis = Array.isArray(report.kpiTracking) ? report.kpiTracking : [];
+        const hasMeaningfulKpi = savedKpis.some(item => (item.project && item.project.trim()) || (item.kpi && item.kpi.trim()));
+
+        if (hasMeaningfulKpi) {
+          setKpiTracking(savedKpis);
+        } else {
+          try {
+            const delegatedTasks = await fetchDelegatedTasks(userId, dateStr);
+            if (delegatedTasks && delegatedTasks.length > 0) {
+              setKpiTracking(delegatedTasks);
+            } else {
+              setKpiTracking(savedKpis.length > 0 ? savedKpis : DEFAULT_KPI_TRACKING);
+            }
+          } catch(e) {
+            setKpiTracking(savedKpis.length > 0 ? savedKpis : DEFAULT_KPI_TRACKING);
+          }
+        }
+
         setIssuesEscalations(report.issuesEscalations || { issue: '', priority: '', actionTaken: '' });
         setHandover(report.handover || { pendingLeadsShared: 'Yes', crmUpdated: 'Yes / No- NA', reportsSubmitted: 'Yes', teamUpdated: 'Yes' });
         setApproval(report.approval || {});
       } else {
-        initializeBlankReport(userId, dateStr);
+        await initializeBlankReport(userId, dateStr);
         // Auto-fetch completed tasks for new blank reports
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status || 'Done', dueDate: t.dueDate || '', remarks: 'Auto-fetched' }));
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
-            setDailyOperations(mappedTasks);
-          } else {
-            setDailyOperations(prev => [...prev, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }]);
+            const mappedTasks = completedTasks.map(t => ({
+              activity: t.title,
+              dueDate: t.dueDate || '',
+              startDate: t.startTime || '',
+              endDate: t.endTime || '',
+              status: t.status || 'Done',
+              remarks: t.description || '',
+              isTodoTask: true
+            }));
+            setDailyOperations([...mappedTasks, ...DEFAULT_DAILY_OPERATIONS]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
         }
 
+        try {
+          const delegatedTasks = await fetchDelegatedTasks(userId, dateStr);
+          if (delegatedTasks && delegatedTasks.length > 0) {
+            setKpiTracking(delegatedTasks);
+          }
+        } catch(e) {
+          console.error("Error auto-fetching delegated tasks:", e);
+        }
+
       }
     } catch (e) {
-      initializeBlankReport(userId, dateStr);
+      await initializeBlankReport(userId, dateStr);
         // Auto-fetch completed tasks for new blank reports
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status || 'Done', dueDate: t.dueDate || '', remarks: 'Auto-fetched' }));
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
-            setDailyOperations(mappedTasks);
-          } else {
-            setDailyOperations(prev => [...prev, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }]);
+            const mappedTasks = completedTasks.map(t => ({
+              activity: t.title,
+              dueDate: t.dueDate || '',
+              startDate: t.startTime || '',
+              endDate: t.endTime || '',
+              status: t.status || 'Done',
+              remarks: t.description || '',
+              isTodoTask: true
+            }));
+            setDailyOperations([...mappedTasks, ...DEFAULT_DAILY_OPERATIONS]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
+        }
+
+        try {
+          const delegatedTasks = await fetchDelegatedTasks(userId, dateStr);
+          if (delegatedTasks && delegatedTasks.length > 0) {
+            setKpiTracking(delegatedTasks);
+          }
+        } catch(e) {
+          console.error("Error auto-fetching delegated tasks:", e);
         }
 
     } finally {
@@ -608,7 +668,7 @@ const OpsReportPage = () => {
         employeeName: userDetail.name || '',
         employeeId: userDetail.employeeId || '',
         department: 'Sales & Growth',
-        designation: userDetail.designation || 'Manager - OPS',
+        designation: userDetail.designationName || userDetail.designation || 'Manager - OPS',
         shiftTiming: '9:30 AM - 5:30 PM',
         reportingTo: 'Executive Director'
       });
@@ -617,6 +677,30 @@ const OpsReportPage = () => {
       setMonthlySalesPerformance(finalPerformance);
       setMonthlyRevenueTracking(finalRevenue);
       setMonthlyAcademyStatus(finalAcademyStatus);
+
+      // Sum KPI Tracking
+      const monthlyKpiMap = {};
+      validReports.forEach(report => {
+        const items = report.kpiTracking || [];
+        items.forEach(item => {
+          const projectKey = (item.project || '').trim() || 'General';
+          const kpiKey = (item.kpi || '').trim();
+          if (!kpiKey) return;
+          const compositeKey = `${projectKey}::${kpiKey}`;
+          if (!monthlyKpiMap[compositeKey]) {
+            monthlyKpiMap[compositeKey] = { project: projectKey, kpi: kpiKey, targets: [], achieveds: [] };
+          }
+          if (item.target) monthlyKpiMap[compositeKey].targets.push(item.target.trim());
+          if (item.achieved) monthlyKpiMap[compositeKey].achieveds.push(item.achieved.trim());
+        });
+      });
+      const consolidatedMonthlyKpi = Object.values(monthlyKpiMap).map(group => {
+        const target = Array.from(new Set(group.targets)).filter(Boolean).join('; ');
+        const achieved = Array.from(new Set(group.achieveds)).filter(Boolean).join('; ');
+        return { project: group.project, kpi: group.kpi, target, achieved };
+      });
+      setMonthlyKpiTracking(consolidatedMonthlyKpi.length > 0 ? consolidatedMonthlyKpi : DEFAULT_KPI_TRACKING);
+
       setMonthlyIssuesEscalations({
         issue: consolidatedIssues.length > 0 ? consolidatedIssues.join('\n') : 'None reported',
         priority: consolidatedIssues.length > 0 ? 'Medium' : 'None',
@@ -801,7 +885,7 @@ const OpsReportPage = () => {
         employeeName: userDetail.name || '',
         employeeId: userDetail.employeeId || '',
         department: 'Sales & Growth',
-        designation: userDetail.designation || 'Manager - OPS',
+        designation: userDetail.designationName || userDetail.designation || 'Manager - OPS',
         shiftTiming: '9:30 AM - 5:30 PM',
         reportingTo: 'Executive Director'
       });
@@ -810,6 +894,30 @@ const OpsReportPage = () => {
       setWeeklySalesPerformance(finalPerformance);
       setWeeklyRevenueTracking(finalRevenue);
       setWeeklyAcademyStatus(finalAcademyStatus);
+
+      // Sum KPI Tracking
+      const weeklyKpiMap = {};
+      validReports.forEach(report => {
+        const items = report.kpiTracking || [];
+        items.forEach(item => {
+          const projectKey = (item.project || '').trim() || 'General';
+          const kpiKey = (item.kpi || '').trim();
+          if (!kpiKey) return;
+          const compositeKey = `${projectKey}::${kpiKey}`;
+          if (!weeklyKpiMap[compositeKey]) {
+            weeklyKpiMap[compositeKey] = { project: projectKey, kpi: kpiKey, targets: [], achieveds: [] };
+          }
+          if (item.target) weeklyKpiMap[compositeKey].targets.push(item.target.trim());
+          if (item.achieved) weeklyKpiMap[compositeKey].achieveds.push(item.achieved.trim());
+        });
+      });
+      const consolidatedWeeklyKpi = Object.values(weeklyKpiMap).map(group => {
+        const target = Array.from(new Set(group.targets)).filter(Boolean).join('; ');
+        const achieved = Array.from(new Set(group.achieveds)).filter(Boolean).join('; ');
+        return { project: group.project, kpi: group.kpi, target, achieved };
+      });
+      setWeeklyKpiTracking(consolidatedWeeklyKpi.length > 0 ? consolidatedWeeklyKpi : DEFAULT_KPI_TRACKING);
+
       setWeeklyIssuesEscalations({
         issue: consolidatedIssues.length > 0 ? consolidatedIssues.join('\n') : 'None reported',
         priority: consolidatedIssues.length > 0 ? 'Medium' : 'None',
@@ -855,6 +963,12 @@ const OpsReportPage = () => {
       let currentY = 15;
 
       const drawSectionHeader = (title) => {
+        if (currentY + 25 > 280) {
+          doc.addPage();
+          currentY = 15;
+          if (typeof drawHeader === 'function') drawHeader();
+          currentY = 27;
+        }
         doc.setFillColor(60, 35, 117);
         doc.rect(14, currentY, 182, 7, 'F');
         doc.setFont('helvetica', 'bold');
@@ -1020,7 +1134,27 @@ const OpsReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("7. WEEKLY HANDOVER");
+      drawSectionHeader("7. WEEKLY SUMMARY & PLANNING");
+      const summaryRows = [
+        ["Achievements:", weeklyData.achievements || ''],
+        ["Improvements Needed:", weeklyData.improvements || ''],
+        ["Next Week Planning:", weeklyData.nextWeekPlanning || '']
+      ];
+      autoTable(doc, {
+        body: summaryRows,
+        startY: currentY,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2.2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 45 },
+          1: { width: 137 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      drawSectionHeader("8. WEEKLY HANDOVER");
       const handoverRows = [
         ["Pending Leads Shared:", weeklyData.handover.pendingLeadsShared || ''],
         ["CRM Updated: Yes / No - NA", weeklyData.handover.crmUpdated || ''],
@@ -1084,6 +1218,12 @@ const OpsReportPage = () => {
       let currentY = 15;
 
       const drawSectionHeader = (title) => {
+        if (currentY + 25 > 280) {
+          doc.addPage();
+          currentY = 15;
+          if (typeof drawHeader === 'function') drawHeader();
+          currentY = 27;
+        }
         doc.setFillColor(60, 35, 117);
         doc.rect(14, currentY, 182, 7, 'F');
         doc.setFont('helvetica', 'bold');
@@ -1160,10 +1300,7 @@ const OpsReportPage = () => {
         margin: { left: 14, right: 14 }
       });
 
-      doc.addPage();
-      currentY = 15;
-      drawHeader();
-      currentY = 27;
+      currentY = doc.lastAutoTable.finalY + 4;
 
       drawSectionHeader("3. MONTHLY SALES TEAM PERFORMANCE");
       const perfHeaders = [["Staff Name", "Task Assigned", "Leads", "Closings", "Status"]];
@@ -1301,7 +1438,7 @@ const OpsReportPage = () => {
     }
   };
 
-    const initializeBlankReport = (userId, dateStr) => {
+    const initializeBlankReport = async (userId, dateStr) => {
     let freshestUser = currentUser;
     try {
       const su = localStorage.getItem('user');
@@ -1336,17 +1473,43 @@ const OpsReportPage = () => {
       employeeName: userDetail.name || parsedCached?.employeeName || '',
       employeeId: userDetail.employeeId || parsedCached?.employeeId || '',
       department: parsedCached?.department || 'Sales & Growth',
-      designation: userDetail.designation || parsedCached?.designation || 'Manager - OPS',
+      designation: userDetail.designationName || userDetail.designation || parsedCached?.designation || 'Manager - OPS',
       shiftTiming: parsedCached?.shiftTiming || '9:30 AM - 5:30 PM',
       reportingTo: userDetail.reportingManager || parsedCached?.reportingTo || 'Executive Director',
       preparedTime: parsedCached?.preparedTime || timeStr
     });
 
     setDailyOperations(DEFAULT_DAILY_OPERATIONS);
-    setSalesActivity(DEFAULT_SALES_ACTIVITY);
+
+    // Auto-fetch lead stats from CRM for the selected date
+    try {
+      const res = await fetch(`${API_BASE}/v1/ops-reports/lead-stats?date=${dateStr}`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setSalesActivity(data.data);
+      } else {
+        setSalesActivity(DEFAULT_SALES_ACTIVITY);
+      }
+    } catch (e) {
+      console.error('Failed to auto-fetch lead stats:', e);
+      setSalesActivity(DEFAULT_SALES_ACTIVITY);
+    }
+
     setSalesPerformance(DEFAULT_SALES_PERFORMANCE);
     setRevenueTracking(DEFAULT_REVENUE_TRACKING);
     setAcademyStatus(DEFAULT_ACADEMY_STATUS);
+    try {
+      const delegatedTasks = await fetchDelegatedTasks(userId, dateStr);
+      if (delegatedTasks && delegatedTasks.length > 0) {
+        setKpiTracking(delegatedTasks);
+      } else {
+        setKpiTracking(DEFAULT_KPI_TRACKING);
+      }
+    } catch(e) {
+      setKpiTracking(DEFAULT_KPI_TRACKING);
+    }
     setIssuesEscalations({
       issue: '',
       priority: '',
@@ -1372,13 +1535,14 @@ const OpsReportPage = () => {
     try {
       setSaving(true);
 
-      const cleanDailyOperations = dailyOperations.filter(t => (t.activity || '').trim() !== '');
-      const cleanSalesActivity = salesActivity.filter(t => (t.leadName || '').trim() !== '' || (t.contactNumber || '').trim() !== '' || (t.courseInterested || '').trim() !== '');
-      const cleanSalesPerformance = salesPerformance.filter(t => (t.telecallerName || '').trim() !== '' || (t.kpi || '').trim() !== '');
-      const cleanRevenueTracking = revenueTracking.filter(t => (t.particulars || '').trim() !== '' || (t.amount || '').trim() !== '');
-      const cleanAcademyStatus = academyStatus.filter(t => (t.particulars || '').trim() !== '');
-      const cleanIssuesEscalations = issuesEscalations.filter(t => (t.issue || '').trim() !== '');
-      const cleanHandover = handover.filter(t => (t.particulars || '').trim() !== '');
+      const cleanDailyOperations = Array.isArray(dailyOperations) ? dailyOperations.filter(t => (t.activity || '').trim() !== '') : [];
+      const cleanSalesActivity = Array.isArray(salesActivity) ? salesActivity.filter(t => (t.activity || '').trim() !== '' || (t.count || '').trim() !== '') : [];
+      const cleanSalesPerformance = Array.isArray(salesPerformance) ? salesPerformance.filter(t => (t.staffName || '').trim() !== '' || (t.taskAssigned || '').trim() !== '') : [];
+      const cleanRevenueTracking = Array.isArray(revenueTracking) ? revenueTracking.filter(t => (t.category || '').trim() !== '' || (t.amount || '').trim() !== '') : [];
+      const cleanAcademyStatus = Array.isArray(academyStatus) ? academyStatus.filter(t => (t.activity || '').trim() !== '') : [];
+      const cleanKpiTracking = Array.isArray(kpiTracking) ? kpiTracking.filter(t => (t.project || '').trim() !== '' || (t.kpi || '').trim() !== '') : [];
+      const cleanIssuesEscalations = Array.isArray(issuesEscalations) ? issuesEscalations.filter(t => (t.issue || '').trim() !== '') : issuesEscalations;
+      const cleanHandover = Array.isArray(handover) ? handover.filter(t => (t.particulars || '').trim() !== '') : handover;
 
       const payload = {
         userId: selectedUserId,
@@ -1389,6 +1553,7 @@ const OpsReportPage = () => {
         salesPerformance: cleanSalesPerformance,
         revenueTracking: cleanRevenueTracking,
         academyStatus: cleanAcademyStatus,
+        kpiTracking: cleanKpiTracking,
         issuesEscalations: cleanIssuesEscalations,
         handover: cleanHandover,
         approval
@@ -1403,21 +1568,55 @@ const OpsReportPage = () => {
       if (res.ok && data.success) {
         showToast("Operations Daily Shift Report saved successfully!", 'success');
         fetchSubmittedDates(selectedUserId);
+        return true;
       } else {
         showToast(data.message || "Failed to save the report.", 'error');
+        return false;
       }
     } catch (e) {
       console.error(e);
       showToast("Server error. Please try again.", 'error');
+      return false;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const addKpiRow = () => {
+    setKpiTracking([...kpiTracking, { project: '', kpi: '', target: '', achieved: '' }]);
+  };
+
+  const removeKpiRow = (index) => {
+    if (kpiTracking.length > 1) {
+      setKpiTracking(kpiTracking.filter((_, i) => i !== index));
+    }
+  };
+
+  const addWeeklyKpiRow = () => {
+    setWeeklyKpiTracking([...weeklyKpiTracking, { project: '', kpi: '', target: '', achieved: '' }]);
+  };
+
+  const removeWeeklyKpiRow = (index) => {
+    if (weeklyKpiTracking.length > 1) {
+      setWeeklyKpiTracking(weeklyKpiTracking.filter((_, i) => i !== index));
+    }
+  };
+
+  const addMonthlyKpiRow = () => {
+    setMonthlyKpiTracking([...monthlyKpiTracking, { project: '', kpi: '', target: '', achieved: '' }]);
+  };
+
+  const removeMonthlyKpiRow = (index) => {
+    if (monthlyKpiTracking.length > 1) {
+      setMonthlyKpiTracking(monthlyKpiTracking.filter((_, i) => i !== index));
     }
   };
 
   const handleDownloadPDF = async () => {
     const reportType = 'ops';
     // Automatically save report as well
-    await handleSaveReport();
+    const saved = await handleSaveReport();
+    if (!saved) return;
 
     try {
       showToast("Generating PDF on server...", "info");
@@ -1558,7 +1757,7 @@ const OpsReportPage = () => {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-start sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setIsWeeklyModalOpen(true)}
@@ -1577,18 +1776,11 @@ const OpsReportPage = () => {
                   Monthly Report
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleDownloadPDF}
-                  className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
-                >
-                  <Download size={16} />
-                  Download PDF
-                </button>
+                
 
                 <button
                   type="button"
-                  onClick={handleSaveReport}
+                  onClick={handleDownloadPDF}
                   disabled={saving}
                   className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
                 >
@@ -1597,7 +1789,7 @@ const OpsReportPage = () => {
                   ) : (
                     <Save size={16} />
                   )}
-                  Save Report
+                  Save File
                 </button>
               </div>
             </div>
@@ -1728,7 +1920,7 @@ const OpsReportPage = () => {
                 </h2>
                 <button
                   type="button"
-                  onClick={() => setDailyOperations([...dailyOperations, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }])}
+                  onClick={() => setDailyOperations([...dailyOperations, { activity: '', dueDate: '', startDate: '', endDate: '', status: 'ongoing', remarks: '' }])}
                   className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
                 >
                   <Plus size={14} /> Add Row
@@ -1738,54 +1930,141 @@ const OpsReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3">Activity</th>
-                      <th className="px-4 py-3">Due Date</th>
+                      <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
+                      <th className="px-4 py-3 w-36">Due Date</th>
+                      <th className="px-4 py-3 w-44">Start Date</th>
+                      <th className="px-4 py-3 w-44">End Date</th>
                       <th className="px-4 py-3 w-40">Status</th>
                       <th className="px-4 py-3">Remarks</th>
                       <th className="px-4 py-3 w-12 text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {dailyOperations.map((row, i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.activity || ''}
-                            onChange={(e) => {
-                              const newArr = [...dailyOperations];
-                              newArr[i].activity = e.target.value;
-                              setDailyOperations(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
-                            placeholder="Activity name"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.status}
-                            onChange={(e) => {
-                              const newArr = [...dailyOperations];
-                              newArr[i].status = e.target.value;
-                              setDailyOperations(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.remarks}
-                            onChange={(e) => {
-                              const newArr = [...dailyOperations];
-                              newArr[i].remarks = e.target.value;
-                              setDailyOperations(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                            placeholder="Add remarks"
-                          />
-                        </td>
+                    {dailyOperations.map((row, i) => {
+                      const isTodo = Boolean(row.isTodoTask || row.startDate || row.endDate);
+                      return (
+                        <tr key={i}>
+                          <td className="px-4 py-2.5 relative group">
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="text"
+                                value={row.activity || ''}
+                                onChange={(e) => {
+                                  const newArr = [...dailyOperations];
+                                  newArr[i].activity = e.target.value;
+                                  setDailyOperations(newArr);
+                                }}
+                                className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
+                                placeholder="Activity name"
+                              />
+                              {row.activity && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedActivityText(row.activity)}
+                                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                  title="View full text"
+                                >
+                                  <Maximize2 size={13} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {isTodo ? (
+                              <input
+                                type="text"
+                                value={row.dueDate || ''}
+                                onChange={(e) => {
+                                  const newArr = [...dailyOperations];
+                                  newArr[i].dueDate = e.target.value;
+                                  setDailyOperations(newArr);
+                                }}
+                                className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                                placeholder="Due date"
+                              />
+                            ) : (
+                              <span className="text-slate-400 text-xs font-medium text-center block">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {isTodo ? (
+                              <input
+                                type="text"
+                                value={row.startDate || ''}
+                                onChange={(e) => {
+                                  const newArr = [...dailyOperations];
+                                  newArr[i].startDate = e.target.value;
+                                  setDailyOperations(newArr);
+                                }}
+                                className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                                placeholder="Start date"
+                              />
+                            ) : (
+                              <span className="text-slate-400 text-xs font-medium text-center block">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {isTodo ? (
+                              <input
+                                type="text"
+                                value={row.endDate || ''}
+                                onChange={(e) => {
+                                  const newArr = [...dailyOperations];
+                                  newArr[i].endDate = e.target.value;
+                                  setDailyOperations(newArr);
+                                }}
+                                className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                                placeholder="End date"
+                              />
+                            ) : (
+                              <span className="text-slate-400 text-xs font-medium text-center block">-</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {isTodo ? (
+                              <input
+                                type="text"
+                                value={row.status || ''}
+                                onChange={(e) => {
+                                  const newArr = [...dailyOperations];
+                                  newArr[i].status = e.target.value;
+                                  setDailyOperations(newArr);
+                                }}
+                                className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-medium"
+                                placeholder="Status"
+                              />
+                            ) : (
+                              <select
+                                value={row.status || ''}
+                                onChange={(e) => {
+                                  const newArr = [...dailyOperations];
+                                  newArr[i].status = e.target.value;
+                                  setDailyOperations(newArr);
+                                }}
+                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              >
+                                <option value="">Select</option>
+                                <option value="Yes">Yes</option>
+                                <option value="No">No</option>
+                                {row.status && row.status !== 'Yes' && row.status !== 'No' && (
+                                  <option value={row.status}>{row.status}</option>
+                                )}
+                              </select>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.remarks || ''}
+                              onChange={(e) => {
+                                const newArr = [...dailyOperations];
+                                newArr[i].remarks = e.target.value;
+                                setDailyOperations(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                              placeholder="Add remarks"
+                            />
+                          </td>
                         <td className="px-4 py-2.5 text-center">
                           <button
                             type="button"
@@ -1800,7 +2079,8 @@ const OpsReportPage = () => {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>
@@ -1816,8 +2096,7 @@ const OpsReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3">Activity</th>
-                      <th className="px-4 py-3">Due Date</th>
+                      <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
                       <th className="px-4 py-3 w-32 text-center">Count</th>
                       <th className="px-4 py-3 w-32 text-center">Digital Mktg</th>
                       <th className="px-4 py-3 w-32 text-center">Web</th>
@@ -1827,7 +2106,7 @@ const OpsReportPage = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
                     {salesActivity.map((row, i) => (
                       <tr key={i}>
-                        <td className="px-4 py-2.5 font-semibold text-xs text-slate-500">{row.activity}</td>
+                        <td className="px-4 py-2.5 font-semibold text-xs text-slate-500 cursor-pointer hover:text-indigo-600 dark:hover:text-lime-400 transition-colors" onClick={() => setSelectedActivityText(row.activity)}>{row.activity}</td>
                         <td className="px-4 py-2.5">
                           <input
                             type="text"
@@ -1959,10 +2238,143 @@ const OpsReportPage = () => {
               </div>
             </div>
 
-            {/* 5. REVENUE TRACKING */}
+            {/* 5. KPI TRACKING (TASKS ASSIGNED TO OTHERS) */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">5</span>
+                  KPI Tracking (Tasks Assigned to Others)
+                </h2>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const delegatedTasks = await fetchDelegatedTasks(selectedUserId, selectedDate);
+                        if (delegatedTasks && delegatedTasks.length > 0) {
+                          setKpiTracking(delegatedTasks);
+                          showToast(`Fetched ${delegatedTasks.length} delegated tasks!`, 'success');
+                        } else {
+                          showToast('No delegated tasks found for this date.', 'info');
+                        }
+                      } catch (e) {
+                        console.error(e);
+                        showToast('Error refreshing tasks', 'error');
+                      }
+                    }}
+                    className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-indigo-600 dark:hover:text-lime-400 font-bold transition-all cursor-pointer"
+                    title="Auto-fetch delegated tasks for this date"
+                  >
+                    <Loader2 size={13} className="hover:rotate-180 transition-transform" /> Refresh Tasks
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addKpiRow}
+                    className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                      <th className="px-5 py-4 w-[20%]">Assigned To</th>
+                      <th className="px-5 py-4 w-[40%]">Task</th>
+                      <th className="px-5 py-4 w-[20%]">Due Date</th>
+                      <th className="px-5 py-4 w-[15%] text-center">Status</th>
+                      <th className="px-5 py-4 w-[5%] text-center">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {kpiTracking.map((item, index) => (
+                      <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                        <td className="px-5 py-3">
+                          <input
+                            type="text"
+                            value={item.project}
+                            onChange={(e) => {
+                              const updated = [...kpiTracking];
+                              updated[index].project = e.target.value;
+                              setKpiTracking(updated);
+                            }}
+                            placeholder="Staff name / Project"
+                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                          />
+                        </td>
+                        <td className="px-5 py-3 relative group">
+                          <div className="flex items-center gap-1.5">
+                            <textarea
+                              value={item.kpi}
+                              onChange={(e) => {
+                                const updated = [...kpiTracking];
+                                updated[index].kpi = e.target.value;
+                                setKpiTracking(updated);
+                              }}
+                              placeholder="Task details"
+                              rows={1}
+                              className="w-full bg-transparent border-none focus:outline-none resize-y text-slate-700 dark:text-slate-200"
+                            />
+                            {item.kpi && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(item.kpi)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                title="View full text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <input
+                            type="date"
+                            value={item.target}
+                            onChange={(e) => {
+                              const updated = [...kpiTracking];
+                              updated[index].target = e.target.value;
+                              setKpiTracking(updated);
+                            }}
+                            className="w-full bg-transparent border-none focus:outline-none text-sm text-slate-700 dark:text-slate-200"
+                          />
+                        </td>
+                        <td className="px-5 py-3">
+                          <input
+                            type="text"
+                            value={item.achieved}
+                            onChange={(e) => {
+                              const updated = [...kpiTracking];
+                              updated[index].achieved = e.target.value;
+                              setKpiTracking(updated);
+                            }}
+                            placeholder="Status"
+                            className="w-full bg-transparent border-none focus:outline-none text-center text-sm text-slate-700 dark:text-slate-200"
+                          />
+                        </td>
+                        <td className="px-5 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => removeKpiRow(index)}
+                            className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                            title="Remove Row"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 6. REVENUE TRACKING */}
             <div className="space-y-4">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">5</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">6</span>
                 Revenue Tracking
               </h2>
               <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
@@ -2006,7 +2418,7 @@ const OpsReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3">Activity</th>
+                      <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
                       <th className="px-4 py-3">Due Date</th>
                       <th className="px-4 py-3 w-40">Status</th>
                       <th className="px-4 py-3">Remarks</th>
@@ -2015,7 +2427,7 @@ const OpsReportPage = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
                     {academyStatus.map((row, i) => (
                       <tr key={i}>
-                        <td className="px-4 py-2.5 font-semibold text-xs text-slate-500">{row.activity}</td>
+                        <td className="px-4 py-2.5 font-semibold text-xs text-slate-500 cursor-pointer hover:text-indigo-600 dark:hover:text-lime-400 transition-colors" onClick={() => setSelectedActivityText(row.activity)}>{row.activity}</td>
                         <td className="px-4 py-2.5">
                           <input
                             type="text"
@@ -2149,12 +2561,10 @@ const OpsReportPage = () => {
                   </div>
                   <div>
                     <label className="block text-xs mb-1">Signature</label>
-                    <input
-                      type="text"
+                    <SignatureUpload
                       value={approval.opsSignature || ''}
-                      onChange={(e) => setApproval({ ...approval, opsSignature: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                      placeholder="Type signature"
+                      onChange={(val) => setApproval({ ...approval, opsSignature: val })}
+                      placeholder="Upload ops signature"
                     />
                   </div>
                   <div>
@@ -2181,12 +2591,10 @@ const OpsReportPage = () => {
                   </div>
                   <div>
                     <label className="block text-xs mb-1">Signature</label>
-                    <input
-                      type="text"
+                    <SignatureUpload
                       value={approval.directorSignature || ''}
-                      onChange={(e) => setApproval({ ...approval, directorSignature: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                      placeholder="Director signature"
+                      onChange={(val) => setApproval({ ...approval, directorSignature: val })}
+                      placeholder="Upload director signature"
                     />
                   </div>
                   <div>
@@ -2203,19 +2611,12 @@ const OpsReportPage = () => {
             </div>
 
             {/* Footer Buttons */}
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5">
-              <button
-                type="button"
-                onClick={handleDownloadPDF}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
-              >
-                <Download size={16} />
-                Download PDF
-              </button>
+            <div className="flex flex-wrap items-center justify-start sm:justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5 w-full">
+              
 
               <button
                 type="button"
-                onClick={handleSaveReport}
+                onClick={handleDownloadPDF}
                 disabled={saving}
                 className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
               >
@@ -2224,7 +2625,7 @@ const OpsReportPage = () => {
                 ) : (
                   <Save size={16} />
                 )}
-                Save Report
+                Save File
               </button>
             </div>
 
@@ -2275,16 +2676,22 @@ const OpsReportPage = () => {
                     3. Team & Academy
                   </button>
                   <button
+                    onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab("kpi") : showToast("Please fetch data first", "warning")}
+                    className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === "kpi" ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                  >
+                    4. KPI Tracking
+                  </button>
+                  <button
                     onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab("revenue") : showToast("Please fetch data first", "warning")}
                     className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === "revenue" ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                   >
-                    4. Revenue
+                    5. Revenue
                   </button>
                   <button
                     onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab("issues") : showToast("Please fetch data first", "warning")}
                     className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === "issues" ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                   >
-                    5. Issues & Handover
+                    6. Issues & Handover
                   </button>
                 </div>
 
@@ -2293,7 +2700,7 @@ const OpsReportPage = () => {
                   {weeklyActiveTab === "range" && (
                     <div className="space-y-4 max-w-md mx-auto py-8">
                       <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200">Select weekly report duration</h4>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Start Date</label>
                           <input
@@ -2334,7 +2741,7 @@ const OpsReportPage = () => {
                         <table className="w-full text-left border-collapse text-sm">
                           <thead>
                             <tr className="bg-slate-50 dark:bg-slate-950/40 text-slate-400 text-[10px] font-bold uppercase border-b border-slate-100 dark:border-slate-800">
-                              <th className="px-4 py-3">Activity</th>
+                              <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
                       <th className="px-4 py-3">Due Date</th>
                               <th className="px-4 py-3 text-center w-24">Count</th>
                               <th className="px-4 py-3 text-center w-24">Digital Mktg</th>
@@ -2484,7 +2891,7 @@ const OpsReportPage = () => {
                           <table className="w-full text-left border-collapse text-sm">
                             <thead>
                               <tr className="bg-slate-50 dark:bg-slate-950/40 text-slate-400 text-[10px] font-bold uppercase border-b border-slate-100 dark:border-slate-800">
-                                <th className="px-4 py-3">Activity</th>
+                                <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
                       <th className="px-4 py-3">Due Date</th>
                                 <th className="px-4 py-3 text-center w-28">Status</th>
                                 <th className="px-4 py-3">Remarks</th>
@@ -2527,6 +2934,97 @@ const OpsReportPage = () => {
                             </tbody>
                           </table>
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {weeklyActiveTab === "kpi" && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-850 pb-2">
+                        <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200">Consolidated Weekly KPI Tracking (Tasks Assigned to Others)</h4>
+                        <button
+                          type="button"
+                          onClick={addWeeklyKpiRow}
+                          className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold"
+                        >
+                          <Plus size={14} /> Add Row
+                        </button>
+                      </div>
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                        <table className="w-full text-left border-collapse text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-950/40 text-slate-400 text-[10px] font-bold uppercase border-b border-slate-100 dark:border-slate-800">
+                              <th className="px-4 py-3 w-[20%]">Assigned To</th>
+                              <th className="px-4 py-3 w-[40%]">Task</th>
+                              <th className="px-4 py-3 w-[20%]">Due Date</th>
+                              <th className="px-4 py-3 w-[15%] text-center">Status</th>
+                              <th className="px-4 py-3 w-[5%] text-center">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {weeklyKpiTracking.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5">
+                                <td className="px-4 py-2.5">
+                                  <input
+                                    type="text"
+                                    value={item.project}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyKpiTracking];
+                                      updated[idx].project = e.target.value;
+                                      setWeeklyKpiTracking(updated);
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <input
+                                    type="text"
+                                    value={item.kpi}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyKpiTracking];
+                                      updated[idx].kpi = e.target.value;
+                                      setWeeklyKpiTracking(updated);
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <input
+                                    type="text"
+                                    value={item.target}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyKpiTracking];
+                                      updated[idx].target = e.target.value;
+                                      setWeeklyKpiTracking(updated);
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="px-4 py-2.5 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.achieved}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyKpiTracking];
+                                      updated[idx].achieved = e.target.value;
+                                      setWeeklyKpiTracking(updated);
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg py-1 px-2 text-center text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="px-4 py-2.5 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeWeeklyKpiRow(idx)}
+                                    className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   )}
@@ -2652,6 +3150,43 @@ const OpsReportPage = () => {
                           </div>
                         </div>
                       </div>
+
+                      {/* Weekly Summary & Planning */}
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 border-b border-slate-100 dark:border-slate-850 pb-2">Weekly Summary & Planning</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Achievements</label>
+                            <textarea
+                              value={weeklyAchievements}
+                              onChange={(e) => setWeeklyAchievements(e.target.value)}
+                              rows={4}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              placeholder="Enter achievements..."
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Improvements</label>
+                            <textarea
+                              value={weeklyImprovements}
+                              onChange={(e) => setWeeklyImprovements(e.target.value)}
+                              rows={4}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              placeholder="Enter improvements needed..."
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Next Week Planning</label>
+                            <textarea
+                              value={weeklyNextWeekPlanning}
+                              onChange={(e) => setWeeklyNextWeekPlanning(e.target.value)}
+                              rows={4}
+                              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              placeholder="Enter next week planning..."
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2677,7 +3212,10 @@ const OpsReportPage = () => {
                         academyStatus: weeklyAcademyStatus,
                         issuesEscalations: weeklyIssuesEscalations,
                         handover: weeklyHandover,
-                        approval: weeklyApproval
+                        approval: weeklyApproval,
+                        achievements: weeklyAchievements,
+                        improvements: weeklyImprovements,
+                        nextWeekPlanning: weeklyNextWeekPlanning
                       })}
                       className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all shadow-md"
                     >
@@ -2735,16 +3273,22 @@ const OpsReportPage = () => {
                     3. Team & Academy
                   </button>
                   <button
+                    onClick={() => monthlyBasicDetails.dateRange ? setMonthlyActiveTab("kpi") : showToast("Please fetch data first", "warning")}
+                    className={`px-4 py-2 rounded-xl transition-all ${monthlyActiveTab === "kpi" ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                  >
+                    4. KPI Tracking
+                  </button>
+                  <button
                     onClick={() => monthlyBasicDetails.dateRange ? setMonthlyActiveTab("revenue") : showToast("Please fetch data first", "warning")}
                     className={`px-4 py-2 rounded-xl transition-all ${monthlyActiveTab === "revenue" ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                   >
-                    4. Revenue
+                    5. Revenue
                   </button>
                   <button
                     onClick={() => monthlyBasicDetails.dateRange ? setMonthlyActiveTab("issues") : showToast("Please fetch data first", "warning")}
                     className={`px-4 py-2 rounded-xl transition-all ${monthlyActiveTab === "issues" ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                   >
-                    5. Issues & Handover
+                    6. Issues & Handover
                   </button>
                 </div>
 
@@ -2753,7 +3297,7 @@ const OpsReportPage = () => {
                   {monthlyActiveTab === "range" && (
                     <div className="space-y-4 max-w-md mx-auto py-8">
                       <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200">Select monthly report duration</h4>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Start Date</label>
                           <input
@@ -2794,7 +3338,7 @@ const OpsReportPage = () => {
                         <table className="w-full text-left border-collapse text-sm">
                           <thead>
                             <tr className="bg-slate-50 dark:bg-slate-950/40 text-slate-400 text-[10px] font-bold uppercase border-b border-slate-100 dark:border-slate-800">
-                              <th className="px-4 py-3">Activity</th>
+                              <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
                       <th className="px-4 py-3">Due Date</th>
                               <th className="px-4 py-3 text-center w-24">Count</th>
                               <th className="px-4 py-3 text-center w-24">Digital Mktg</th>
@@ -2944,7 +3488,7 @@ const OpsReportPage = () => {
                           <table className="w-full text-left border-collapse text-sm">
                             <thead>
                               <tr className="bg-slate-50 dark:bg-slate-950/40 text-slate-400 text-[10px] font-bold uppercase border-b border-slate-100 dark:border-slate-800">
-                                <th className="px-4 py-3">Activity</th>
+                                <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
                       <th className="px-4 py-3">Due Date</th>
                                 <th className="px-4 py-3 text-center w-28">Status</th>
                                 <th className="px-4 py-3">Remarks</th>
@@ -2987,6 +3531,97 @@ const OpsReportPage = () => {
                             </tbody>
                           </table>
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {monthlyActiveTab === "kpi" && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-850 pb-2">
+                        <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200">Consolidated Monthly KPI Tracking (Tasks Assigned to Others)</h4>
+                        <button
+                          type="button"
+                          onClick={addMonthlyKpiRow}
+                          className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold"
+                        >
+                          <Plus size={14} /> Add Row
+                        </button>
+                      </div>
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                        <table className="w-full text-left border-collapse text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-950/40 text-slate-400 text-[10px] font-bold uppercase border-b border-slate-100 dark:border-slate-800">
+                              <th className="px-4 py-3 w-[20%]">Assigned To</th>
+                              <th className="px-4 py-3 w-[40%]">Task</th>
+                              <th className="px-4 py-3 w-[20%]">Due Date</th>
+                              <th className="px-4 py-3 w-[15%] text-center">Status</th>
+                              <th className="px-4 py-3 w-[5%] text-center">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {monthlyKpiTracking.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5">
+                                <td className="px-4 py-2.5">
+                                  <input
+                                    type="text"
+                                    value={item.project}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyKpiTracking];
+                                      updated[idx].project = e.target.value;
+                                      setMonthlyKpiTracking(updated);
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <input
+                                    type="text"
+                                    value={item.kpi}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyKpiTracking];
+                                      updated[idx].kpi = e.target.value;
+                                      setMonthlyKpiTracking(updated);
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="px-4 py-2.5">
+                                  <input
+                                    type="text"
+                                    value={item.target}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyKpiTracking];
+                                      updated[idx].target = e.target.value;
+                                      setMonthlyKpiTracking(updated);
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="px-4 py-2.5 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.achieved}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyKpiTracking];
+                                      updated[idx].achieved = e.target.value;
+                                      setMonthlyKpiTracking(updated);
+                                    }}
+                                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg py-1 px-2 text-center text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="px-4 py-2.5 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => removeMonthlyKpiRow(idx)}
+                                    className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   )}
@@ -3152,6 +3787,34 @@ const OpsReportPage = () => {
         </AnimatePresence>
 
       </div>
+
+      {/* Activity Detail Modal */}
+      {selectedActivityText && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+            <button
+              type="button"
+              onClick={() => setSelectedActivityText(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mb-4">Activity Details</h3>
+            <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
+              {selectedActivityText}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedActivityText(null)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -3,47 +3,44 @@ import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X, Maximize2
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { fetchCompletedTasks } from '../utils/taskUtils';
+import { fetchCompletedTasks, fetchDelegatedTasks } from '../utils/taskUtils';
+import SignatureUpload from '../components/SignatureUpload';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
 // Default items for Daily Task Summary
 const DEFAULT_TASK_SUMMARY = [
-  { activity: 'Website Development', status: 'Done', dueDate: '', remarks: '' },
-  { activity: 'CRM Software', status: 'Done', dueDate: '', remarks: '' },
-  { activity: 'Testing/Bug Fixing', status: 'Done', dueDate: '', remarks: '' },
-  { activity: 'UI/UX Imprvments', status: 'NA', dueDate: '', remarks: '' },
-  { activity: 'Client Revision Work', status: 'NA', dueDate: '', remarks: '' }
+  { activity: '', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' }
 ];
 
 // Default items for Development Work Report
 const DEFAULT_DEV_REPORT = [
-  { project: 'Ayurvedic website', activity: 'Changes in the ui and deployment', status: 'Done', remark: 'Client verified' },
-  { project: 'CRM', activity: 'Debuging', status: 'onprogress', remark: '' }
+  { project: '', activity: '', status: '', remark: '' },
+  { project: '', activity: '', status: '', remark: '' }
 ];
 
 // Default items for KPI Tracking
 const DEFAULT_KPI_TRACKING = [
-  { project: 'Ayurvedic website', kpi: 'Changes in ui', target: 'Complete', achieved: 'Done' },
-  { project: 'Ayurvedic website', kpi: 'Deployed in Domain and verified', target: 'Complete', achieved: 'Done' },
-  { project: 'CRM', kpi: '-Debugging\n-updated todo\n-deployed in test', target: 'Excelimport', achieved: 'Done' }
+  { project: '', kpi: ' ', target: '', achieved: '' },
+  { project: '', kpi: '', target: '', achieved: '' },
+  { project: '', kpi: '', target: '', achieved: '' }
 ];
 
 // Default items for Issues/Support Required
 const DEFAULT_ISSUES = [
-  { issue: 'HR / Admin Manager', priority: '', actionTaken: '' },
-  { issue: 'COO / Executive Director', priority: '', actionTaken: '' }
+  { issue: '', priority: '', actionTaken: '' },
+  { issue: '', priority: '', actionTaken: '' }
 ];
 
 const HodRdReportPage = () => {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
@@ -86,6 +83,7 @@ const HodRdReportPage = () => {
   });
   
   const [dailyTaskSummary, setDailyTaskSummary] = useState(DEFAULT_TASK_SUMMARY);
+  const [selectedActivityText, setSelectedActivityText] = useState(null);
   const [developmentWorkReport, setDevelopmentWorkReport] = useState(DEFAULT_DEV_REPORT);
   const [rdInnovationReport, setRdInnovationReport] = useState([{ activity: '', details: '', dueDate: '', status: '' }]);
   const [kpiTracking, setKpiTracking] = useState(DEFAULT_KPI_TRACKING);
@@ -100,6 +98,48 @@ const HodRdReportPage = () => {
     managerSignature: '',
     managerDate: ''
   });
+
+  // Weekly States
+  const [isWeeklyModalOpen, setIsWeeklyModalOpen] = useState(false);
+  const [weeklyStartDate, setWeeklyStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split('T')[0];
+  });
+  const [weeklyEndDate, setWeeklyEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [isWeeklyLoading, setIsWeeklyLoading] = useState(false);
+  const [weeklyActiveTab, setWeeklyActiveTab] = useState('basic');
+
+  const [weeklyBasicDetails, setWeeklyBasicDetails] = useState({
+    date: '',
+    day: '',
+    employeeName: '',
+    employeeId: '',
+    department: 'R&D/ Development',
+    designation: 'HOD-R&D Software & Web Developer',
+    shiftTiming: '9:00 AM - 5:00 PM',
+    reportingTo: 'Manager - OPS Creative & Marketing',
+    preparedTime: ''
+  });
+  const [weeklyDailyTaskSummary, setWeeklyDailyTaskSummary] = useState([]);
+  const [weeklyDevelopmentWorkReport, setWeeklyDevelopmentWorkReport] = useState([]);
+  const [weeklyRdInnovationReport, setWeeklyRdInnovationReport] = useState([]);
+  const [weeklyKpiTracking, setWeeklyKpiTracking] = useState([]);
+  const [weeklyIssuesSupportRequired, setWeeklyIssuesSupportRequired] = useState([]);
+  const [weeklyNextDayPlanning, setWeeklyNextDayPlanning] = useState('');
+  const [weeklyHodComments, setWeeklyHodComments] = useState('');
+  const [weeklyApproval, setWeeklyApproval] = useState({
+    hodName: 'HOD - R&D /Developer',
+    hodSignature: '',
+    hodDate: '',
+    managerName: 'Manager - OPS Creative &Marketing',
+    managerSignature: '',
+    managerDate: ''
+  });
+
+  const [weeklyAchievements, setWeeklyAchievements] = useState('');
+  const [weeklyImprovements, setWeeklyImprovements] = useState('');
+  const [weeklyNextWeekPlanning, setWeeklyNextWeekPlanning] = useState('');
 
   // Monthly States
   const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
@@ -286,7 +326,7 @@ const HodRdReportPage = () => {
           ...apiBasicDetails,
           employeeName: userDetail.name || apiBasicDetails.employeeName || '',
           employeeId: userDetail.employeeId || apiBasicDetails.employeeId || '',
-          designation: userDetail.designation || apiBasicDetails.designation || '',
+          designation: userDetail.designationName || userDetail.designation || apiBasicDetails.designation || '',
           reportingTo: userDetail.reportingManager || apiBasicDetails.reportingTo || '',
           department: userDetail.department || apiBasicDetails.department || ''
         });
@@ -306,15 +346,27 @@ const HodRdReportPage = () => {
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status === 'In Progress' ? 'ongoing' : (t.status || 'Done'), dueDate: t.dueDate || '', remarks: 'Auto-fetched' }));
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
+            const mappedTasks = completedTasks.map(t => ({
+              activity: t.title,
+              status: t.status === 'In Progress' ? 'ongoing' : (t.status || 'Done'),
+              dueDate: t.dueDate || '',
+              startDate: t.startDate || t.startTime || '',
+              endDate: t.endDate || t.endTime || '',
+              remarks: 'Auto-fetched'
+            }));
             setDailyTaskSummary(mappedTasks);
-          } else {
-            setDailyTaskSummary(prev => [...prev, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
+        }
+        
+        try {
+          const delegatedTasks = await fetchDelegatedTasks(userId, dateStr);
+          if (delegatedTasks && delegatedTasks.length > 0) {
+            setKpiTracking(delegatedTasks);
+          }
+        } catch(e) {
+          console.error("Error auto-fetching delegated tasks:", e);
         }
 
       }
@@ -325,15 +377,27 @@ const HodRdReportPage = () => {
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status === 'In Progress' ? 'ongoing' : (t.status || 'Done'), dueDate: t.dueDate || '', remarks: 'Auto-fetched' }));
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
-            mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', remarks: '' });
+            const mappedTasks = completedTasks.map(t => ({
+              activity: t.title,
+              status: t.status === 'In Progress' ? 'ongoing' : (t.status || 'Done'),
+              dueDate: t.dueDate || '',
+              startDate: t.startDate || t.startTime || '',
+              endDate: t.endDate || t.endTime || '',
+              remarks: 'Auto-fetched'
+            }));
             setDailyTaskSummary(mappedTasks);
-          } else {
-            setDailyTaskSummary(prev => [...prev, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }, { activity: '', status: 'ongoing', dueDate: '', remarks: '' }]);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
+        }
+        
+        try {
+          const delegatedTasks = await fetchDelegatedTasks(userId, dateStr);
+          if (delegatedTasks && delegatedTasks.length > 0) {
+            setKpiTracking(delegatedTasks);
+          }
+        } catch(e) {
+          console.error("Error auto-fetching delegated tasks:", e);
         }
 
     } finally {
@@ -395,7 +459,7 @@ const HodRdReportPage = () => {
       employeeName: userDetail.name || parsedCached?.employeeName || '',
       employeeId: userDetail.employeeId || parsedCached?.employeeId || '',
       department: userDetail.department || parsedCached?.department || 'R&D/ Development',
-      designation: userDetail.designation || parsedCached?.designation || 'HOD-R&D Software & Web Developer',
+      designation: userDetail.designationName || userDetail.designation || parsedCached?.designation || 'HOD-R&D Software & Web Developer',
       shiftTiming: parsedCached?.shiftTiming || '9:00 AM - 5:00 PM',
       reportingTo: userDetail.reportingManager || parsedCached?.reportingTo || 'Manager - OPS Creative & Marketing',
       preparedTime: parsedCached?.preparedTime || timeStr
@@ -406,7 +470,7 @@ const HodRdReportPage = () => {
     setRdInnovationReport([{ activity: '', details: '', dueDate: '', status: '' }]);
     setKpiTracking(DEFAULT_KPI_TRACKING);
     setIssuesSupportRequired(DEFAULT_ISSUES);
-    setNextDayPlanning('CRM Continues');
+    setNextDayPlanning('');
     setHodComments('');
     setApproval({
       hodName: 'HOD - R&D /Developer',
@@ -510,7 +574,7 @@ const HodRdReportPage = () => {
 
   // Helper row handlers for dynamic monthly tables
   const addMonthlySummaryRow = () => {
-    setMonthlyDailyTaskSummary([...monthlyDailyTaskSummary, { activity: '', status: 'Done', dueDate: '', remarks: '' }]);
+    setMonthlyDailyTaskSummary([...monthlyDailyTaskSummary, { activity: '', status: 'Done', dueDate: '', startDate: '', endDate: '', remarks: '' }]);
   };
   const removeMonthlySummaryRow = (index) => {
     if (monthlyDailyTaskSummary.length > 1) {
@@ -843,6 +907,640 @@ const HodRdReportPage = () => {
     }
   };
 
+  const handleFetchWeeklyData = async () => {
+    if (!selectedUserId) {
+      showToast("Please select a user first.", "error");
+      return;
+    }
+    if (!weeklyStartDate || !weeklyEndDate) {
+      showToast("Please select start and end dates.", "error");
+      return;
+    }
+
+    try {
+      setIsWeeklyLoading(true);
+
+      const dates = [];
+      let current = new Date(weeklyStartDate);
+      const end = new Date(weeklyEndDate);
+      while (current <= end) {
+        dates.push(current.toISOString().split('T')[0]);
+        current.setDate(current.getDate() + 1);
+      }
+
+      const fetchPromises = dates.map(async (dateStr) => {
+        try {
+          const res = await fetch(`${API_BASE}/v1/hod-rd-reports/by-date?userId=${selectedUserId}&dateString=${dateStr}`, {
+            headers: getAuthHeaders()
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.data) {
+              return data.data;
+            }
+          }
+        } catch (err) {
+          console.error(`Failed to fetch report for ${dateStr}:`, err);
+        }
+        return null;
+      });
+
+      const results = await Promise.all(fetchPromises);
+      const validReports = results.filter(Boolean);
+
+      if (validReports.length === 0) {
+        showToast("No reports found for the selected date range.", "warning");
+        setWeeklyBasicDetails({
+          date: `${weeklyStartDate} to ${weeklyEndDate}`,
+          day: 'Weekly Consolidation',
+          employeeName: basicDetails.employeeName || '',
+          employeeId: basicDetails.employeeId || '',
+          department: basicDetails.department || 'R&D/ Development',
+          designation: basicDetails.designation || 'HOD-R&D Software & Web Developer',
+          shiftTiming: basicDetails.shiftTiming || '9:00 AM - 5:00 PM',
+          reportingTo: basicDetails.reportingTo || 'Manager - OPS Creative & Marketing',
+          preparedTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        });
+        setWeeklyDailyTaskSummary(DEFAULT_TASK_SUMMARY);
+        setWeeklyDevelopmentWorkReport(DEFAULT_DEV_REPORT);
+        setWeeklyRdInnovationReport([{ activity: '', details: '', dueDate: '', status: '' }]);
+        setWeeklyKpiTracking(DEFAULT_KPI_TRACKING);
+        setWeeklyIssuesSupportRequired(DEFAULT_ISSUES);
+        setWeeklyNextDayPlanning('');
+        setWeeklyHodComments('');
+        setWeeklyApproval({
+          hodName: 'HOD - R&D /Developer',
+          hodSignature: '',
+          hodDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '-'),
+          managerName: 'Manager - OPS Creative &Marketing',
+          managerSignature: '',
+          managerDate: ''
+        });
+        return;
+      }
+
+      const latestReport = validReports[validReports.length - 1];
+      const latestBasic = latestReport.basicDetails || {};
+
+      setWeeklyBasicDetails({
+        date: `${weeklyStartDate} to ${weeklyEndDate}`,
+        day: 'Weekly Consolidation',
+        employeeName: latestBasic.employeeName || basicDetails.employeeName || '',
+        employeeId: latestBasic.employeeId || basicDetails.employeeId || '',
+        department: latestBasic.department || basicDetails.department || 'R&D/ Development',
+        designation: latestBasic.designation || basicDetails.designation || 'HOD-R&D Software & Web Developer',
+        shiftTiming: latestBasic.shiftTiming || basicDetails.shiftTiming || '9:00 AM - 5:00 PM',
+        reportingTo: latestBasic.reportingTo || basicDetails.reportingTo || 'Manager - OPS Creative & Marketing',
+        preparedTime: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      });
+
+      // Group Daily Task Summary
+      const tasksMap = {};
+      validReports.forEach(report => {
+        const tasks = report.dailyTaskSummary || [];
+        tasks.forEach(task => {
+          const key = (task.activity || '').trim();
+          if (!key) return;
+          if (!tasksMap[key]) {
+            tasksMap[key] = { activity: key, statuses: [], dueDate: '', remarks: [] };
+          }
+          if (task.status) tasksMap[key].statuses.push(task.status);
+          if (task.remarks) tasksMap[key].remarks.push(task.remarks);
+        });
+      });
+      const consolidatedTasks = Object.values(tasksMap).map(group => {
+        const uniqueStatuses = Array.from(new Set(group.statuses));
+        const status = uniqueStatuses.length > 0 ? uniqueStatuses[0] : 'Done';
+        const uniqueRemarks = Array.from(new Set(group.remarks)).filter(Boolean);
+        return {
+          activity: group.activity,
+          status,
+          dueDate: '', remarks: uniqueRemarks.join('; ')
+        };
+      });
+      setWeeklyDailyTaskSummary(consolidatedTasks.length > 0 ? consolidatedTasks : DEFAULT_TASK_SUMMARY);
+
+      // Group Development Work Report
+      const devMap = {};
+      validReports.forEach(report => {
+        const devItems = report.developmentWorkReport || [];
+        devItems.forEach(item => {
+          const projectKey = (item.project || '').trim() || 'General';
+          if (!devMap[projectKey]) {
+            devMap[projectKey] = { project: projectKey, activities: [], statuses: [], remarks: [] };
+          }
+          if (item.activity) devMap[projectKey].activities.push(item.activity.trim());
+          if (item.status) devMap[projectKey].statuses.push(item.status.trim());
+          if (item.remark) devMap[projectKey].remarks.push(item.remark.trim());
+        });
+      });
+      const consolidatedDev = Object.values(devMap).map(group => {
+        const uniqueActivities = Array.from(new Set(group.activities)).filter(Boolean);
+        const activityStr = uniqueActivities.length > 1
+          ? uniqueActivities.map(a => `• ${a}`).join('\n')
+          : (uniqueActivities[0] || '');
+        const uniqueStatuses = Array.from(new Set(group.statuses)).filter(Boolean);
+        const status = uniqueStatuses.includes('ongoing') ? 'ongoing' : (uniqueStatuses[0] || 'Done');
+        const uniqueRemarks = Array.from(new Set(group.remarks)).filter(Boolean);
+        return {
+          project: group.project,
+          activity: activityStr,
+          status,
+          remark: uniqueRemarks.join('; ')
+        };
+      });
+      setWeeklyDevelopmentWorkReport(consolidatedDev.length > 0 ? consolidatedDev : DEFAULT_DEV_REPORT);
+
+      // R&D Innovation Report
+      const innovMap = {};
+      validReports.forEach(report => {
+        const items = report.rdInnovationReport || [];
+        items.forEach(item => {
+          const key = (item.activity || '').trim();
+          if (!key) return;
+          if (!innovMap[key]) {
+            innovMap[key] = { activity: key, details: [], statuses: [] };
+          }
+          if (item.details) innovMap[key].details.push(item.details.trim());
+          if (item.status) innovMap[key].statuses.push(item.status.trim());
+        });
+      });
+      const consolidatedInnov = Object.values(innovMap).map(group => {
+        const uniqueDetails = Array.from(new Set(group.details)).filter(Boolean);
+        const detailsStr = uniqueDetails.length > 1
+          ? uniqueDetails.map(d => `• ${d}`).join('\n')
+          : (uniqueDetails[0] || '');
+        const uniqueStatuses = Array.from(new Set(group.statuses)).filter(Boolean);
+        return {
+          activity: group.activity,
+          details: detailsStr,
+          dueDate: '', status: uniqueStatuses.join('; ') || 'Done'
+        };
+      });
+      setWeeklyRdInnovationReport(consolidatedInnov.length > 0 ? consolidatedInnov : [{ activity: '', details: '', dueDate: '', status: '' }]);
+
+      // Sum KPI Tracking
+      const parseVal = (str) => {
+        if (typeof str === 'number') return str;
+        if (!str || typeof str !== 'string') return 0;
+        const cleaned = str.replace(/[$,₹]/g, '').replace(/,/g, '').trim();
+        const num = parseFloat(cleaned);
+        return isNaN(num) ? 0 : num;
+      };
+      const isNumeric = (str) => {
+        if (typeof str === 'number') return true;
+        if (!str || typeof str !== 'string') return false;
+        const cleaned = str.replace(/[$,₹]/g, '').replace(/,/g, '').trim();
+        return !isNaN(parseFloat(cleaned)) && isFinite(cleaned);
+      };
+
+      const kpiMap = {};
+      validReports.forEach(report => {
+        const items = report.kpiTracking || [];
+        items.forEach(item => {
+          const projectKey = (item.project || '').trim() || 'General';
+          const kpiKey = (item.kpi || '').trim();
+          if (!kpiKey) return;
+          const compositeKey = `${projectKey}::${kpiKey}`;
+          if (!kpiMap[compositeKey]) {
+            kpiMap[compositeKey] = { project: projectKey, kpi: kpiKey, targets: [], achieveds: [] };
+          }
+          if (item.target) kpiMap[compositeKey].targets.push(item.target.trim());
+          if (item.achieved) kpiMap[compositeKey].achieveds.push(item.achieved.trim());
+        });
+      });
+      const consolidatedKpi = Object.values(kpiMap).map(group => {
+        const allTargetsNumeric = group.targets.every(isNumeric);
+        let target = '';
+        if (allTargetsNumeric && group.targets.length > 0) {
+          target = String(group.targets.reduce((acc, t) => acc + parseVal(t), 0));
+        } else {
+          target = Array.from(new Set(group.targets)).filter(Boolean).join('; ');
+        }
+
+        const allAchievedNumeric = group.achieveds.every(isNumeric);
+        let achieved = '';
+        if (allAchievedNumeric && group.achieveds.length > 0) {
+          achieved = String(group.achieveds.reduce((acc, a) => acc + parseVal(a), 0));
+        } else {
+          achieved = Array.from(new Set(group.achieveds)).filter(Boolean).join('; ');
+        }
+        return { project: group.project, kpi: group.kpi, target, achieved };
+      });
+      setWeeklyKpiTracking(consolidatedKpi.length > 0 ? consolidatedKpi : DEFAULT_KPI_TRACKING);
+
+      // Issues & Support Required
+      const issueMap = {};
+      validReports.forEach(report => {
+        const items = report.issuesSupportRequired || [];
+        items.forEach(item => {
+          const key = (item.issue || '').trim();
+          if (!key) return;
+          if (!issueMap[key]) {
+            issueMap[key] = { issue: key, priorities: [], actions: [] };
+          }
+          if (item.priority) issueMap[key].priorities.push(item.priority.trim());
+          if (item.actionTaken) issueMap[key].actions.push(item.actionTaken.trim());
+        });
+      });
+      const consolidatedIssues = Object.values(issueMap).map(group => {
+        const uniqPriorities = Array.from(new Set(group.priorities)).map(p => p.toLowerCase());
+        let priority = 'Low';
+        if (uniqPriorities.includes('high')) priority = 'High';
+        else if (uniqPriorities.includes('medium')) priority = 'Medium';
+        else if (group.priorities.length > 0) priority = group.priorities[0];
+        const uniqActions = Array.from(new Set(group.actions)).filter(Boolean);
+        return {
+          issue: group.issue,
+          priority,
+          actionTaken: uniqActions.join('; ')
+        };
+      });
+      setWeeklyIssuesSupportRequired(consolidatedIssues.length > 0 ? consolidatedIssues : DEFAULT_ISSUES);
+
+      // Next Day Planning & HOD Comments
+      const planningList = [];
+      const commentsList = [];
+      validReports.forEach(report => {
+        const reportDate = report.basicDetails?.date || 'Unknown Date';
+        if (report.nextDayPlanning && report.nextDayPlanning.trim()) {
+          planningList.push(`[${reportDate}]: ${report.nextDayPlanning.trim()}`);
+        }
+        if (report.hodComments && report.hodComments.trim()) {
+          commentsList.push(`[${reportDate}]: ${report.hodComments.trim()}`);
+        }
+      });
+      setWeeklyNextDayPlanning(planningList.join('\n'));
+      setWeeklyHodComments(commentsList.join('\n'));
+
+      // Approvals
+      const latestAppr = latestReport.approval || {};
+      setWeeklyApproval({
+        hodName: latestAppr.hodName || 'HOD - R&D /Developer',
+        hodSignature: latestAppr.hodSignature || '',
+        hodDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '-'),
+        managerName: latestAppr.managerName || 'Manager - OPS Creative &Marketing',
+        managerSignature: latestAppr.managerSignature || '',
+        managerDate: ''
+      });
+
+      showToast(`Consolidated ${validReports.length} daily reports!`, "success");
+      setWeeklyActiveTab('basic');
+    } catch (err) {
+      console.error(err);
+      showToast("An error occurred during consolidation.", "error");
+    } finally {
+      setIsWeeklyLoading(false);
+    }
+  };
+
+  const handleDownloadWeeklyPDF = async () => {
+    try {
+      const logoImg = new Image();
+      logoImg.src = '/logo3.png';
+      await new Promise((resolve) => {
+        logoImg.onload = resolve;
+        logoImg.onerror = resolve;
+      });
+
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      });
+
+      let currentY = 15;
+
+      const drawSectionHeader = (title) => {
+        doc.setFillColor(60, 35, 117);
+        doc.rect(14, currentY, 182, 7, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(255, 255, 255);
+        doc.text(title.toUpperCase(), 17, currentY + 5);
+        currentY += 7;
+      };
+
+      const drawHeader = () => {
+        if (logoImg.complete && logoImg.naturalWidth > 0) {
+          doc.addImage(logoImg, 'PNG', 14, 10, 32, 12);
+        } else {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(22);
+          doc.setTextColor(132, 204, 22);
+          doc.text("KOD.", 14, 21);
+          
+          doc.setTextColor(60, 35, 117);
+          doc.text("brand", 34, 21);
+        }
+
+        doc.setFontSize(13);
+        doc.setTextColor(60, 35, 117);
+        doc.text("WEEKLY CONSOLIDATED HOD R&D REPORT", 95, 16);
+        
+        doc.setFontSize(7.5);
+        doc.setTextColor(0, 0, 0);
+        doc.setFont('helvetica', 'bold');
+        doc.text("HOD - R&D / SOFTWARE & WEB DEVELOPER", 116, 22);
+      };
+
+      drawHeader();
+      currentY = 27;
+
+      // 1. BASIC DETAILS
+      drawSectionHeader("1. BASIC DETAILS");
+
+      const basicDetailsRows = [
+        ["Date Range", `${weeklyStartDate} to ${weeklyEndDate}`],
+        ["Employee Name:", weeklyBasicDetails.employeeName || ''],
+        ["Employee ID", weeklyBasicDetails.employeeId || ''],
+        ["Department", weeklyBasicDetails.department || ''],
+        ["Designation", weeklyBasicDetails.designation || ''],
+        ["Shift Timing", weeklyBasicDetails.shiftTiming || ''],
+        ["Reporting To", weeklyBasicDetails.reportingTo || ''],
+        ["Prepared Time", weeklyBasicDetails.preparedTime || '']
+      ];
+
+      autoTable(doc, {
+        body: basicDetailsRows,
+        startY: currentY,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 45 },
+          1: { width: 137 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      // 2. DAILY TASK SUMMARY
+      drawSectionHeader("2. DAILY TASK SUMMARY");
+
+      const summaryHeaders = [["Activity", "Status", "Remarks"]];
+      const summaryRows = weeklyDailyTaskSummary.map(t => [
+        t.activity || '',
+        t.status || '',
+        t.remarks || ''
+      ]);
+
+      autoTable(doc, {
+        head: summaryHeaders,
+        body: summaryRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 70 },
+          1: { width: 35, halign: 'center' },
+          2: { width: 77 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      // 3. DEVELOPMENT WORK REPORT
+      drawSectionHeader("3. DEVELOPMENT WORK REPORT");
+
+      const devHeaders = [["Project", "Activity / Task Detail", "Status", "Remark / Reason for Delay"]];
+      const devRows = weeklyDevelopmentWorkReport.map(t => [
+        t.project || '',
+        t.activity || '',
+        t.status || '',
+        t.remark || ''
+      ]);
+
+      autoTable(doc, {
+        head: devHeaders,
+        body: devRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 35 },
+          1: { width: 75 },
+          2: { width: 37, halign: 'center' },
+          3: { width: 35 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      // 4. R&D / INNOVATION REPORT
+      drawSectionHeader("4. R&D / INNOVATION REPORT");
+
+      const innovHeaders = [["R&D Innovation Activity", "Details of R&D Innovation", "Current Status"]];
+      const innovRows = weeklyRdInnovationReport.map(t => [
+        t.activity || '',
+        t.details || '',
+        t.status || ''
+      ]);
+
+      autoTable(doc, {
+        head: innovHeaders,
+        body: innovRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 55 },
+          1: { width: 92 },
+          2: { width: 35, halign: 'center' }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      // 5. KPI TRACKING
+      drawSectionHeader("5. KPI TRACKING");
+
+      const kpiHeaders = [["Project", "KPI", "TARGET", "ACHIEVED"]];
+      const kpiRows = weeklyKpiTracking.map(t => [
+        t.project || '',
+        t.kpi || '',
+        t.target || '',
+        t.achieved || ''
+      ]);
+
+      autoTable(doc, {
+        head: kpiHeaders,
+        body: kpiRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 35 },
+          1: { width: 75 },
+          2: { width: 37 },
+          3: { width: 35, halign: 'center' }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      // Page break
+      doc.addPage();
+      currentY = 15;
+
+      // 6. ISSUES / SUPPORT REQUIRED
+      drawSectionHeader("6. ISSUES / SUPPORT REQUIRED");
+
+      const issueHeaders = [["ISSUE", "PRIORITY", "ACTION TAKEN"]];
+      const issueRows = weeklyIssuesSupportRequired.map(t => [
+        t.issue || '',
+        t.priority || '',
+        t.actionTaken || ''
+      ]);
+
+      autoTable(doc, {
+        head: issueHeaders,
+        body: issueRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 70 },
+          1: { width: 35, halign: 'center' },
+          2: { width: 77 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      // 7. NEXT DAY PLANNING
+      drawSectionHeader("7. NEXT DAY PLANNING");
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(0, 0, 0);
+      const planLines = doc.splitTextToSize(weeklyNextDayPlanning || '', 178);
+      doc.text(planLines, 16, currentY + 5);
+      const planBoxHeight = Math.max(12, planLines.length * 4.2 + 5);
+      doc.setDrawColor(180, 180, 180);
+      doc.rect(14, currentY, 182, planBoxHeight);
+      currentY += planBoxHeight + 4;
+
+      // 8. HOD COMMENTS
+      drawSectionHeader("8. HOD COMMENTS");
+      const commentsLines = doc.splitTextToSize(weeklyHodComments || '', 178);
+      doc.text(commentsLines, 16, currentY + 5);
+      const commentsBoxHeight = Math.max(12, commentsLines.length * 4.2 + 5);
+      doc.rect(14, currentY, 182, commentsBoxHeight);
+      currentY += commentsBoxHeight + 4;
+
+      // 9. ACHIEVEMENTS
+      drawSectionHeader("9. ACHIEVEMENTS");
+      const achievementsLines = doc.splitTextToSize(weeklyAchievements || '', 178);
+      doc.text(achievementsLines, 16, currentY + 5);
+      const achievementsBoxHeight = Math.max(12, achievementsLines.length * 4.2 + 5);
+      doc.rect(14, currentY, 182, achievementsBoxHeight);
+      currentY += achievementsBoxHeight + 4;
+
+      // 10. IMPROVEMENTS NEEDED
+      drawSectionHeader("10. IMPROVEMENTS NEEDED");
+      const improvementsLines = doc.splitTextToSize(weeklyImprovements || '', 178);
+      doc.text(improvementsLines, 16, currentY + 5);
+      const improvementsBoxHeight = Math.max(12, improvementsLines.length * 4.2 + 5);
+      doc.rect(14, currentY, 182, improvementsBoxHeight);
+      currentY += improvementsBoxHeight + 4;
+
+      // Check if page fits before drawing Next Week Planning & Approvals
+      if (currentY > 220) {
+        doc.addPage();
+        currentY = 15;
+        drawHeader();
+        currentY = 27;
+      }
+
+      // 11. NEXT WEEK PLANNING
+      drawSectionHeader("11. NEXT WEEK PLANNING");
+      const nextWeekLines = doc.splitTextToSize(weeklyNextWeekPlanning || '', 178);
+      doc.text(nextWeekLines, 16, currentY + 5);
+      const nextWeekBoxHeight = Math.max(12, nextWeekLines.length * 4.2 + 5);
+      doc.rect(14, currentY, 182, nextWeekBoxHeight);
+      currentY += nextWeekBoxHeight + 4;
+
+      // Check if page fits before drawing approvals
+      if (currentY > 210) {
+        doc.addPage();
+        currentY = 15;
+        drawHeader();
+        currentY = 27;
+      }
+
+      // 12. APPROVAL
+      drawSectionHeader("12. APPROVAL");
+      const approvalHeaders = [["Name", "Signature", "Date"]];
+      const approvalRows = [
+        [
+          `HOD - R&D /Developer: ${weeklyApproval.hodName || ''}`,
+          weeklyApproval.hodSignature || '',
+          weeklyApproval.hodDate || ''
+        ],
+        [
+          `Manager – OPS Creative & Marketing: ${weeklyApproval.managerName || ''}`,
+          weeklyApproval.managerSignature || '',
+          weeklyApproval.managerDate || ''
+        ]
+      ];
+
+      autoTable(doc, {
+        head: approvalHeaders,
+        body: approvalRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 8, cellPadding: 3, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { cellWidth: 62 },
+          2: { cellWidth: 40 }
+        },
+        didDrawCell: (data) => {
+          if (data.column.index === 1 && data.cell.section === 'body') {
+            const signatureVal = data.cell.raw;
+            if (signatureVal && String(signatureVal).startsWith('data:image/')) {
+              data.cell.text = '';
+              const x = data.cell.x + 2;
+              const y = data.cell.y + 2;
+              const w = data.cell.width - 4;
+              const h = data.cell.height - 4;
+              try {
+                doc.addImage(signatureVal, 'PNG', x, y, w, h);
+              } catch (e) {
+                console.error("Failed to add signature image to weekly PDF:", e);
+              }
+            }
+          }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      const pdfBlob = doc.output('blob');
+      const filename = `Weekly_Consolidated_Report_HOD_RD_${weeklyBasicDetails.employeeName || 'HOD'}_${weeklyStartDate}_to_${weeklyEndDate}.pdf`;
+      try {
+        await uploadCompiledPDFReport(selectedUserId, `${weeklyStartDate}_to_${weeklyEndDate}`, pdfBlob, filename, 'hodrd', 'weekly');
+        console.log("Weekly PDF saved successfully");
+      } catch (uploadErr) {
+        console.error("Failed to upload weekly PDF:", uploadErr);
+      }
+      doc.save(filename);
+      showToast("Weekly PDF report downloaded successfully!", "success");
+    } catch (e) {
+      console.error(e);
+      showToast("Failed to generate Weekly PDF.", "error");
+    }
+  };
+
   const handleDownloadMonthlyPDF = async () => {
     try {
       const logoImg = new Image();
@@ -1109,9 +1807,26 @@ const HodRdReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 8, cellPadding: 3, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 75, fontStyle: 'bold' },
-          1: { width: 55 },
-          2: { width: 52 }
+          0: { cellWidth: 80 },
+          1: { cellWidth: 62 },
+          2: { cellWidth: 40 }
+        },
+        didDrawCell: (data) => {
+          if (data.column.index === 1 && data.cell.section === 'body') {
+            const signatureVal = data.cell.raw;
+            if (signatureVal && String(signatureVal).startsWith('data:image/')) {
+              data.cell.text = '';
+              const x = data.cell.x + 2;
+              const y = data.cell.y + 2;
+              const w = data.cell.width - 4;
+              const h = data.cell.height - 4;
+              try {
+                doc.addImage(signatureVal, 'PNG', x, y, w, h);
+              } catch (e) {
+                console.error("Failed to add signature image to monthly PDF:", e);
+              }
+            }
+          }
         },
         margin: { left: 14, right: 14 }
       });
@@ -1149,7 +1864,7 @@ const HodRdReportPage = () => {
 
   // Helper row handlers for dynamic tables
   const addSummaryRow = () => {
-    setDailyTaskSummary([...dailyTaskSummary, { activity: '', status: 'Done', dueDate: '', remarks: '' }]);
+    setDailyTaskSummary([...dailyTaskSummary, { activity: '', status: 'Done', dueDate: '', startDate: '', endDate: '', remarks: '' }]);
   };
   
   const removeSummaryRow = (index) => {
@@ -1288,7 +2003,16 @@ const HodRdReportPage = () => {
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-start sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsWeeklyModalOpen(true)}
+                  className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 font-semibold text-sm transition-all"
+                >
+                  <Calendar size={16} />
+                  Weekly Report
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setIsMonthlyModalOpen(true)}
@@ -1298,18 +2022,11 @@ const HodRdReportPage = () => {
                   Monthly Report
                 </button>
 
-                <button
-                  type="button"
-                  onClick={handleDownloadPDF}
-                  className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
-                >
-                  <Download size={16} />
-                  Download PDF
-                </button>
+                
 
                 <button
                   type="button"
-                  onClick={handleSaveReport}
+                  onClick={handleDownloadPDF}
                   disabled={saving}
                   className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
                 >
@@ -1318,7 +2035,7 @@ const HodRdReportPage = () => {
                   ) : (
                     <Save size={16} />
                   )}
-                  Save Report
+                  Save File
                 </button>
               </div>
             </div>
@@ -1461,58 +2178,106 @@ const HodRdReportPage = () => {
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
                       <th className="px-5 py-4 w-[40%]">Activity</th>
-                      <th className="px-5 py-4 w-[40%]">Due Date</th>
-                      <th className="px-5 py-4 w-[20%] text-center">Status</th>
-                      <th className="px-5 py-4 w-[35%]">Remarks</th>
+                      <th className="px-5 py-4 w-[15%]">Due Date</th>
+                      <th className="px-5 py-4 w-[15%]">Start Date</th>
+                      <th className="px-5 py-4 w-[15%]">End Date</th>
+                      <th className="px-5 py-4 w-[15%] text-center">Status</th>
+                      <th className="px-5 py-4 w-[10%]">Remarks</th>
                       <th className="px-5 py-4 w-[5%] text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {dailyTaskSummary.map((item, index) => (
                       <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
-                        <td className="px-5 py-3">
-                          <input
-                            type="text"
-                            value={item.activity}
-                            onChange={(e) => {
-                              const updated = [...dailyTaskSummary];
-                              updated[index].activity = e.target.value;
-                              setDailyTaskSummary(updated);
-                            }}
-                            placeholder="Website Development, CRM Software, etc."
-                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
-                          />
+                        <td className="px-5 py-3 relative group">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={item.activity}
+                              onChange={(e) => {
+                                const updated = [...dailyTaskSummary];
+                                updated[index].activity = e.target.value;
+                                setDailyTaskSummary(updated);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                            />
+                            {item.activity && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(item.activity)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                title="View full text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-5 py-3 text-center">
-                          <select
-                            value={item.status}
-                            onChange={(e) => {
-                              const updated = [...dailyTaskSummary];
-                              updated[index].status = e.target.value;
-                              setDailyTaskSummary(updated);
-                            }}
-                            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none text-slate-700 dark:text-slate-200"
-                          >
-                            <option value="Done">Done</option>
-                            <option value="ongoing">ongoing</option>
-                            <option value="onprogress">onprogress</option>
-                            <option value="Pending">Pending</option>
-                            <option value="NA">NA</option>
-                          </select>
-                        </td>
-                        <td className="px-5 py-3">
-                          <input
-                            type="text"
-                            value={item.remarks}
-                            onChange={(e) => {
-                              const updated = [...dailyTaskSummary];
-                              updated[index].remarks = e.target.value;
-                              setDailyTaskSummary(updated);
-                            }}
-                            placeholder="Add comment..."
-                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
-                          />
-                        </td>
+                          <td className="px-5 py-3">
+                            <input
+                              type="date"
+                              value={item.dueDate || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyTaskSummary];
+                                updated[index].dueDate = e.target.value;
+                                setDailyTaskSummary(updated);
+                              }}
+                              className="bg-transparent border-none focus:outline-none text-sm text-slate-700 dark:text-slate-300 w-full"
+                            />
+                          </td>
+                          <td className="px-5 py-3">
+                            <input
+                              type="date"
+                              value={item.startDate || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyTaskSummary];
+                                updated[index].startDate = e.target.value;
+                                setDailyTaskSummary(updated);
+                              }}
+                              className="bg-transparent border-none focus:outline-none text-sm text-slate-700 dark:text-slate-300 w-full"
+                            />
+                          </td>
+                          <td className="px-5 py-3">
+                            <input
+                              type="date"
+                              value={item.endDate || ''}
+                              onChange={(e) => {
+                                const updated = [...dailyTaskSummary];
+                                updated[index].endDate = e.target.value;
+                                setDailyTaskSummary(updated);
+                              }}
+                              className="bg-transparent border-none focus:outline-none text-sm text-slate-700 dark:text-slate-300 w-full"
+                            />
+                          </td>
+                          <td className="px-5 py-3 text-center">
+                            <select
+                              value={item.status}
+                              onChange={(e) => {
+                                const updated = [...dailyTaskSummary];
+                                updated[index].status = e.target.value;
+                                setDailyTaskSummary(updated);
+                              }}
+                              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none text-slate-700 dark:text-slate-200"
+                            >
+                              <option value="Done">Done</option>
+                              <option value="ongoing">ongoing</option>
+                              <option value="onprogress">onprogress</option>
+                              <option value="Pending">Pending</option>
+                              <option value="NA">NA</option>
+                            </select>
+                          </td>
+                          <td className="px-5 py-3">
+                            <input
+                              type="text"
+                              value={item.remarks}
+                              onChange={(e) => {
+                                const updated = [...dailyTaskSummary];
+                                updated[index].remarks = e.target.value;
+                                setDailyTaskSummary(updated);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                            />
+                          </td>
                         <td className="px-5 py-3 text-center">
                           <button
                             type="button"
@@ -1560,31 +2325,55 @@ const HodRdReportPage = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {developmentWorkReport.map((item, index) => (
                       <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
-                        <td className="px-5 py-3">
-                          <input
-                            type="text"
-                            value={item.project}
-                            onChange={(e) => {
-                              const updated = [...developmentWorkReport];
-                              updated[index].project = e.target.value;
-                              setDevelopmentWorkReport(updated);
-                            }}
-                            placeholder="Ayurvedic website, CRM"
-                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
-                          />
+                        <td className="px-5 py-3 relative group">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={item.project}
+                              onChange={(e) => {
+                                const updated = [...developmentWorkReport];
+                                updated[index].project = e.target.value;
+                                setDevelopmentWorkReport(updated);
+                              }}
+                              placeholder="Ayurvedic website, CRM"
+                              className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                            />
+                            {item.project && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(item.project)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                title="View full text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-5 py-3">
-                          <textarea
-                            value={item.activity}
-                            onChange={(e) => {
-                              const updated = [...developmentWorkReport];
-                              updated[index].activity = e.target.value;
-                              setDevelopmentWorkReport(updated);
-                            }}
-                            placeholder="Changes in UI, debugging, etc."
-                            rows={1}
-                            className="w-full bg-transparent border-none focus:outline-none resize-y text-slate-700 dark:text-slate-200"
-                          />
+                        <td className="px-5 py-3 relative group">
+                          <div className="flex items-center gap-1.5">
+                            <textarea
+                              value={item.activity}
+                              onChange={(e) => {
+                                const updated = [...developmentWorkReport];
+                                updated[index].activity = e.target.value;
+                                setDevelopmentWorkReport(updated);
+                              }}
+                              placeholder="Changes in UI, debugging, etc."
+                              rows={1}
+                              className="w-full bg-transparent border-none focus:outline-none resize-y text-slate-700 dark:text-slate-200"
+                            />
+                            {item.activity && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(item.activity)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                title="View full text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-5 py-3 text-center">
                           <select
@@ -1652,7 +2441,7 @@ const HodRdReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-5 py-4 w-[30%]">Activity</th>
+                      <th className="px-5 py-4 w-[45%]">Activity</th>
                       <th className="px-5 py-4 w-[30%]">Due Date</th>
                       <th className="px-5 py-4 w-[50%]">Details</th>
                       <th className="px-5 py-4 w-[15%] text-center">Status</th>
@@ -1662,18 +2451,30 @@ const HodRdReportPage = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {rdInnovationReport.map((item, index) => (
                       <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
-                        <td className="px-5 py-3">
-                          <input
-                            type="text"
-                            value={item.activity}
-                            onChange={(e) => {
-                              const updated = [...rdInnovationReport];
-                              updated[index].activity = e.target.value;
-                              setRdInnovationReport(updated);
-                            }}
-                            placeholder="Research activity..."
-                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
-                          />
+                        <td className="px-5 py-3 relative group">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={item.activity}
+                              onChange={(e) => {
+                                const updated = [...rdInnovationReport];
+                                updated[index].activity = e.target.value;
+                                setRdInnovationReport(updated);
+                              }}
+                              placeholder="Research activity..."
+                              className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                            />
+                            {item.activity && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(item.activity)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                title="View full text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-5 py-3">
                           <textarea
@@ -1738,10 +2539,10 @@ const HodRdReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-5 py-4 w-[20%]">Project</th>
-                      <th className="px-5 py-4 w-[40%]">KPI</th>
-                      <th className="px-5 py-4 w-[20%]">TARGET</th>
-                      <th className="px-5 py-4 w-[15%] text-center">ACHIEVED</th>
+                      <th className="px-5 py-4 w-[20%]">Assigned To</th>
+                      <th className="px-5 py-4 w-[40%]">Task</th>
+                      <th className="px-5 py-4 w-[20%]">Due Date</th>
+                      <th className="px-5 py-4 w-[15%] text-center">Status</th>
                       <th className="px-5 py-4 w-[5%] text-center">Actions</th>
                     </tr>
                   </thead>
@@ -1761,44 +2562,58 @@ const HodRdReportPage = () => {
                             className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
                           />
                         </td>
-                        <td className="px-5 py-3">
-                          <textarea
-                            value={item.kpi}
-                            onChange={(e) => {
-                              const updated = [...kpiTracking];
-                              updated[index].kpi = e.target.value;
-                              setKpiTracking(updated);
-                            }}
-                            placeholder="Changes in UI"
-                            rows={1}
-                            className="w-full bg-transparent border-none focus:outline-none resize-y text-slate-700 dark:text-slate-200"
-                          />
+                        <td className="px-5 py-3 relative group">
+                          <div className="flex items-center gap-1.5">
+                            <textarea
+                              value={item.kpi}
+                              onChange={(e) => {
+                                const updated = [...kpiTracking];
+                                updated[index].kpi = e.target.value;
+                                setKpiTracking(updated);
+                              }}
+                              placeholder="Changes in UI"
+                              rows={1}
+                              className="w-full bg-transparent border-none focus:outline-none resize-y text-slate-700 dark:text-slate-200"
+                            />
+                            {item.kpi && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(item.kpi)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                title="View full text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-5 py-3">
                           <input
-                            type="text"
+                            type="date"
                             value={item.target}
                             onChange={(e) => {
                               const updated = [...kpiTracking];
                               updated[index].target = e.target.value;
                               setKpiTracking(updated);
                             }}
-                            placeholder="Complete / Excelimport"
-                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                            className="w-full bg-transparent border-none focus:outline-none text-sm text-slate-700 dark:text-slate-200"
                           />
                         </td>
                         <td className="px-5 py-3 text-center">
-                          <input
-                            type="text"
+                          <select
                             value={item.achieved}
                             onChange={(e) => {
                               const updated = [...kpiTracking];
                               updated[index].achieved = e.target.value;
                               setKpiTracking(updated);
                             }}
-                            placeholder="Done"
-                            className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
-                          />
+                            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none text-slate-700 dark:text-slate-200"
+                          >
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Preview">Preview</option>
+                            <option value="Done">Done</option>
+                          </select>
                         </td>
                         <td className="px-5 py-3 text-center">
                           <button
@@ -1846,18 +2661,30 @@ const HodRdReportPage = () => {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {issuesSupportRequired.map((item, index) => (
                       <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
-                        <td className="px-5 py-3">
-                          <input
-                            type="text"
-                            value={item.issue}
-                            onChange={(e) => {
-                              const updated = [...issuesSupportRequired];
-                              updated[index].issue = e.target.value;
-                              setIssuesSupportRequired(updated);
-                            }}
-                            placeholder="HR / Admin Manager, COO, etc."
-                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
-                          />
+                        <td className="px-5 py-3 relative group">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={item.issue}
+                              onChange={(e) => {
+                                const updated = [...issuesSupportRequired];
+                                updated[index].issue = e.target.value;
+                                setIssuesSupportRequired(updated);
+                              }}
+                              placeholder="HR / Admin Manager, COO, etc."
+                              className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                            />
+                            {item.issue && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(item.issue)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                title="View full text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-5 py-3 text-center">
                           <input
@@ -1953,12 +2780,10 @@ const HodRdReportPage = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Signature (Initials)</label>
-                    <input
-                      type="text"
+                    <SignatureUpload
                       value={approval.hodSignature || ''}
-                      onChange={(e) => setApproval({ ...approval, hodSignature: e.target.value })}
-                      placeholder="Type initials..."
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                      onChange={(val) => setApproval({ ...approval, hodSignature: val })}
+                      placeholder="Upload HOD signature"
                     />
                   </div>
                   <div>
@@ -1985,12 +2810,10 @@ const HodRdReportPage = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Signature (Initials)</label>
-                    <input
-                      type="text"
+                    <SignatureUpload
                       value={approval.managerSignature || ''}
-                      onChange={(e) => setApproval({ ...approval, managerSignature: e.target.value })}
-                      placeholder="Type initials..."
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                      onChange={(val) => setApproval({ ...approval, managerSignature: val })}
+                      placeholder="Upload manager signature"
                     />
                   </div>
                   <div>
@@ -2007,7 +2830,16 @@ const HodRdReportPage = () => {
             </div>
 
             {/* Form Footer Action Buttons */}
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5">
+            <div className="flex flex-wrap items-center justify-start sm:justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-5 w-full">
+              <button
+                type="button"
+                onClick={() => setIsWeeklyModalOpen(true)}
+                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 font-semibold text-sm transition-all border border-indigo-100 dark:border-indigo-900/50"
+              >
+                <Calendar size={16} />
+                Weekly Report
+              </button>
+
               <button
                 type="button"
                 onClick={() => setIsMonthlyModalOpen(true)}
@@ -2017,18 +2849,11 @@ const HodRdReportPage = () => {
                 Monthly Report
               </button>
 
-              <button
-                type="button"
-                onClick={handleDownloadPDF}
-                className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all"
-              >
-                <Download size={16} />
-                Download PDF
-              </button>
+              
 
               <button
                 type="button"
-                onClick={handleSaveReport}
+                onClick={handleDownloadPDF}
                 disabled={saving}
                 className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
               >
@@ -2037,7 +2862,7 @@ const HodRdReportPage = () => {
                 ) : (
                   <Save size={16} />
                 )}
-                Save Report
+                Save File
               </button>
             </div>
 
@@ -2233,26 +3058,40 @@ const HodRdReportPage = () => {
                         <thead>
                           <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase border-b border-slate-100 dark:border-slate-800">
                             <th className="px-5 py-4 w-[40%]">Activity</th>
-                      <th className="px-5 py-4 w-[40%]">Due Date</th>
-                            <th className="px-5 py-4 w-[20%] text-center">Status</th>
-                            <th className="px-5 py-4 w-[35%]">Remarks</th>
+                            <th className="px-5 py-4 w-[15%]">Due Date</th>
+                            <th className="px-5 py-4 w-[15%]">Start Date</th>
+                            <th className="px-5 py-4 w-[15%]">End Date</th>
+                            <th className="px-5 py-4 w-[15%] text-center">Status</th>
+                            <th className="px-5 py-4 w-[10%]">Remarks</th>
                             <th className="px-5 py-4 w-[5%] text-center">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {monthlyDailyTaskSummary.map((item, idx) => (
                             <tr key={idx} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
-                              <td className="px-5 py-3">
-                                <input
-                                  type="text"
-                                  value={item.activity}
-                                  onChange={(e) => {
-                                    const updated = [...monthlyDailyTaskSummary];
-                                    updated[idx].activity = e.target.value;
-                                    setMonthlyDailyTaskSummary(updated);
-                                  }}
-                                  className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
-                                />
+                              <td className="px-5 py-3 relative group">
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={item.activity}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyDailyTaskSummary];
+                                      updated[idx].activity = e.target.value;
+                                      setMonthlyDailyTaskSummary(updated);
+                                    }}
+                                    className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                                  />
+                                  {item.activity && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedActivityText(item.activity)}
+                                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                      title="View full text"
+                                    >
+                                      <Maximize2 size={13} />
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-5 py-3 text-center">
                                 <select
@@ -2397,7 +3236,7 @@ const HodRdReportPage = () => {
                       <table className="w-full text-left border-collapse text-sm">
                         <thead>
                           <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase border-b border-slate-100 dark:border-slate-800">
-                            <th className="px-5 py-4 w-[30%]">Activity</th>
+                            <th className="px-5 py-4 w-[45%]">Activity</th>
                       <th className="px-5 py-4 w-[30%]">Due Date</th>
                             <th className="px-5 py-4 w-[50%]">Details</th>
                             <th className="px-5 py-4 w-[15%] text-center">Status</th>
@@ -2469,10 +3308,10 @@ const HodRdReportPage = () => {
                       <table className="w-full text-left border-collapse text-sm">
                         <thead>
                           <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase border-b border-slate-100 dark:border-slate-800">
-                            <th className="px-5 py-4 w-[20%]">Project</th>
-                            <th className="px-5 py-4 w-[40%]">KPI</th>
-                            <th className="px-5 py-4 w-[20%]">TARGET</th>
-                            <th className="px-5 py-4 w-[15%] text-center">ACHIEVED</th>
+                            <th className="px-5 py-4 w-[20%]">Assigned To</th>
+                            <th className="px-5 py-4 w-[40%]">Task</th>
+                            <th className="px-5 py-4 w-[20%]">Due Date</th>
+                            <th className="px-5 py-4 w-[15%] text-center">Status</th>
                             <th className="px-5 py-4 w-[5%] text-center">Action</th>
                           </tr>
                         </thead>
@@ -2651,10 +3490,8 @@ const HodRdReportPage = () => {
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Signature</label>
-                        <input
-                          type="text"
+                        <SignatureUpload
                           value={monthlyApproval.hodSignature || ''}
-                          onChange={(e) => setMonthlyApproval({ ...monthlyApproval, hodSignature: e.target.value })}
                           className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                         />
                       </div>
@@ -2682,11 +3519,10 @@ const HodRdReportPage = () => {
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Signature</label>
-                        <input
-                          type="text"
+                        <SignatureUpload
                           value={monthlyApproval.managerSignature || ''}
-                          onChange={(e) => setMonthlyApproval({ ...monthlyApproval, managerSignature: e.target.value })}
-                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          onChange={(val) => setMonthlyApproval({ ...monthlyApproval, managerSignature: val })}
+                          placeholder="Upload manager signature"
                         />
                       </div>
                       <div>
@@ -2725,8 +3561,554 @@ const HodRdReportPage = () => {
             </motion.div>
           </div>
         )}
+
+        {isWeeklyModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-start justify-center pt-10 overflow-y-auto bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -20 }}
+              className="relative w-full max-w-5xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 my-8 mx-4 overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Weekly Consolidation Report</h2>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Aggregate multiple daily reports into a single weekly shift report</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsWeeklyModalOpen(false)}
+                  className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Date Filters & Fetch */}
+              <div className="p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-950/20 flex flex-wrap items-center gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={weeklyStartDate}
+                    onChange={(e) => setWeeklyStartDate(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={weeklyEndDate}
+                    onChange={(e) => setWeeklyEndDate(e.target.value)}
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="pt-5">
+                  <button
+                    type="button"
+                    onClick={handleFetchWeeklyData}
+                    disabled={isWeeklyLoading}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm transition-all disabled:opacity-50"
+                  >
+                    {isWeeklyLoading ? (
+                      <>
+                        <Loader2 className="animate-spin" size={16} />
+                        Consolidating...
+                      </>
+                    ) : (
+                      <>
+                        <Calendar size={16} />
+                        Fetch & Consolidate
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex overflow-x-auto border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 px-6 py-2 gap-2 scrollbar-none">
+                {[
+                  { id: 'basic', label: '1. Basic' },
+                  { id: 'tasks', label: '2. Tasks' },
+                  { id: 'dev', label: '3. Dev Work' },
+                  { id: 'innov', label: '4. Innovation' },
+                  { id: 'kpi', label: '5. KPI' },
+                  { id: 'issues', label: '6. Issues' },
+                  { id: 'planning', label: '7. Summary & Planning' },
+                  { id: 'approvals', label: '8. Approvals' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setWeeklyActiveTab(tab.id)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                      weeklyActiveTab === tab.id
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-650/10'
+                        : 'bg-transparent text-slate-500 dark:text-slate-450 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Content Panel */}
+              <div className="p-6 max-h-[55vh] overflow-y-auto">
+                {weeklyActiveTab === 'basic' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.keys(weeklyBasicDetails).map((key) => (
+                      <div key={key}>
+                        <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">{key.replace(/([A-Z])/g, ' $1')}</label>
+                        <input
+                          type="text"
+                          value={weeklyBasicDetails[key] || ''}
+                          onChange={(e) => setWeeklyBasicDetails({ ...weeklyBasicDetails, [key]: e.target.value })}
+                          className="w-full bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {weeklyActiveTab === 'tasks' && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-250">Consolidated Daily Task Summary</h3>
+                    <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                      <table className="min-w-full divide-y divide-slate-250/20 text-xs">
+                        <thead className="bg-slate-50 dark:bg-slate-950/40">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase">Activity</th>
+                            <th className="px-4 py-3 text-center font-bold text-slate-400 uppercase w-32">Status</th>
+                            <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase">Remarks</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-250/25">
+                          {weeklyDailyTaskSummary.map((t, idx) => (
+                            <tr key={idx}>
+                              <td className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-250">{t.activity}</td>
+                              <td className="px-4 py-2.5 text-center">
+                                <select
+                                  value={t.status}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyDailyTaskSummary];
+                                    updated[idx].status = e.target.value;
+                                    setWeeklyDailyTaskSummary(updated);
+                                  }}
+                                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg p-1 text-center w-full focus:outline-none"
+                                >
+                                  <option value="Done">Done</option>
+                                  <option value="pending">Pending</option>
+                                  <option value="ongoing">Ongoing</option>
+                                </select>
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <input
+                                  type="text"
+                                  value={t.remarks || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyDailyTaskSummary];
+                                    updated[idx].remarks = e.target.value;
+                                    setWeeklyDailyTaskSummary(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg px-2 py-1 focus:outline-none"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {weeklyActiveTab === 'dev' && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-250">Consolidated Development Work</h3>
+                    <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                      <table className="min-w-full divide-y divide-slate-250/20 text-xs">
+                        <thead className="bg-slate-50 dark:bg-slate-950/40">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase w-36">Project</th>
+                            <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase">Activity</th>
+                            <th className="px-4 py-3 text-center font-bold text-slate-400 uppercase w-28">Status</th>
+                            <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase">Remarks</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-250/25">
+                          {weeklyDevelopmentWorkReport.map((t, idx) => (
+                            <tr key={idx}>
+                              <td className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-250">{t.project}</td>
+                              <td className="px-4 py-2.5">
+                                <textarea
+                                  value={t.activity}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyDevelopmentWorkReport];
+                                    updated[idx].activity = e.target.value;
+                                    setWeeklyDevelopmentWorkReport(updated);
+                                  }}
+                                  rows={2}
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg px-2 py-1 focus:outline-none resize-none"
+                                />
+                              </td>
+                              <td className="px-4 py-2.5 text-center">
+                                <select
+                                  value={t.status}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyDevelopmentWorkReport];
+                                    updated[idx].status = e.target.value;
+                                    setWeeklyDevelopmentWorkReport(updated);
+                                  }}
+                                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg p-1 text-center w-full focus:outline-none"
+                                >
+                                  <option value="Done">Done</option>
+                                  <option value="pending">Pending</option>
+                                  <option value="ongoing">Ongoing</option>
+                                </select>
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <input
+                                  type="text"
+                                  value={t.remark || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyDevelopmentWorkReport];
+                                    updated[idx].remark = e.target.value;
+                                    setWeeklyDevelopmentWorkReport(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg px-2 py-1 focus:outline-none"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {weeklyActiveTab === 'innov' && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-250">Consolidated R&D Innovation Report</h3>
+                    <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                      <table className="min-w-full divide-y divide-slate-250/20 text-xs">
+                        <thead className="bg-slate-50 dark:bg-slate-950/40">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase w-48">Activity</th>
+                            <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase">Details</th>
+                            <th className="px-4 py-3 text-center font-bold text-slate-400 uppercase w-32">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-250/25">
+                          {weeklyRdInnovationReport.map((t, idx) => (
+                            <tr key={idx}>
+                              <td className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-250">{t.activity}</td>
+                              <td className="px-4 py-2.5">
+                                <textarea
+                                  value={t.details}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyRdInnovationReport];
+                                    updated[idx].details = e.target.value;
+                                    setWeeklyRdInnovationReport(updated);
+                                  }}
+                                  rows={2}
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg px-2 py-1 focus:outline-none resize-none"
+                                />
+                              </td>
+                              <td className="px-4 py-2.5 text-center">
+                                <input
+                                  type="text"
+                                  value={t.status || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyRdInnovationReport];
+                                    updated[idx].status = e.target.value;
+                                    setWeeklyRdInnovationReport(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg px-2 py-1 text-center focus:outline-none"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {weeklyActiveTab === 'kpi' && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-250">Consolidated KPIs</h3>
+                    <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                      <table className="min-w-full divide-y divide-slate-250/20 text-xs">
+                        <thead className="bg-slate-50 dark:bg-slate-950/40">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase w-36">Project</th>
+                            <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase">KPI</th>
+                            <th className="px-4 py-3 text-center font-bold text-slate-400 uppercase w-28">Target</th>
+                            <th className="px-4 py-3 text-center font-bold text-slate-400 uppercase w-28">Achieved</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-250/25">
+                          {weeklyKpiTracking.map((t, idx) => (
+                            <tr key={idx}>
+                              <td className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-250">{t.project}</td>
+                              <td className="px-4 py-2.5 text-slate-700 dark:text-slate-250">{t.kpi}</td>
+                              <td className="px-4 py-2.5">
+                                <input
+                                  type="text"
+                                  value={t.target || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyKpiTracking];
+                                    updated[idx].target = e.target.value;
+                                    setWeeklyKpiTracking(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg px-2 py-1 text-center focus:outline-none"
+                                />
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <input
+                                  type="text"
+                                  value={t.achieved || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyKpiTracking];
+                                    updated[idx].achieved = e.target.value;
+                                    setWeeklyKpiTracking(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg px-2 py-1 text-center focus:outline-none"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {weeklyActiveTab === 'issues' && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-250">Consolidated Issues & Support Required</h3>
+                    <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+                      <table className="min-w-full divide-y divide-slate-250/20 text-xs">
+                        <thead className="bg-slate-50 dark:bg-slate-950/40">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase">Issue</th>
+                            <th className="px-4 py-3 text-center font-bold text-slate-400 uppercase w-32">Priority</th>
+                            <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase">Action Taken</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-250/25">
+                          {weeklyIssuesSupportRequired.map((t, idx) => (
+                            <tr key={idx}>
+                              <td className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-250">{t.issue}</td>
+                              <td className="px-4 py-2.5 text-center">
+                                <select
+                                  value={t.priority}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyIssuesSupportRequired];
+                                    updated[idx].priority = e.target.value;
+                                    setWeeklyIssuesSupportRequired(updated);
+                                  }}
+                                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg p-1 text-center w-full focus:outline-none animate-none"
+                                >
+                                  <option value="High">High</option>
+                                  <option value="Medium">Medium</option>
+                                  <option value="Low">Low</option>
+                                </select>
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <input
+                                  type="text"
+                                  value={t.actionTaken || ''}
+                                  onChange={(e) => {
+                                    const updated = [...weeklyIssuesSupportRequired];
+                                    updated[idx].actionTaken = e.target.value;
+                                    setWeeklyIssuesSupportRequired(updated);
+                                  }}
+                                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg px-2 py-1 focus:outline-none"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {weeklyActiveTab === 'planning' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest">Next Day Planning</h3>
+                      <textarea
+                        value={weeklyNextDayPlanning}
+                        onChange={(e) => setWeeklyNextDayPlanning(e.target.value)}
+                        rows={6}
+                        className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200 resize-y"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest">HOD Comments</h3>
+                      <textarea
+                        value={weeklyHodComments}
+                        onChange={(e) => setWeeklyHodComments(e.target.value)}
+                        rows={6}
+                        className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200 resize-y"
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest">Achievements</h3>
+                      <textarea
+                        value={weeklyAchievements}
+                        onChange={(e) => setWeeklyAchievements(e.target.value)}
+                        rows={4}
+                        className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200 resize-y"
+                        placeholder="Enter achievements..."
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest">Improvements Needed</h3>
+                      <textarea
+                        value={weeklyImprovements}
+                        onChange={(e) => setWeeklyImprovements(e.target.value)}
+                        rows={4}
+                        className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200 resize-y"
+                        placeholder="Enter improvements needed..."
+                      />
+                    </div>
+                    <div className="space-y-3 md:col-span-2">
+                      <h3 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest">Next Week Planning</h3>
+                      <textarea
+                        value={weeklyNextWeekPlanning}
+                        onChange={(e) => setWeeklyNextWeekPlanning(e.target.value)}
+                        rows={4}
+                        className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200 resize-y"
+                        placeholder="Enter next week planning..."
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {weeklyActiveTab === 'approvals' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3 border-r border-slate-200/50 dark:border-slate-800/50 pr-0 md:pr-6">
+                      <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">HOD - R&D /Developer</h4>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Name</label>
+                        <input
+                          type="text"
+                          value={weeklyApproval.hodName || ''}
+                          onChange={(e) => setWeeklyApproval({ ...weeklyApproval, hodName: e.target.value })}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Signature (Base64 Image or Text)</label>
+                        <input
+                          type="text"
+                          value={weeklyApproval.hodSignature || ''}
+                          onChange={(e) => setWeeklyApproval({ ...weeklyApproval, hodSignature: e.target.value })}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          placeholder="e.g. data:image/png;base64,..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Date</label>
+                        <input
+                          type="text"
+                          value={weeklyApproval.hodDate || ''}
+                          onChange={(e) => setWeeklyApproval({ ...weeklyApproval, hodDate: e.target.value })}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Manager – OPS Creative & Marketing</h4>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Name</label>
+                        <input
+                          type="text"
+                          value={weeklyApproval.managerName || ''}
+                          onChange={(e) => setWeeklyApproval({ ...weeklyApproval, managerName: e.target.value })}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Signature</label>
+                        <input
+                          type="text"
+                          value={weeklyApproval.managerSignature || ''}
+                          onChange={(e) => setWeeklyApproval({ ...weeklyApproval, managerSignature: e.target.value })}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          placeholder="e.g. data:image/png;base64,..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mb-1">Date</label>
+                        <input
+                          type="text"
+                          value={weeklyApproval.managerDate || ''}
+                          onChange={(e) => setWeeklyApproval({ ...weeklyApproval, managerDate: e.target.value })}
+                          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end items-center gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 rounded-b-3xl">
+                <button
+                  type="button"
+                  onClick={() => setIsWeeklyModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-sm hover:bg-slate-50 dark:hover:bg-slate-900 transition-all"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadWeeklyPDF}
+                  disabled={weeklyDailyTaskSummary.length === 0 && weeklyDevelopmentWorkReport.length === 0}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all disabled:opacity-50"
+                >
+                  <Download size={16} />
+                  Download Weekly PDF
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </AnimatePresence>
 
+      {/* Activity Detail Modal */}
+      {selectedActivityText && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative">
+            <button
+              type="button"
+              onClick={() => setSelectedActivityText(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition p-1"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 mb-4">Activity Details</h3>
+            <div className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl max-h-[60vh] overflow-y-auto whitespace-pre-wrap break-words font-medium leading-relaxed">
+              {selectedActivityText}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedActivityText(null)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

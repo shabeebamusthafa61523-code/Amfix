@@ -47,6 +47,7 @@ export const departmentService = {
         dept.managerId.lastName = parts.slice(1).join(' ') || '';
         dept.managerId.designation = dept.managerId.designation_id || 'Staff';
       }
+
       return dept;
     }));
   },
@@ -72,6 +73,7 @@ export const departmentService = {
       deptObj.managerId.lastName = parts.slice(1).join(' ') || '';
       deptObj.managerId.designation = deptObj.managerId.designation_id || 'Staff';
     }
+
     return deptObj;
   },
 

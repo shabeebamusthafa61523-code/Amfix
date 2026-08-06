@@ -2,6 +2,7 @@ import Lead from '../models/lead.model.js';
 import LeadFollowup from '../models/leadFollowup.model.js';
 import redis from '../config/redis.js';
 import mongoose from 'mongoose';
+import User from '../models/user.model.js';
 
 // Cache TTL in seconds (5 minutes)
 const CACHE_TTL = 300;
@@ -9,17 +10,42 @@ const CACHE_TTL = 300;
 /**
  * Helper to determine row-level security match query
  */
-const getRLSFilter = (req) => {
+const getRLSFilter = async (req) => {
   const role = String(req.user?.role || req.user?.role_id || '').toLowerCase().trim();
   const userId = req.user?.id || req.user?._id;
   const isPrivileged = ['1', '2', 'hr', 'admin'].includes(role);
 
-  if (isPrivileged) {
-    return {}; // Privileged users see everything
+  let matchFilter = {};
+
+  if (!isPrivileged) {
+    matchFilter = { assignedTo: new mongoose.Types.ObjectId(userId) };
   }
 
-  // Regular marketers/employees see only their assigned leads
-  return { assignedTo: new mongoose.Types.ObjectId(userId) };
+  const deptQuery = req.query.department;
+  if (deptQuery && deptQuery !== 'all') {
+    // Find all users in this department
+    const usersInDept = await User.find({
+      $or: [
+        { department: deptQuery },
+        { departmentId: mongoose.isValidObjectId(deptQuery) ? new mongoose.Types.ObjectId(deptQuery) : null }
+      ]
+    }).select('_id');
+    
+    const userIds = usersInDept.map(u => u._id);
+    
+    if (matchFilter.assignedTo) {
+      matchFilter = {
+        $and: [
+          matchFilter,
+          { assignedTo: { $in: userIds } }
+        ]
+      };
+    } else {
+      matchFilter = { assignedTo: { $in: userIds } };
+    }
+  }
+
+  return matchFilter;
 };
 
 /**
@@ -54,8 +80,8 @@ export const analyticsController = {
    */
   getSummary: async (req, res) => {
     try {
-      const matchFilter = getRLSFilter(req);
-      const cacheKey = `analytics:summary:${req.user?.id || 'all'}`;
+      const matchFilter = await getRLSFilter(req);
+      const cacheKey = `analytics:summary:${req.user?.id || 'all'}:${req.query.department || 'all'}`;
 
       const data = await getCachedOrCompute(cacheKey, async () => {
         const now = new Date();
@@ -174,8 +200,8 @@ export const analyticsController = {
    */
   getConversionRate: async (req, res) => {
     try {
-      const matchFilter = getRLSFilter(req);
-      const cacheKey = `analytics:funnel:${req.user?.id || 'all'}`;
+      const matchFilter = await getRLSFilter(req);
+      const cacheKey = `analytics:funnel:${req.user?.id || 'all'}:${req.query.department || 'all'}`;
 
       const data = await getCachedOrCompute(cacheKey, async () => {
         const stats = await Lead.aggregate([
@@ -230,8 +256,8 @@ export const analyticsController = {
    */
   getStaffPerformance: async (req, res) => {
     try {
-      const matchFilter = getRLSFilter(req);
-      const cacheKey = `analytics:staff:${req.user?.id || 'all'}`;
+      const matchFilter = await getRLSFilter(req);
+      const cacheKey = `analytics:staff:${req.user?.id || 'all'}:${req.query.department || 'all'}`;
 
       const data = await getCachedOrCompute(cacheKey, async () => {
         return await Lead.aggregate([
@@ -288,8 +314,8 @@ export const analyticsController = {
    */
   getSourcePerformance: async (req, res) => {
     try {
-      const matchFilter = getRLSFilter(req);
-      const cacheKey = `analytics:source:${req.user?.id || 'all'}`;
+      const matchFilter = await getRLSFilter(req);
+      const cacheKey = `analytics:source:${req.user?.id || 'all'}:${req.query.department || 'all'}`;
 
       const data = await getCachedOrCompute(cacheKey, async () => {
         return await Lead.aggregate([
@@ -334,8 +360,8 @@ export const analyticsController = {
    */
   getFollowupMetrics: async (req, res) => {
     try {
-      const matchFilter = getRLSFilter(req);
-      const cacheKey = `analytics:followup:${req.user?.id || 'all'}`;
+      const matchFilter = await getRLSFilter(req);
+      const cacheKey = `analytics:followup:${req.user?.id || 'all'}:${req.query.department || 'all'}`;
 
       const data = await getCachedOrCompute(cacheKey, async () => {
         // Find all followups where the associated lead matches our RLS filters

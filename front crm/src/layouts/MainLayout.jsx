@@ -3,9 +3,19 @@ import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
+import AiChatWidget from '../components/AiChatWidget';
 
 const MainLayout = ({ children }) => {
   const location = useLocation();
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(() => {
+    try {
+      const saved = localStorage.getItem('sidebarCollapsed');
+      return saved !== null ? JSON.parse(saved) : false;
+    } catch (e) {
+      return false;
+    }
+  });
+  const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
 
   // --- Inactivity sliding session timeout tracker (30 minutes) ---
   React.useEffect(() => {
@@ -96,7 +106,12 @@ const MainLayout = ({ children }) => {
       </div>
 
       {/* 2. Global Structural Elements */}
-      <Sidebar />
+      <Sidebar 
+        isCollapsed={sidebarCollapsed} 
+        setIsCollapsed={setSidebarCollapsed} 
+        isMobileOpen={mobileSidebarOpen} 
+        setIsMobileOpen={setMobileSidebarOpen} 
+      />
 
       {/* Dynamic Laser Scan Top Progress Rule */}
       <div className="fixed top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-slate-400 to-transparent dark:via-slate-700 z-50 overflow-hidden opacity-40">
@@ -107,10 +122,13 @@ const MainLayout = ({ children }) => {
         />
       </div>
 
-      <Navbar />
+      <Navbar 
+        isSidebarCollapsed={sidebarCollapsed} 
+        toggleMobileSidebar={() => setMobileSidebarOpen(prev => !prev)} 
+      />
 
       {/* 3. Main Content Section with Fluid Transitions */}
-      <main className="transition-all duration-500 pt-32 pb-28 px-6 lg:pt-36 lg:pl-24 lg:pr-12 max-w-[1920px] mx-auto">
+      <main className={`transition-all duration-300 pt-18 pb-20 px-4 lg:pr-6 max-w-[1920px] mx-auto ${sidebarCollapsed ? 'lg:pl-24' : 'lg:pl-68'}`}>
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
@@ -216,6 +234,7 @@ const MainLayout = ({ children }) => {
         </div>
       </div>
 
+      {location.pathname !== '/ai-report' && <AiChatWidget />}
     </div>
   );
 };
