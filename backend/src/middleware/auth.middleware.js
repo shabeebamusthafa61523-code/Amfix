@@ -23,6 +23,9 @@ export const verifyToken = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_key');
     
     req.user = decoded;
+    if (decoded && (decoded.isSuperAdmin || String(decoded.role || '').toLowerCase() === 'superadmin' || String(decoded.role_id || '') === '0')) {
+      req.user.isSuperAdmin = true;
+    }
     next();
   } catch (error) {
     console.error('JWT Verification Error:', error);
