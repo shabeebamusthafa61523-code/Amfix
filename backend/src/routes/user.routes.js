@@ -1,34 +1,9 @@
 import { Router } from 'express';
 import { userController } from '../controllers/user.controller.js';
-import checkAuth from '../middleware/auth.middleware.js';
+import checkAuth, { requireRole } from '../middleware/auth.middleware.js';
 import upload from '../middleware/upload.middleware.js';
 
 const router = Router();
-
-// ==========================================
-// ROLE VALIDATION
-// ==========================================
-
-const requireRole = (allowedRoles) => {
-  return (req, res, next) => {
-
-    const userRole =
-      req.user?.role ||
-      req.user?.role_id;
-
-    if (
-      !userRole ||
-      !allowedRoles.includes(String(userRole))
-    ) {
-      return res.status(403).json({
-        detail:
-          'Access denied. Insufficient permissions.'
-      });
-    }
-
-    next();
-  };
-};
 
 // ==========================================
 // AUTH MIDDLEWARE

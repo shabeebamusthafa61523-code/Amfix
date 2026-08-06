@@ -35,16 +35,26 @@ export const verifyToken = (req, res, next) => {
  * @param {Array<String>} allowedRoles - Roles allowed to mutate resources
  */
 export const requireRole = (allowedRoles = []) => {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     // Collect possible role identifiers from req.user
     const roleId = String(req.user?.role_id || '').trim();
     const roleName = String(req.user?.role || '').toLowerCase().trim();
 
-    const isSuperAdmin = 
+    let isSuperAdmin = 
       req.user?.isSuperAdmin === true ||
       req.user?.is_super_admin === true ||
       roleId === '0' ||
       roleName.includes('super');
+
+    if (!isSuperAdmin && req.user?.id) {
+      try {
+        const User = (await import('../models/user.model.js')).default;
+        const userObj = await User.findById(req.user.id);
+        if (userObj && (userObj.isSuperAdmin === true || String(userObj.role).toLowerCase() === 'superadmin' || String(userObj.role_id) === '0')) {
+          isSuperAdmin = true;
+        }
+      } catch (err) {}
+    }
 
     if (isSuperAdmin) return next();
 
