@@ -16,7 +16,6 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Client Leads', path: '/client-leads', category: 'Leads', desc: 'Client lead pipeline' },
   { label: 'Telecaller Leads', path: '/leads-telecaller', category: 'Leads', desc: 'Telecaller leads & assignments' },
   { label: 'Users', path: '/users', category: 'Management', desc: 'Employee & user account management' },
-  { label: 'Sidebar Permissions', path: '/users', category: 'Management', desc: 'Configure sidebar page access & Super Admin permissions' },
   { label: 'Departments', path: '/departments', category: 'Management', desc: 'Department hierarchy & managers' },
   { label: 'Task Assign', path: '/todo', category: 'Operations', desc: 'Task assignment & attachment view' },
   { label: 'KPI Analytics', path: '/performance-dashboard', category: 'Analytics', desc: 'Quantitative KPI score & performance' },

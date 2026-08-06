@@ -110,16 +110,16 @@ export default function HrDashboard() {
 
       // Fetch users
       const usersRes = await fetch(`${API_URL}/v1/users/list`, { headers });
-      const usersData = await usersRes.json();
+      const usersData = usersRes.ok ? await usersRes.json() : [];
       
       // Fetch tasks
       const tasksRes = await fetch(`${API_URL}/tasks/all`, { headers });
-      const tasksData = await tasksRes.json();
+      const tasksData = tasksRes.ok ? await tasksRes.json() : [];
 
       // Fetch today's attendance
       const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
       const attRes = await fetch(`${API_URL}/attendance/all/${todayStr}`, { headers });
-      const attData = await attRes.ok ? await attRes.json() : [];
+      const attData = attRes.ok ? await attRes.json() : [];
 
       setUsers(Array.isArray(usersData) ? usersData : (usersData.data || []));
       setTasks(Array.isArray(tasksData) ? tasksData : (tasksData.data || []));

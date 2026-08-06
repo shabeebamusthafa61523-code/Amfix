@@ -15,31 +15,58 @@ const router = Router();
 
 // Middleware to check authorization for department (Marketing or Telecaller) or role ID 3 (Employee)
 const authorizeLeadsAccess = async (req, res, next) => {
-  let userDeptId = req.user?.departmentId;
-  const userRoleId = String(req.user?.role_id || req.user?.role || '').trim();
+  const userRole = String(req.user?.role || req.user?.role_id || req.user?.roleId || '').toLowerCase().trim();
+  const isSuperAdmin = 
+    req.user?.isSuperAdmin === true || 
+    req.user?.is_super_admin === true || 
+    userRole === '0' || 
+    userRole.includes('super');
 
-  // Fallback: If departmentId is missing from token, query from DB
-  if (!userDeptId && req.user?.id) {
+  if (isSuperAdmin) {
+    return next();
+  }
+
+  let userDeptName = String(req.user?.department || req.user?.departmentId?.name || '').toLowerCase().trim();
+  let userDesigName = String(req.user?.designation || req.user?.designationId?.name || '').toLowerCase().trim();
+
+  // Fallback: If department/designation name is missing from token, query from DB
+  if ((!userDeptName || !userDesigName) && req.user?.id) {
     try {
       const User = (await import('../models/user.model.js')).default;
-      const userObj = await User.findById(req.user.id);
+      const userObj = await User.findById(req.user.id).populate('departmentId').populate('designationId');
       if (userObj) {
-        userDeptId = userObj.departmentId;
+        userDeptName = String(userObj.departmentId?.name || userObj.department || '').toLowerCase().trim();
+        userDesigName = String(userObj.designationId?.name || userObj.designation || '').toLowerCase().trim();
       }
     } catch (err) {
       console.error("Failed to fetch user department fallback:", err);
     }
   }
 
-  userDeptId = String(userDeptId || '').trim();
+  const isAuthorized = 
+    userRole.includes('admin') ||
+    userRole.includes('hr') ||
+    userRole.includes('telecall') ||
+    userRole.includes('counsel') ||
+    userRole.includes('market') ||
+    userRole.includes('manager') ||
+    ['0', '1', '2', '3', '10'].includes(userRole) ||
+    userDeptName.includes('market') ||
+    userDeptName.includes('telecall') ||
+    userDeptName.includes('counsel') ||
+    userDeptName.includes('sales') ||
+    userDeptName.includes('growth') ||
+    userDeptName.includes('ops') ||
+    userDeptName.includes('hr') ||
+    userDeptName.includes('account') ||
+    userDeptName.includes('r&d') ||
+    userDeptName.includes('design') ||
+    userDeptName.includes('video') ||
+    userDesigName.includes('counsel') ||
+    userDesigName.includes('telecall') ||
+    userDesigName.includes('market');
 
-  const allowedDepartments = ['6a211b6621f80bb8da167efb', '6a26a7d72a56a1f9c49da8a3'];
-  const allowedRoles = ['3', '1', '2', 'hr', 'admin'];
-
-  const hasDeptAccess = allowedDepartments.includes(userDeptId);
-  const hasRoleAccess = allowedRoles.includes(userRoleId);
-
-  if (!hasDeptAccess && !hasRoleAccess) {
+  if (!isAuthorized) {
     return res.status(403).json({
       success: false,
       message: 'Access denied. Exclusive to marketing, telecallers, or authorized roles.'

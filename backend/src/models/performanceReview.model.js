@@ -54,6 +54,14 @@ const performanceReviewSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  adminRating: {
+    type: Number,
+    default: 5
+  },
+  adminRemark: {
+    type: String,
+    default: ''
+  },
   remarks: {
     type: String,
     default: ''

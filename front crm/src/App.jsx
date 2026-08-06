@@ -70,31 +70,6 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const RestrictedRoute = ({ children }) => {
-  try {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const userObj = JSON.parse(userStr);
-      const deptName = userObj.department || userObj.departmentId?.name || '';
-      const isNonOperational = String(deptName).toLowerCase().trim() === 'non-operational';
-      if (isNonOperational) {
-        return (
-          <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
-            <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/20 text-rose-500 rounded-2xl flex items-center justify-center mb-6">
-              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-            <h1 className="text-xl font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2">Access Denied</h1>
-            <p className="text-xs font-semibold text-slate-400 max-w-sm mb-6">
-              Your department does not have permission to view this section. Please contact your administrator.
-            </p>
-          </div>
-        );
-      }
-    }
-  } catch (e) {
-    console.error("Restricted route check failed:", e);
-  }
   return children;
 };
 

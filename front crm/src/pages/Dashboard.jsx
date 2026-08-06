@@ -1141,7 +1141,7 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
                 : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-350 dark:hover:border-slate-700"
             }`}
           >
-            Admin Dashboard
+            Overview
           </button>
 
           {/* MD-only tabs — only shown when accessed via MdDashboard */}
@@ -2012,7 +2012,7 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
         <div className="flex items-center gap-2">
           <Loader2 size={16} className="text-indigo-400 animate-spin" />
           <p className="text-[11px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest">
-            Loading Admin Dashboard
+            Loading Overview
           </p>
         </div>
       </motion.div>

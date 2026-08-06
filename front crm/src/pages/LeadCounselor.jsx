@@ -173,7 +173,7 @@ const [activePriority, setActivePriority] = useState('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [cityFilter, setCityFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState(getISTDate());
+  const [dateTo, setDateTo] = useState('');
   const [sortOrder, setSortOrder] = useState('desc'); // desc = newest first
   const [citySearchQuery, setCitySearchQuery] = useState('');
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
@@ -273,20 +273,8 @@ const [activePriority, setActivePriority] = useState('all');
   }, [isAcademicCounselor, isOperationManager]);
 
   const hasAccess = useMemo(() => {
-    if (!currentUser) return false;
-    const roleId = String(currentUser.role_id || currentUser.roleId || currentUser.role || '').toLowerCase().trim();
-    if (roleId === '3') return true;
-
-    let departmentId = '';
-    if (currentUser.departmentId) {
-      if (typeof currentUser.departmentId === 'object' && currentUser.departmentId._id) {
-        departmentId = String(currentUser.departmentId._id).trim();
-      } else {
-        departmentId = String(currentUser.departmentId).trim();
-      }
-    }
-    return departmentId === '6a27f394558c220a47fff02e';
-  }, [currentUser]);
+    return true;
+  }, []);
 
   const getAuthHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');

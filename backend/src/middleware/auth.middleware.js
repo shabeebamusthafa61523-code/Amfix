@@ -37,39 +37,54 @@ export const verifyToken = (req, res, next) => {
 export const requireRole = (allowedRoles = []) => {
   return (req, res, next) => {
     // Collect possible role identifiers from req.user
-    const roleId = String(req.user?.role_id || '');
-    const roleName = String(req.user?.role || '');
+    const roleId = String(req.user?.role_id || '').trim();
+    const roleName = String(req.user?.role || '').toLowerCase().trim();
+
+    const isSuperAdmin = 
+      req.user?.isSuperAdmin === true ||
+      req.user?.is_super_admin === true ||
+      roleId === '0' ||
+      roleName.includes('super');
+
+    if (isSuperAdmin) return next();
 
     // Map of roles for broad compatibility
-    // Allows admin access if allowedRoles contains 'admin' and user is admin/1/MD/COO/EXECUTIVE_DIRECTOR
     const isAllowed = allowedRoles.some(allowed => {
-      const target = allowed.toLowerCase();
+      const target = allowed.toLowerCase().trim();
       
       // Admin checks
       if (target === 'admin') {
         return (
-          roleName.toLowerCase() === 'admin' ||
+          roleName === 'admin' ||
           roleId === '1' ||
           roleId === '10' ||
           roleName === '10' ||
           roleName.toUpperCase() === 'MD' ||
-          roleName.toUpperCase() === 'COO' ||
-          roleName.toUpperCase() === 'EXECUTIVE_DIRECTOR'
+          roleName.toUpperCase() === 'COO'
         );
       }
       
-      // Manager checks
-      if (target === 'manager') {
+      // Employee checks
+      if (target === 'employee') {
         return (
-          roleName.toLowerCase() === 'manager' ||
-          roleId === '2' ||
-          roleName.toUpperCase() === 'DEPARTMENT_MANAGER'
+          roleName === 'employee' ||
+          roleName === 'staff' ||
+          roleId === '3' ||
+          roleId === '2'
+        );
+      }
+
+      // Student checks
+      if (target === 'student') {
+        return (
+          roleName === 'student' ||
+          roleId === '4'
         );
       }
 
       // Exact checks (e.g. custom role strings or IDs)
       return (
-        roleName.toLowerCase() === target ||
+        roleName === target ||
         roleId === target
       );
     });
@@ -91,6 +106,15 @@ export const restrictToRoles = (allowedRoles = []) => {
     const userRole = String(req.user?.role || '').toLowerCase().trim();
     const userRoleId = String(req.user?.role_id || '').trim();
 
+    const isSuperAdmin = 
+      req.user?.isSuperAdmin === true ||
+      req.user?.is_super_admin === true ||
+      userRoleId === '0' ||
+      userRole === 'superadmin' ||
+      userRole === 'super_admin';
+
+    if (isSuperAdmin) return next();
+
     const isAllowed = allowedRoles.some(role => {
       const target = role.toLowerCase().trim();
       return userRole === target || userRoleId === target;
@@ -109,9 +133,10 @@ export const restrictToRoles = (allowedRoles = []) => {
 
 export const restrictToDepartment = (departmentId) => {
   return async (req, res, next) => {
-    // Administrative roles (1, 2, hr, admin) can bypass department checks
+    // Administrative roles (0, 1, 2, hr, admin, superadmin) can bypass department checks
     const role = String(req.user?.role || req.user?.role_id || '').toLowerCase().trim();
-    const isPrivileged = ['1', '2', 'hr', 'admin'].includes(role);
+    const isSuperAdmin = req.user?.isSuperAdmin === true || req.user?.is_super_admin === true || role === '0' || role === 'superadmin';
+    const isPrivileged = isSuperAdmin || ['1', '2', 'hr', 'admin'].includes(role);
     if (isPrivileged) {
       return next();
     }

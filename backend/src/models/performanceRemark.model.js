@@ -18,7 +18,7 @@ const performanceRemarkSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['HR', 'TEAM_LEAD'],
+    enum: ['HR', 'TEAM_LEAD', 'ADMIN'],
     required: true
   },
   status: {
@@ -26,6 +26,9 @@ const performanceRemarkSchema = new mongoose.Schema({
     enum: ['draft', 'submitted'],
     default: 'draft'
   },
+  // Performance Status Field
+  performanceStatus: { type: String, default: '' },
+
   // HR Specific Fields
   performanceRemark: { type: String, default: '' },
   strengths: { type: String, default: '' },

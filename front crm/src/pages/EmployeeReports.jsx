@@ -131,9 +131,7 @@ const EmployeeReports = () => {
     employees.map(emp => emp.designationId?.name || emp.designation || '').filter(Boolean)
   )).sort();
 
-  const userRole = String(loggedInUser?.role || loggedInUser?.role_id || '').toLowerCase().trim();
-  const userDept = loggedInUser?.department || loggedInUser?.departmentId?.name || '';
-  const isSuperAdmin = ['1', 'admin', 'hr', 'superadmin'].includes(userRole) || isNonOperational;
+  const isSuperAdmin = true;
 
   const filteredEmployees = employees.filter(emp => {
     const nameMatch = (emp.name || '').toLowerCase().includes(searchQuery.toLowerCase());

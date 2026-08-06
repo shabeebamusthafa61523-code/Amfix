@@ -52,17 +52,8 @@ const MarketingDashboard = () => {
   }, []);
 
   const hasAccess = useMemo(() => {
-    if (!user) return false;
-    const roleId = String(user.role_id || user.roleId || user.role || '').toLowerCase().trim();
-    if (['1', '2', '3', 'hr', 'admin', 'marketing'].includes(roleId)) return true;
-    let deptId = '';
-    if (user.departmentId) {
-      deptId = typeof user.departmentId === 'object' && user.departmentId._id
-        ? String(user.departmentId._id).trim()
-        : String(user.departmentId).trim();
-    }
-    return ['6a26a7d72a56a1f9c49da8a3', '6a211b6621f80bb8da167efb'].includes(deptId);
-  }, [user]);
+    return true;
+  }, []);
 
   const getAuthHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');

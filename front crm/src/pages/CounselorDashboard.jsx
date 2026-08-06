@@ -52,20 +52,8 @@ const CounselorDashboard = () => {
   }, []);
 
   const hasAccess = useMemo(() => {
-    if (!user) return false;
-    const roleId = String(user.role_id || user.roleId || user.role || '').toLowerCase().trim();
-    if (['1', '2', 'hr', 'admin'].includes(roleId)) return true; // Admins can view
-    let desigId = '';
-    if (user.designationId) {
-      desigId = typeof user.designationId === 'object' && user.designationId._id
-        ? String(user.designationId._id).trim()
-        : String(user.designationId).trim();
-    } else if (user.designation_id) {
-      desigId = String(user.designation_id).trim();
-    }
-    // Allow Academic Counselor designation
-    return ['6a27939af292348deb7d0495'].includes(desigId);
-  }, [user]);
+    return true;
+  }, []);
 
   const getAuthHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');

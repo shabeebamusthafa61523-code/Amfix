@@ -26,7 +26,6 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Client Leads', path: '/client-leads', category: 'Leads' },
   { label: 'Telecaller Leads', path: '/leads-telecaller', category: 'Leads' },
   { label: 'Users', path: '/users', category: 'Management' },
-  { label: 'Sidebar Permissions', path: '/users', category: 'Management' },
   { label: 'Departments', path: '/departments', category: 'Management' },
   { label: 'Task Assign', path: '/todo', category: 'Operations' },
   { label: 'KPI Analytics', path: '/performance-dashboard', category: 'Analytics' },
@@ -339,6 +338,10 @@ const Users = () => {
       const res = await fetch(`${API_BASE}/v1/users?roles=1,2,3`, {
         headers: getAuthHeaders()
       });
+      if (!res.ok) {
+        setUsers([]);
+        return;
+      }
       const data = await res.json();
       
       let incomingUsers = [];
@@ -368,6 +371,10 @@ const Users = () => {
       const res = await fetch(`${API_BASE}/v1/designations`, {
         headers: getAuthHeaders()
       });
+      if (!res.ok) {
+        setDesignations([]);
+        return;
+      }
       const data = await res.json();
       setDesignations(Array.isArray(data.data) ? data.data : []);
     } catch (e) {
@@ -381,6 +388,10 @@ const Users = () => {
       const res = await fetch(`${API_BASE}/v1/departments?status=true`, {
         headers: getAuthHeaders()
       });
+      if (!res.ok) {
+        setDepartments([]);
+        return;
+      }
       const data = await res.json();
       setDepartments(Array.isArray(data.data) ? data.data : []);
     } catch (e) {

@@ -22,17 +22,17 @@ export const getReportByDate = async (req, res, next) => {
     const isPrivileged = ['1', '2', 'hr', 'admin'].includes(currentUserRole);
 
     // Fetch current user from DB to check designation
-    let userDesignationId = '';
+    let desigName = '';
     try {
-      const userObj = await User.findById(currentUserId);
+      const userObj = await User.findById(currentUserId).populate('designationId');
       if (userObj) {
-        userDesignationId = String(userObj.designationId || userObj.designation_id || '');
+        desigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
       }
     } catch (err) {
       console.error('Failed to fetch current user designation:', err);
     }
 
-    const isCounselor = userDesignationId === '6a27939af292348deb7d0495';
+    const isCounselor = desigName.includes('counselor') || desigName.includes('academic');
 
     // If userId is provided, verify permissions
     if (targetUserId) {

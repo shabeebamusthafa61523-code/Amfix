@@ -43,7 +43,7 @@ const menuItems = [
     icon: BarChart3,
     label: 'Lead Dashboard',
     path: '/lead-dashboard',
-    // allowedRoles: ['1', '2', '3', 'hr', 'admin'],
+    allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'],
     allowedDepartments: ['6a26a7d72a56a1f9c49da8a3', '6a27f394558c220a47fff02e', '6a2f91472df21dc234018cab'],
     allowedDesignations: ['6a27939af292348deb7d0495']
   },
@@ -51,7 +51,7 @@ const menuItems = [
     icon: BarChart3,
     label: 'Marketing Dashboard',
     path: '/marketing-dashboard',
-    // allowedRoles: ['1', '2', '3', 'hr', 'admin', 'marketing'],
+    allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'marketing', 'manager', 'team_lead', 'teamlead', 'tl'],
     allowedDepartments: [ '6a211b6621f80bb8da167efb']
   },
   
@@ -90,13 +90,13 @@ const menuItems = [
     allowedRoles: ['0', 'superadmin', '1', '2', 'admin'],
     allowedDepartments: ['6a3caed51194353cbc8a3686']
   },
-  // { 
-  //   icon: TrendingUp, 
-  //   label: 'Leads Directory', 
-  //   path: '/leads',
-  //   allowedDepartments: ['6a211b6621f80bb8da167efb'],
-  //   // allowedRoles: ['1', '2', 'hr', 'admin'],
-  // },
+  { 
+    icon: TrendingUp, 
+    label: 'Leads Directory', 
+    path: '/leads',
+    allowedDepartments: ['6a211b6621f80bb8da167efb'],
+    allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'],
+  },
   { 
     icon: TrendingUp, 
     label: 'Telecaller Leads', 
@@ -105,62 +105,55 @@ const menuItems = [
     allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'],
     allowedDepartments: ['6a3caed51194353cbc8a3686']
   },
-  // { 
-  //   icon: TrendingUp, 
-  //   label: 'Lead Counselor', 
-  //   path: '/lead-counselor',
-  //   allowedDesignations: ['6a2f91472df21dc234018cab'],
-  //   // allowedRoles: ['1', '2', '3', 'hr', 'admin', 'superadmin']
-  // },
+  { 
+    icon: TrendingUp, 
+    label: 'Lead Counselor', 
+    path: '/lead-counselor',
+    allowedDesignations: ['6a2f91472df21dc234018cab'],
+    allowedRoles: ['1', '2', '3', 'hr', 'admin', 'superadmin']
+  },
   {
     icon: BarChart3,
     label: 'Dev Dashboard',
     path: '/developer-dashboard',
     allowedDepartments: ['6a1d5d3ea35c97490f38b383'],
-    // allowedRoles: ['1', '2', 'hr', 'admin']
   },
   {
     icon: BarChart3,
     label: 'GD Dashboard',
     path: '/graphic-designer-dashboard',
     allowedDesignations: ['6a1e8e6e01a0dae8b2f3b18d'],
-    // allowedRoles: ['1', '2', 'hr', 'admin']
   },
   {
     icon: FileText,
     label: 'Developer Report',
     path: '/developer-report',
     allowedDesignations: ['6a1e8e2d01a0dae8b2f3b18c'],
-    // allowedRoles: ['1', '2', 'hr', 'admin']
   },
   {
     icon: FileText,
     label: 'HOD R&D Report',
     path: '/hod-rd-report',
     allowedDesignations: ['6a2f9e086f1c41b0c80a9e21'],
-    // allowedRoles: ['1', '2', 'hr', 'admin']
   },
   {
     icon: FileText,
     label: 'Graphic Designer Report',
     path: '/graphic-designer-report',
     allowedDesignations: ['6a1e8e6e01a0dae8b2f3b18d'],
-    // allowedRoles: ['1', '2', 'hr', 'admin']
   },
   {
     icon: FileText,
     label: 'Academic Counselor Report',
     path: '/academic-counselor-report',
     allowedDesignations: ['6a27939af292348deb7d0495'],
-    // allowedRoles: ['1', '2', 'hr', 'admin']
   },
-  // {
-  //   icon: BarChart3,
-  //   label: 'Counselor Dashboard',
-  //   path: '/counselor-dashboard',
-  //   allowedDesignations: ['6a27939af292348deb7d0495'],
-  //   // allowedRoles: ['1', '2', 'hr', 'admin']
-  // },
+  {
+    icon: BarChart3,
+    label: 'Counselor Dashboard',
+    path: '/counselor-dashboard',
+    allowedDesignations: ['6a27939af292348deb7d0495'],
+  },
   {
     icon: LayoutDashboard,
     label: 'Video Dashboard',
@@ -267,9 +260,17 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
 
       const userObj = JSON.parse(savedUser);
       const currentUserRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
-      const isSuperAdminUser = currentUserRole === 'superadmin' || currentUserRole === '0' || userObj.isSuperAdmin === true;
+      const isSuperAdminUser = 
+        userObj.isSuperAdmin === true ||
+        userObj.is_super_admin === true ||
+        currentUserRole === 'superadmin' || 
+        currentUserRole === 'super_admin' || 
+        currentUserRole === 'super admin' || 
+        currentUserRole === '0' || 
+        String(userObj.role || '').toLowerCase() === 'superadmin' ||
+        String(userObj.role || '').toLowerCase() === '0';
 
-      // 1. Super Admin access: Full access to all sidebar items
+      // 1. Super Admin access: Full access to all sidebar items for Super Admin
       if (isSuperAdminUser) {
         return menuItems.filter(item => !item.isCommonDashboardFallback && !item.isBasicReportFallback);
       }
@@ -340,8 +341,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         if (item.isCommonDashboardFallback || item.isBasicReportFallback) {
           return false;
         }
-        if (item.label === 'Clients' || item.label === 'Projects' || item.label === 'Client Leads' || item.label === 'KPI Analytics') {
-          const isAdminHrOrTeamLead = ['1', '2', '10', 'admin', 'hr', 'superadmin', 'team_lead', 'teamlead', 'manager', 'tl'].includes(currentUserRole) || !!userObj.isTeamLead;
+        if (item.label === 'Clients' || item.label === 'Projects' || item.label === 'Client Leads' || item.label === 'KPI Analytics' || item.label === 'Lead Dashboard' || item.label === 'Marketing Dashboard') {
+          const isAdminHrOrTeamLead = ['1', '2', '3', '10', 'admin', 'hr', 'superadmin', 'team_lead', 'teamlead', 'manager', 'tl', 'marketing'].includes(currentUserRole) || !!userObj.isTeamLead;
           return isAdminHrOrTeamLead;
         }
         if (!item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations) return true;

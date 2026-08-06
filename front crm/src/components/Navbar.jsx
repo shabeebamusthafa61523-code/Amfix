@@ -108,6 +108,7 @@ const Navbar = ({ isSidebarCollapsed, toggleMobileSidebar }) => {
       const res = await fetch(`${API_BASE}/v1/notifications/my-notifications`, {
         headers: getAuthHeaders()
       });
+      if (!res.ok) return;
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setNotifications(data.data);

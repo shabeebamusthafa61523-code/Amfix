@@ -8,6 +8,7 @@
     "start": "node server.js",
     "safe": "node start.js",
     "dev": "nodemon --exec \"node start.js\"",
+    "seed": "node src/seeds/seedInitialData.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "node prisma/seeds/seed.js",
