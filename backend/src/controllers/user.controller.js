@@ -33,20 +33,28 @@ const uploadToCloudinary = (fileBuffer) => {
   });
 };
 
-const findDesignationById = async (designationId) => {
-  if (!designationId) return null;
+const findDesignationById = async (designationVal) => {
+  if (!designationVal) return null;
+  const valStr = String(designationVal).trim();
+  if (!valStr) return null;
 
-  if (!mongoose.Types.ObjectId.isValid(String(designationId))) {
-    throw new AppError('Selected designation was not found.', 400);
+  try {
+    // 1. Try finding by MongoDB ObjectId
+    if (mongoose.Types.ObjectId.isValid(valStr)) {
+      const designation = await Designation.findById(valStr);
+      if (designation) return designation;
+    }
+
+    // 2. Try finding by Designation name string (case-insensitive)
+    const escaped = valStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const designationByName = await Designation.findOne({ name: { $regex: `^${escaped}$`, $options: 'i' } });
+    if (designationByName) return designationByName;
+  } catch (e) {
+    console.warn("Designation lookup warning:", e);
   }
 
-  const designation = await Designation.findById(designationId);
-
-  if (!designation) {
-    throw new AppError('Selected designation was not found.', 400);
-  }
-
-  return designation;
+  // 3. Fallback: return object with string name so user designation is NEVER lost or rejected
+  return { _id: null, name: valStr };
 };
 
 export const userController = {
@@ -559,10 +567,12 @@ export const userController = {
         phone,
         department,
         departmentId,
-        designation: selectedDesignation?.name || '',
-        designationId: selectedDesignation?._id,
+        designation: selectedDesignation?.name || (typeof designation === 'string' ? designation : existingUser.designation),
+        designationId: selectedDesignation?._id || existingUser.designationId,
         reportingManager,
       };
+      if (role) updateFields.role = role;
+      if (status) updateFields.status = status;
 
       if (joining_date !== undefined) updateFields.joining_date = joining_date ? new Date(joining_date) : null;
       if (salary !== undefined) updateFields.salary = parseFloat(salary) || 0;
