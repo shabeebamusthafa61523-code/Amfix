@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', allowedRoles: ['1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartments: ['6a55c7e8b613a280003481d8', '6a3caed51194353cbc8a3686'] },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', allowedRoles: ['1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartments: ['6a55c7e8b613a280003481d8', '6a3caed51194353cbc8a3686'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
    {
     icon: LayoutDashboard,
     label: 'HR Dashboard',
@@ -87,8 +87,8 @@ const menuItems = [
     icon: ShieldCheck, 
     label: 'Sidebar Permissions', 
     path: '/sidebar-permissions', 
-    allowedRoles: ['0', 'superadmin', '1', '2', 'admin'],
-    allowedDepartments: ['6a3caed51194353cbc8a3686']
+    allowedRoles: ['0', 'superadmin'],
+    allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin']
   },
   { 
     icon: TrendingUp, 
@@ -278,9 +278,35 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       // 2. Custom Sidebar Permissions set by Super Admin for this user
       if (Array.isArray(userObj.permissions) && userObj.permissions.length > 0) {
         const allowedSet = userObj.permissions.map(p => String(p).toLowerCase().trim());
+        
+        // Map extra permission labels to sidebar paths
+        const extraPathMappings = {
+          'admin dashboard': '/dashboard',
+          'md dashboard': '/md-dashboard',
+        };
+        const extraAllowedPaths = [];
+        for (const perm of allowedSet) {
+          if (extraPathMappings[perm]) {
+            extraAllowedPaths.push(extraPathMappings[perm].toLowerCase());
+          }
+        }
+        
         let customVisible = menuItems.filter(item => {
-          return allowedSet.includes(item.label.toLowerCase().trim()) || allowedSet.includes(item.path.toLowerCase().trim());
+          return allowedSet.includes(item.label.toLowerCase().trim()) || 
+                 allowedSet.includes(item.path.toLowerCase().trim()) ||
+                 extraAllowedPaths.includes(item.path.toLowerCase().trim());
         });
+
+        // If MD Dashboard permission is granted, override Dashboard path to /md-dashboard
+        if (allowedSet.includes('md dashboard') && !allowedSet.includes('dashboard') && !allowedSet.includes('admin dashboard')) {
+          customVisible = customVisible.map(item => {
+            if (item.label === 'Dashboard' && item.path === '/dashboard') {
+              return { ...item, path: '/md-dashboard' };
+            }
+            return item;
+          });
+        }
+
         if (customVisible.length > 0) {
           // Fallback dashboard: if user has no dashboard in custom permissions
           const hasDashboard = customVisible.some(item => item.label.toLowerCase().includes('dashboard'));
@@ -345,15 +371,22 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           const isAdminHrOrTeamLead = ['1', '2', '3', '10', 'admin', 'hr', 'superadmin', 'team_lead', 'teamlead', 'manager', 'tl', 'marketing'].includes(currentUserRole) || !!userObj.isTeamLead;
           return isAdminHrOrTeamLead;
         }
-        if (!item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations) return true;
+        if (!item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations && !item.allowedDepartmentNames) return true;
         const roleMatch = item.allowedRoles && item.allowedRoles.includes(currentUserRole);
         const deptMatch = item.allowedDepartments && item.allowedDepartments.includes(currentUserDept);
         const designationMatch = item.allowedDesignations && item.allowedDesignations.includes(currentUserDesignation);
+        
+        // Name-based department matching (works across environments)
+        const currentDeptName = String(deptName).toLowerCase().trim();
+        const deptNameMatch = item.allowedDepartmentNames && item.allowedDepartmentNames.some(name => 
+          currentDeptName.includes(name) || name.includes(currentDeptName)
+        );
         
         const matches = [];
         if (item.allowedRoles) matches.push(roleMatch);
         if (item.allowedDepartments) matches.push(deptMatch);
         if (item.allowedDesignations) matches.push(designationMatch);
+        if (item.allowedDepartmentNames) matches.push(deptNameMatch);
         
         return matches.some(m => m === true);
       });

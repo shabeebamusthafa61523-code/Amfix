@@ -10,7 +10,9 @@ import { useToast } from '../components/ToastProvider';
 const API_BASE = import.meta.env.VITE_API_URL;
 
 const ALL_SIDEBAR_ITEMS = [
-  { label: 'Dashboard', path: '/dashboard', category: 'General', desc: 'Main CRM overview & key metrics' },
+  { label: 'Dashboard', path: '/dashboard', category: 'Dashboards', desc: 'Main CRM overview & key metrics' },
+  { label: 'Admin Dashboard', path: '/dashboard', category: 'Dashboards', desc: 'Admin panel with full CRM overview & controls' },
+  { label: 'MD Dashboard', path: '/md-dashboard', category: 'Dashboards', desc: 'Managing Director executive overview & analytics' },
   { label: 'Clients', path: '/clients', category: 'Management', desc: 'Client directory & profiles' },
   { label: 'Projects', path: '/projects', category: 'Management', desc: 'Project tracking & progress' },
   { label: 'Client Leads', path: '/client-leads', category: 'Leads', desc: 'Client lead pipeline' },
