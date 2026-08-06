@@ -39,9 +39,10 @@ export const verifyToken = (req, res, next) => {
  */
 export const requireRole = (allowedRoles = []) => {
   return async (req, res, next) => {
-    // Collect possible role identifiers from req.user
-    const roleId = String(req.user?.role_id || '').trim();
+    // Collect possible role identifiers and user ID from req.user
+    const roleId = String(req.user?.role_id || req.user?.roleId || '').trim();
     const roleName = String(req.user?.role || '').toLowerCase().trim();
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
 
     let isSuperAdmin = 
       req.user?.isSuperAdmin === true ||
@@ -49,12 +50,19 @@ export const requireRole = (allowedRoles = []) => {
       roleId === '0' ||
       roleName.includes('super');
 
-    if (!isSuperAdmin && req.user?.id) {
+    if (!isSuperAdmin && userId) {
       try {
         const User = (await import('../models/user.model.js')).default;
-        const userObj = await User.findById(req.user.id);
-        if (userObj && (userObj.isSuperAdmin === true || String(userObj.role).toLowerCase() === 'superadmin' || String(userObj.role_id) === '0')) {
+        const userObj = await User.findById(userId);
+        if (userObj && (
+          userObj.isSuperAdmin === true || 
+          userObj.is_super_admin === true ||
+          String(userObj.role).toLowerCase().includes('super') || 
+          String(userObj.role_id) === '0' ||
+          String(userObj.roleId) === '0'
+        )) {
           isSuperAdmin = true;
+          req.user.isSuperAdmin = true;
         }
       } catch (err) {}
     }
