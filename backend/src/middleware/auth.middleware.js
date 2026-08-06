@@ -220,7 +220,12 @@ const protectRoute = async (req, res, next) => {
     const secret = process.env.JWT_SECRET || 'fallback_secret_key';
     const decoded = jwt.verify(token, secret);
 
-    req.user = decoded;
+    req.user = decoded || {};
+    const rId = String(req.user.role_id || req.user.roleId || '').trim();
+    const rName = String(req.user.role || '').toLowerCase().trim();
+    if (req.user.isSuperAdmin === true || req.user.is_super_admin === true || rId === '0' || rName.includes('super')) {
+      req.user.isSuperAdmin = true;
+    }
 
     // --- Inactivity sliding session check (30 mins = 1800 seconds) ---
     try {
