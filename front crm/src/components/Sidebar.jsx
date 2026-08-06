@@ -86,7 +86,7 @@ const menuItems = [
   { 
     icon: ShieldCheck, 
     label: 'Sidebar Permissions', 
-    path: '/users', 
+    path: '/sidebar-permissions', 
     allowedRoles: ['0', 'superadmin', '1', '2', 'admin'],
     allowedDepartments: ['6a3caed51194353cbc8a3686']
   },
