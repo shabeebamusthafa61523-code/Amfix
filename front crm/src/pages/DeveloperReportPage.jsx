@@ -384,9 +384,8 @@ const DeveloperReportPage = () => {
         const privileged = ['1', '2', 'hr', 'admin'].includes(role);
         setIsPrivileged(privileged);
         
-        // If not privileged, they can only view/create their own reports
-        if (!privileged) {
-          const uId = userObj.id || userObj._id;
+        const uId = userObj.id || userObj._id;
+        if (!selectedUserId && uId) {
           setSelectedUserId(uId);
         }
       }

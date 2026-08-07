@@ -10,8 +10,11 @@ import ConfirmModal from '../components/ConfirmModal';
 import ClientViewSwitcher from '../components/clients/ClientViewSwitcher';
 import ClientGridView from '../components/clients/ClientGridView';
 import ClientTableView from '../components/clients/ClientTableView';
+import { useToast } from '../components/ToastProvider';
+import { formatApiError } from '../utils/errorUtils';
 
 const ClientsPage = () => {
+  const { showToast } = useToast();
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({});
@@ -66,9 +69,12 @@ const ClientsPage = () => {
         setClients(res.data.clients || []);
         setPagination(res.data.pagination || { total: 0, pages: 1 });
         setStats(res.data.stats || {});
+      } else {
+        showToast(formatApiError(res, "Failed to load clients list"), "error");
       }
     } catch (err) {
       console.error("Failed to fetch clients list:", err);
+      showToast(formatApiError(err, "Server error fetching clients list"), "error");
     } finally {
       setLoading(false);
     }
@@ -94,11 +100,15 @@ const ClientsPage = () => {
     try {
       const res = await deleteClient(clientToDelete);
       if (res && res.success) {
+        showToast("Client deleted successfully", "success");
         setClients(prev => prev.filter(c => (c._id || c.id) !== clientToDelete));
         fetchClientsList();
+      } else {
+        showToast(formatApiError(res, "Failed to delete client"), "error");
       }
     } catch (err) {
       console.error("Failed to delete client:", err);
+      showToast(formatApiError(err, "Server error deleting client"), "error");
     } finally {
       setDeleteModalOpen(false);
       setClientToDelete(null);

@@ -10,6 +10,7 @@ import {
   LayoutList, LayoutGrid
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
+import { formatApiError } from '../utils/errorUtils';
 import ConfirmModal from '../components/ConfirmModal';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -451,11 +452,11 @@ export default function ClientLeads() {
         resetFormData();
         fetchLeads();
       } else {
-        showToast(data.message || "Failed to create client lead", "error");
+        showToast(formatApiError(data, "Failed to create client lead"), "error");
       }
     } catch (e) {
       console.error(e);
-      showToast("Server error during client lead creation", "error");
+      showToast(formatApiError(e, "Server error during client lead creation"), "error");
     }
   };
 
@@ -474,11 +475,11 @@ export default function ClientLeads() {
         setIsEditOpen(false);
         fetchLeads();
       } else {
-        showToast(data.message || "Failed to update client lead", "error");
+        showToast(formatApiError(data, "Failed to update client lead"), "error");
       }
     } catch (e) {
       console.error(e);
-      showToast("Server error during lead update", "error");
+      showToast(formatApiError(e, "Server error during lead update"), "error");
     }
   };
 
@@ -502,12 +503,12 @@ export default function ClientLeads() {
         showToast(`Client lead ${field} updated!`, "success");
         setLeads(prev => prev.map(l => ((l.id === leadId || l._id === leadId) ? data.data : l)));
       } else {
-        showToast(data.message || "Update failed", "error");
+        showToast(formatApiError(data, "Update failed"), "error");
         fetchLeads();
       }
     } catch (e) {
       console.error(e);
-      showToast("Server error during update", "error");
+      showToast(formatApiError(e, "Server error during update"), "error");
       fetchLeads();
     }
   };
@@ -533,11 +534,11 @@ export default function ClientLeads() {
         setIsFollowUpOpen(false);
         fetchLeads();
       } else {
-        showToast(data.message || "Failed to add follow-up", "error");
+        showToast(formatApiError(data, "Failed to add follow-up"), "error");
       }
     } catch (e) {
       console.error(e);
-      showToast("Failed to add follow-up", "error");
+      showToast(formatApiError(e, "Failed to add follow-up"), "error");
     }
   };
 
@@ -554,11 +555,11 @@ export default function ClientLeads() {
         setDeleteConfirm({ isOpen: false, id: null, name: '' });
         fetchLeads();
       } else {
-        showToast(data.message || "Failed to delete lead", "error");
+        showToast(formatApiError(data, "Failed to delete lead"), "error");
       }
     } catch (e) {
       console.error(e);
-      showToast("Error deleting lead", "error");
+      showToast(formatApiError(e, "Error deleting lead"), "error");
     }
   };
 

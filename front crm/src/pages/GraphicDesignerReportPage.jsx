@@ -212,8 +212,8 @@ const GraphicDesignerReportPage = () => {
         const privileged = ['1', '2', 'hr', 'admin'].includes(role);
         setIsPrivileged(privileged);
         
-        if (!privileged) {
-          const uId = userObj.id || userObj._id;
+        const uId = userObj.id || userObj._id;
+        if (!selectedUserId && uId) {
           setSelectedUserId(uId);
         }
       }
