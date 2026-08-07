@@ -102,11 +102,10 @@ const Login = () => {
 
         const isMd = currentUserDesignation.includes('md') || 
                      currentUserDesignation.includes('managing director') || 
-                     currentUserDesignationId === '6a7187de0bdbef63c8658832' || 
                      ['md', 'coo', 'executive_director'].includes(currentUserRole);
 
         const isAdmin = ['1', '2', 'admin'].includes(currentUserRole) || currentUserDesignation.includes('admin');
-        const isHr = currentUserRole === 'hr' || currentUserDesignation.includes('hr') || currentUserDesignationId === '6a2f8efea2fe388770a38987';
+        const isHr = currentUserRole === 'hr' || currentUserDesignation.includes('hr');
 
         if (isMd) {
           navigate('/md-dashboard');

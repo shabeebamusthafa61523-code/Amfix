@@ -140,7 +140,6 @@ export const getHodsList = async (req, res, next) => {
     const Designation = (await import('../models/designation.model.js')).default;
     const hodDesigs = await Designation.find({ name: /hod|r&d|research/i }).select('_id');
     const hodDesigIds = hodDesigs.map(d => d._id);
-    hodDesigIds.push('6a2f9e086f1c41b0c80a9e21');
 
     const hods = await User.find({
       $or: [

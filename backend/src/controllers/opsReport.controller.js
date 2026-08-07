@@ -142,7 +142,6 @@ export const getOpsStaffList = async (req, res, next) => {
     const Designation = (await import('../models/designation.model.js')).default;
     const opsDesigs = await Designation.find({ name: /ops|operation|sales|growth|counselor|telecaller/i }).select('_id');
     const opsDesigIds = opsDesigs.map(d => d._id);
-    opsDesigIds.push('6a2f91472df21dc234018cab');
 
     const opsStaff = await User.find({
       $or: [

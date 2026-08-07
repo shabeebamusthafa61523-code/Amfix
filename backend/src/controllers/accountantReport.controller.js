@@ -144,7 +144,6 @@ export const getAccountantStaffList = async (req, res, next) => {
     const Designation = (await import('../models/designation.model.js')).default;
     const accDesigs = await Designation.find({ name: /accountant|accounts|finance/i }).select('_id');
     const accDesigIds = accDesigs.map(d => d._id);
-    accDesigIds.push('6a2f915e2df21dc234018cac');
 
     const staff = await User.find({
       $or: [

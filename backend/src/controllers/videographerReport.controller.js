@@ -33,7 +33,7 @@ export const getReportByDate = async (req, res, next) => {
       console.error('Failed to fetch current user designation:', err);
     }
 
-    const isVideographer = userDesignationId === '6a2f912c2df21dc234018caa' || desigName.includes('video') || desigName.includes('editor');
+    const isVideographer = desigName.includes('video') || desigName.includes('editor');
 
     // If userId is provided, verify permissions
     if (targetUserId) {
@@ -101,7 +101,7 @@ export const saveReport = async (req, res, next) => {
       console.error('Failed to fetch current user designation:', err);
     }
 
-    const isVideographer = userDesignationId === '6a2f912c2df21dc234018caa' || desigName.includes('video') || desigName.includes('editor');
+    const isVideographer = desigName.includes('video') || desigName.includes('editor');
 
     // If targetUserId is provided, check if client has rights to save on behalf of that user
     if (targetUserId) {
@@ -152,7 +152,6 @@ export const getVideographersList = async (req, res, next) => {
     const Designation = (await import('../models/designation.model.js')).default;
     const vgDesigs = await Designation.find({ name: /video|editor|media/i }).select('_id');
     const vgDesigIds = vgDesigs.map(d => d._id);
-    vgDesigIds.push('6a2f912c2df21dc234018caa');
 
     const videographers = await User.find({
       $or: [

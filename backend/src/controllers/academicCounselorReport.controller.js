@@ -103,7 +103,7 @@ export const saveReport = async (req, res, next) => {
       console.error('Failed to fetch current user designation:', err);
     }
 
-    const isCounselor = userDesignationId === '6a27939af292348deb7d0495' || desigName.includes('counselor') || desigName.includes('academic') || desigName.includes('tele');
+    const isCounselor = desigName.includes('counselor') || desigName.includes('academic') || desigName.includes('tele');
 
     // If targetUserId is provided, check if client has rights to save on behalf of that user
     if (targetUserId) {
@@ -156,7 +156,6 @@ export const getCounselorsList = async (req, res, next) => {
     const Designation = (await import('../models/designation.model.js')).default;
     const acDesigs = await Designation.find({ name: /counselor|academic|tele/i }).select('_id');
     const acDesigIds = acDesigs.map(d => d._id);
-    acDesigIds.push('6a27939af292348deb7d0495');
 
     const counselors = await User.find({
       $or: [
@@ -244,7 +243,7 @@ export const getReportsByRange = async (req, res, next) => {
       }
     } catch (err) {}
 
-    const isCounselor = userDesignationId === '6a27939af292348deb7d0495' || desigName.includes('counselor') || desigName.includes('academic') || desigName.includes('tele');
+    const isCounselor = desigName.includes('counselor') || desigName.includes('academic') || desigName.includes('tele');
 
     if (targetUserId) {
       if (targetUserId !== String(currentUserId) && !isPrivileged && !isCounselor) {

@@ -144,7 +144,6 @@ export const getHrStaffList = async (req, res, next) => {
     const Designation = (await import('../models/designation.model.js')).default;
     const hrDesigs = await Designation.find({ name: /hr|admin|recruiter/i }).select('_id');
     const hrDesigIds = hrDesigs.map(d => d._id);
-    hrDesigIds.push('6a2f8efea2fe388770a38987');
 
     const hrStaff = await User.find({
       $or: [

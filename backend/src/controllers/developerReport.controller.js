@@ -141,7 +141,6 @@ export const getDevelopersList = async (req, res, next) => {
     const Designation = (await import('../models/designation.model.js')).default;
     const devDesigs = await Designation.find({ name: /developer/i }).select('_id');
     const devDesigIds = devDesigs.map(d => d._id);
-    devDesigIds.push('6a1e8e2d01a0dae8b2f3b18c');
 
     const developers = await User.find({
       $or: [

@@ -136,7 +136,6 @@ export const getMarketingStaffList = async (req, res, next) => {
     const Designation = (await import('../models/designation.model.js')).default;
     const mktDesigs = await Designation.find({ name: /marketing|marketer|cmo|digital/i }).select('_id');
     const mktDesigIds = mktDesigs.map(d => d._id);
-    mktDesigIds.push('6a2f909d2df21dc234018ca8');
 
     const staff = await User.find({
       $or: [

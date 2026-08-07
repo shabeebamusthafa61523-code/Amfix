@@ -263,7 +263,6 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
 
       const isMd = currentUserDesignation.includes('md') || 
                    currentUserDesignation.includes('managing director') || 
-                   currentUserDesignationId === '6a7187de0bdbef63c8658832' || 
                    ['md', 'coo', 'executive_director'].includes(currentUserRole);
 
       if (isMd && !isEmbedded) {
@@ -273,27 +272,18 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
 
       // Check if user is HR -> redirect to HR Dashboard
       const isHr = currentUserRole === 'hr' || 
-                   currentUserDesignation.includes('hr') || 
-                   currentUserDesignationId === '6a2f8efea2fe388770a38987';
+                   currentUserDesignation.includes('hr');
 
       if (isHr && !isEmbedded) {
         navigate('/hr-dashboard', { replace: true });
         return;
       }
 
-      // Check if user has administrative/privileged role
-      let currentUserDept = '';
-      if (parsedUser.departmentId) {
-        if (typeof parsedUser.departmentId === 'object' && parsedUser.departmentId._id) {
-          currentUserDept = String(parsedUser.departmentId._id).trim();
-        } else {
-          currentUserDept = String(parsedUser.departmentId).trim();
-        }
-      }
+      const currentUserDeptName = String(parsedUser.department || parsedUser.departmentId?.name || '').toLowerCase().trim();
       const privileged = isEmbedded ||
                          ['1', '2', 'admin'].includes(currentUserRole) || 
-                         currentUserDept === '6a3caed51194353cbc8a3686' || 
-                         currentUserDept === '6a55c7e8b613a280003481d8';
+                         currentUserDeptName.includes('hr') || 
+                         currentUserDeptName.includes('admin');
       setIsAdmin(privileged);
     }
 

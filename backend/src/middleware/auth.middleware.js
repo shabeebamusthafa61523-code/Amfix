@@ -152,46 +152,39 @@ export const restrictToRoles = (allowedRoles = []) => {
   };
 };
 
-export const restrictToDepartment = (departmentId) => {
+export const restrictToDepartment = (targetDeptNames = []) => {
+  const allowedNames = (Array.isArray(targetDeptNames) ? targetDeptNames : [targetDeptNames]).map(n => String(n).toLowerCase().trim());
   return async (req, res, next) => {
-    // Administrative roles (0, 1, 2, hr, admin, superadmin) can bypass department checks
-    const role = String(req.user?.role || req.user?.role_id || '').toLowerCase().trim();
-    const isSuperAdmin = req.user?.isSuperAdmin === true || req.user?.is_super_admin === true || role === '0' || role === 'superadmin';
-    const isPrivileged = isSuperAdmin || ['1', '2', 'hr', 'admin'].includes(role);
+    const role = String(req.user?.role || '').toLowerCase().trim();
+    const roleId = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const isSuperAdmin = req.user?.isSuperAdmin === true || req.user?.is_super_admin === true || role === 'superadmin' || roleId === '0';
+    const isPrivileged = isSuperAdmin || ['1', '2', 'admin', 'hr'].includes(role) || ['1', '2'].includes(roleId);
     if (isPrivileged) {
       return next();
     }
 
-    let userDeptId = req.user?.departmentId;
-
-    // Fallback: If departmentId is missing from token (e.g. active session), query from DB
-    if (!userDeptId && req.user?.id) {
+    const userId = req.user?.id || req.user?._id;
+    if (userId) {
       try {
         const User = (await import('../models/user.model.js')).default;
-        const userObj = await User.findById(req.user.id);
-        if (userObj) {
-          userDeptId = userObj.departmentId;
+        const userObj = await User.findById(userId).populate('departmentId', 'name');
+        const deptName = String(userObj?.departmentId?.name || userObj?.department || '').toLowerCase().trim();
+
+        if (deptName.includes('hr') || deptName.includes('admin') || deptName.includes('non-operational')) {
+          return next();
         }
+
+        const matches = allowedNames.some(target => deptName.includes(target) || target.includes(deptName));
+        if (matches) return next();
       } catch (err) {
-        console.error("Failed to fetch user department fallback:", err);
+        console.error("Department restriction check error:", err);
       }
     }
 
-    userDeptId = String(userDeptId || '').trim();
-
-    // Bypass for HR/ADMIN & Non-Operational departments
-    if (userDeptId === '6a3caed51194353cbc8a3686' || userDeptId === '6a55c7e8b613a280003481d8') {
-      return next();
-    }
-
-    if (userDeptId !== String(departmentId).trim()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Exclusive to the marketing department.'
-      });
-    }
-
-    next();
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied for this department.'
+    });
   };
 };
 

@@ -292,7 +292,7 @@ export default function ClientLeads() {
     } else if (currentUser.designation_id) {
       desigId = String(currentUser.designation_id).trim();
     }
-    return desigId === '6a27939af292348deb7d0495' || designation.includes('counselor');
+    return designation.includes('counselor') || designation.includes('academic') || designation.includes('tele');
   }, [currentUser]);
 
   const isOperationManager = useMemo(() => {
@@ -393,9 +393,7 @@ export default function ClientLeads() {
         deptName.includes('academy') ||
         desigName.includes('sales') ||
         desigName.includes('growth') ||
-        desigName.includes('counselor') ||
-        desigName.includes('telecaller') ||
-        desigId === '6a27939af292348deb7d0495'
+        desigName.includes('telecaller')
       );
     });
   }, [staff]);

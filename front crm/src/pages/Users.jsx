@@ -307,7 +307,7 @@ const Users = () => {
         const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
         const designation = String(userObj.designation || '').toLowerCase().trim();
         const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-        return role === 'hr' || designation.includes('hr') || designationId === '6a2f8efea2fe388770a38987';
+        return role === 'hr' || designation.includes('hr');
       }
     } catch (e) {
       console.error("Error checking HR role in Users:", e);

@@ -84,7 +84,7 @@ const PublicRoute = ({ children }) => {
         const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
         const designation = String(userObj.designation || '').toLowerCase().trim();
         const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-        const isHr = role === 'hr' || designation.includes('hr') || designationId === '6a2f8efea2fe388770a38987';
+        const isHr = role === 'hr' || designation.includes('hr');
         const isAdmin = ['1', '2', 'admin'].includes(role) || designation.includes('admin');
         
         if (isHr) {
@@ -114,7 +114,7 @@ const LandingRoute = () => {
       const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
       const designation = String(userObj.designation || '').toLowerCase().trim();
       const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-      const isHr = role === 'hr' || designation.includes('hr') || designationId === '6a2f8efea2fe388770a38987';
+      const isHr = role === 'hr' || designation.includes('hr');
       const isAdmin = ['1', '2', 'admin'].includes(role) || designation.includes('admin');
 
       if (isHr) {

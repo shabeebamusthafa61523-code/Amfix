@@ -332,9 +332,7 @@ export const getAllTasks = async (req, res, next) => {
     // Dynamic checks based on Department ID/name, Designation name, and Role
     const isHrAdminDept = (
       userDeptName.includes('hr') ||
-      userDeptName.includes('admin') ||
-      userDeptId === '6a3caed51194353cbc8a3686' ||
-      userDeptId === '6a55c7e8b613a280003481d8'
+      userDeptName.includes('admin')
     );
     const isExecutiveDesignation = ['md', 'managing director', 'coo', 'ceo', 'director', 'executive_director'].some(
       title => userDesignationName.includes(title) || roleName.includes(title)
@@ -498,9 +496,7 @@ export const getUserTasks = async (req, res, next) => {
     // Dynamic checks based on Department ID/name, Designation name, and Role
     const isHrAdminDept = (
       userDeptName.includes('hr') ||
-      userDeptName.includes('admin') ||
-      userDeptId === '6a3caed51194353cbc8a3686' ||
-      userDeptId === '6a55c7e8b613a280003481d8'
+      userDeptName.includes('admin')
     );
     const isExecutiveDesignation = ['md', 'managing director', 'coo', 'ceo', 'director', 'executive_director'].some(
       title => userDesignationName.includes(title) || roleName.includes(title)

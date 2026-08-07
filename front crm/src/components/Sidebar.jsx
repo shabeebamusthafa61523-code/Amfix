@@ -32,27 +32,27 @@ import {
 } from 'lucide-react';
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', allowedRoles: ['1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartments: ['6a55c7e8b613a280003481d8', '6a3caed51194353cbc8a3686'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', allowedRoles: ['1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
    {
     icon: LayoutDashboard,
     label: 'HR Dashboard',
     path: '/hr-dashboard',
-    allowedDesignations: ['6a2f8efea2fe388770a38987'],
+    allowedDesignationNames: ['hr', 'recruiter'],
   },
   {
     icon: BarChart3,
     label: 'Lead Dashboard',
     path: '/lead-dashboard',
     allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'],
-    allowedDepartments: ['6a26a7d72a56a1f9c49da8a3', '6a27f394558c220a47fff02e', '6a2f91472df21dc234018cab'],
-    allowedDesignations: ['6a27939af292348deb7d0495']
+    allowedDepartmentNames: ['counselor', 'sales', 'ops', 'marketing'],
+    allowedDesignationNames: ['counselor', 'telecaller', 'ops']
   },
   {
     icon: BarChart3,
     label: 'Marketing Dashboard',
     path: '/marketing-dashboard',
     allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'marketing', 'manager', 'team_lead', 'teamlead', 'tl'],
-    allowedDepartments: [ '6a211b6621f80bb8da167efb']
+    allowedDepartmentNames: ['marketing', 'digital']
   },
   
   
@@ -81,7 +81,7 @@ const menuItems = [
     label: 'Users', 
     path: '/users', 
     allowedRoles: ['1', '2', 'hr', 'admin'],
-    allowedDepartments: ['6a3caed51194353cbc8a3686']
+    allowedDepartmentNames: ['hr', 'admin']
   },
   { 
     icon: ShieldCheck, 
@@ -94,92 +94,90 @@ const menuItems = [
     icon: TrendingUp, 
     label: 'Leads Directory', 
     path: '/leads',
-    allowedDepartments: ['6a211b6621f80bb8da167efb'],
+    allowedDepartmentNames: ['marketing', 'digital', 'counselor', 'sales'],
     allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'],
   },
   { 
     icon: TrendingUp, 
     label: 'Telecaller Leads', 
     path: '/leads-telecaller',
-    allowedDesignations: ['6a27939af292348deb7d0495','6a2f91472df21dc234018cab'],
+    allowedDesignationNames: ['counselor', 'telecaller', 'ops'],
     allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'],
-    allowedDepartments: ['6a3caed51194353cbc8a3686']
+    allowedDepartmentNames: ['hr', 'admin']
   },
   { 
     icon: TrendingUp, 
     label: 'Lead Counselor', 
     path: '/lead-counselor',
-    allowedDesignations: ['6a2f91472df21dc234018cab'],
+    allowedDesignationNames: ['ops', 'counselor', 'sales'],
     allowedRoles: ['1', '2', '3', 'hr', 'admin', 'superadmin']
   },
   {
     icon: BarChart3,
     label: 'Dev Dashboard',
     path: '/developer-dashboard',
-    allowedDepartments: ['6a1d5d3ea35c97490f38b383'],
+    allowedDepartmentNames: ['r&d', 'dev', 'developer', 'development'],
   },
   {
     icon: BarChart3,
     label: 'GD Dashboard',
     path: '/graphic-designer-dashboard',
-    allowedDesignations: ['6a1e8e6e01a0dae8b2f3b18d'],
+    allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'],
   },
   {
     icon: FileText,
     label: 'Developer Report',
     path: '/developer-report',
-    allowedDesignations: ['6a1e8e2d01a0dae8b2f3b18c'],
+    allowedDesignationNames: ['developer', 'dev'],
   },
   {
     icon: FileText,
     label: 'HOD R&D Report',
     path: '/hod-rd-report',
-    allowedDesignations: ['6a2f9e086f1c41b0c80a9e21'],
+    allowedDesignationNames: ['hod', 'r&d', 'research'],
   },
   {
     icon: FileText,
     label: 'Graphic Designer Report',
     path: '/graphic-designer-report',
-    allowedDesignations: ['6a1e8e6e01a0dae8b2f3b18d'],
+    allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'],
   },
   {
     icon: FileText,
     label: 'Academic Counselor Report',
     path: '/academic-counselor-report',
-    allowedDesignations: ['6a27939af292348deb7d0495'],
+    allowedDesignationNames: ['counselor', 'academic', 'tele'],
   },
   {
     icon: BarChart3,
     label: 'Counselor Dashboard',
     path: '/counselor-dashboard',
-    allowedDesignations: ['6a27939af292348deb7d0495'],
+    allowedDesignationNames: ['counselor', 'academic', 'tele'],
   },
   {
     icon: LayoutDashboard,
     label: 'Video Dashboard',
     path: '/videographer-dashboard',
-    allowedDesignations: ['6a2f912c2df21dc234018caa'],
+    allowedDesignationNames: ['video', 'editor', 'media'],
   },
   {
     icon: FileText,
     label: 'Videographer Report',
     path: '/videographer-report',
-    allowedDesignations: ['6a2f912c2df21dc234018caa'],
-    // allowedRoles: ['1', '2', 'hr', 'admin']
+    allowedDesignationNames: ['video', 'editor', 'media'],
   },
  
   {
     icon: FileText,
     label: 'HR Shift Report',
     path: '/hr-report',
-    allowedDesignations: ['6a2f8efea2fe388770a38987'],
-    // allowedRoles: ['1', '2', 'hr', 'admin']
+    allowedDesignationNames: ['hr', 'recruiter'],
   },
   {
     icon: Sparkles,
     label: 'AI Reports',
     path: '/ai-report',
-    allowedDesignations: ['6a2f8efea2fe388770a38987'],
+    allowedDesignationNames: ['hr', 'admin', 'recruiter'],
     allowedRoles: ['1', '2', 'admin' ],
   },
   {
@@ -192,8 +190,7 @@ const menuItems = [
     icon: FileText,
     label: 'Ops Shift Report',
     path: '/ops-report',
-    allowedDesignations: ['6a2f91472df21dc234018cab'],
-    // allowedRoles: ['1', '2', 'hr', 'admin']
+    allowedDesignationNames: ['ops', 'operation', 'sales'],
   },
   {
     icon: Wallet,
@@ -211,15 +208,13 @@ const menuItems = [
     icon: FileText,
     label: 'Accountant Shift Report',
     path: '/accountant-report',
-    allowedDesignations: ['6a2f915e2df21dc234018cac'],
-    // allowedRoles: ['1', '2', 'hr', 'admin']
+    allowedDesignationNames: ['accountant', 'accounts', 'finance'],
   },
   {
     icon: FileText,
     label: 'Marketing Shift Report',
     path: '/marketing-report',
-    allowedDesignations: ['6a2f909d2df21dc234018ca8'],
-    // allowedRoles: ['1', '2', 'hr', 'admin']
+    allowedDesignationNames: ['marketing', 'marketer', 'digital'],
   },
   {
     icon: LayoutDashboard,
@@ -235,9 +230,9 @@ const menuItems = [
   },
   { icon: UserCheck, label: 'Attendance', path: '/attendance', excludeRoles: ['1', '2', 'hr', 'admin'] },
   { icon: ListCheck, label: 'Task Assign', path: '/todo' },
-  { icon: Users, label: 'Student Attendance', path: '/student-attendance', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
-  { icon: Building, label: 'Departments', path: '/departments', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
-  { icon: Users, label: 'Employee Reports', path: '/employee-reports', allowedRoles: [ 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
+  { icon: Users, label: 'Student Attendance', path: '/student-attendance', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartmentNames: ['hr', 'admin'] },
+  { icon: Building, label: 'Departments', path: '/departments', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartmentNames: ['hr', 'admin'] },
+  { icon: Users, label: 'Employee Reports', path: '/employee-reports', allowedRoles: [ 'hr', 'admin'], allowedDepartmentNames: ['hr', 'admin'] },
   { icon: Users, label: 'Team Reports', path: '/team-reports', isTeamLeadOnly: true },
   { icon: Bell, label: 'Notifications', path: '/notifications' },
 ];
@@ -359,8 +354,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         // Show Team Reports page only for non-HR department team leads
         if (item.isTeamLeadOnly) {
           const desigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
-          const desigId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-          const isHrUser = currentUserRole === 'hr' || desigName.includes('hr') || desigId === '6a2f8efea2fe388770a38987';
+          const isHrUser = currentUserRole === 'hr' || desigName.includes('hr');
           if (isHrUser) return false;
           return !!userObj.isTeamLead;
         }
@@ -371,7 +365,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           const isAdminHrOrTeamLead = ['1', '2', '3', '10', 'admin', 'hr', 'superadmin', 'team_lead', 'teamlead', 'manager', 'tl', 'marketing'].includes(currentUserRole) || !!userObj.isTeamLead;
           return isAdminHrOrTeamLead;
         }
-        if (!item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations && !item.allowedDepartmentNames) return true;
+        if (!item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations && !item.allowedDepartmentNames && !item.allowedDesignationNames) return true;
         const roleMatch = item.allowedRoles && item.allowedRoles.includes(currentUserRole);
         const deptMatch = item.allowedDepartments && item.allowedDepartments.includes(currentUserDept);
         const designationMatch = item.allowedDesignations && item.allowedDesignations.includes(currentUserDesignation);
@@ -381,12 +375,19 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         const deptNameMatch = item.allowedDepartmentNames && item.allowedDepartmentNames.some(name => 
           currentDeptName.includes(name) || name.includes(currentDeptName)
         );
+
+        // Name-based designation matching (works across environments)
+        const currentDesigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
+        const desigNameMatch = item.allowedDesignationNames && item.allowedDesignationNames.some(name => 
+          currentDesigName.includes(name) || name.includes(currentDesigName)
+        );
         
         const matches = [];
         if (item.allowedRoles) matches.push(roleMatch);
         if (item.allowedDepartments) matches.push(deptMatch);
         if (item.allowedDesignations) matches.push(designationMatch);
         if (item.allowedDepartmentNames) matches.push(deptNameMatch);
+        if (item.allowedDesignationNames) matches.push(desigNameMatch);
         
         return matches.some(m => m === true);
       });
@@ -408,9 +409,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       }
 
       const desigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
-      const desigId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-      const isMd = desigName.includes('md') || desigName.includes('managing director') || desigId === '6a7187de0bdbef63c8658832' || ['md', 'coo', 'executive_director'].includes(currentUserRole);
-      const isHr = currentUserRole === 'hr' || desigName.includes('hr') || desigId === '6a2f8efea2fe388770a38987';
+      const isMd = desigName.includes('md') || desigName.includes('managing director') || ['md', 'coo', 'executive_director'].includes(currentUserRole);
+      const isHr = currentUserRole === 'hr' || desigName.includes('hr');
 
       if (isMd) {
         return visible.map(item => {
