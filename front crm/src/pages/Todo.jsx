@@ -130,7 +130,7 @@ const fetchData = useCallback(async () => {
         headers: getAuthHeaders()
       }),
 
-      fetch(`${API_BASE}/user/list`, {
+      fetch(`${API_BASE}/v1/users/list`, {
         headers: getAuthHeaders()
       }),
 

@@ -66,7 +66,8 @@ const isAuthorizedToAccessUser = async (reqUser, targetUserId) => {
   if (!reqUser) return false;
   
   const loggedInUserId = reqUser.id || reqUser._id;
-  const loggedInUserRole = String(reqUser.role || reqUser.role_id || '').toLowerCase().trim();
+  const loggedInUserRole = String(reqUser.role || '').toLowerCase().trim();
+  const loggedInRoleId = String(reqUser.role_id || reqUser.roleId || '').trim();
   
   let isNonOperational = false;
   if (loggedInUserId) {
@@ -75,7 +76,11 @@ const isAuthorizedToAccessUser = async (reqUser, targetUserId) => {
     isNonOperational = String(deptName).toLowerCase().trim() === 'non-operational';
   }
 
-  const isPrivileged = ['1', 'admin', 'hr', 'superadmin'].includes(loggedInUserRole) || isNonOperational;
+  const isSuperAdmin = reqUser?.isSuperAdmin === true || reqUser?.is_super_admin === true || loggedInUserRole === 'superadmin' || loggedInRoleId === '0';
+  const isAdmin = loggedInUserRole === 'admin' || loggedInRoleId === '1';
+  const isHr = loggedInUserRole === 'hr' || loggedInRoleId === '2';
+
+  const isPrivileged = isSuperAdmin || isAdmin || isHr || isNonOperational || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(loggedInUserRole) || ['0', '1', '2'].includes(loggedInRoleId);
 
   // Privileged roles can see everything
   if (isPrivileged) return true;

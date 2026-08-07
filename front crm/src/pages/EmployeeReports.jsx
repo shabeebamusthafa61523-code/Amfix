@@ -104,10 +104,13 @@ const EmployeeReports = () => {
     const fetchEmployees = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${API_BASE}/user/list`, { headers: getAuthHeaders() });
+        let res = await fetch(`${API_BASE}/v1/users/list`, { headers: getAuthHeaders() });
+        if (!res.ok) {
+          res = await fetch(`${API_BASE}/v1/users`, { headers: getAuthHeaders() });
+        }
         if (res.ok) {
           const data = await res.json();
-          const emps = Array.isArray(data) ? data : [];
+          const emps = Array.isArray(data) ? data : (data.data || []);
           setEmployees(emps);
           emps.forEach(emp => {
             const empId = emp._id || emp.id;

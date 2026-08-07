@@ -18,8 +18,9 @@ export const getReportByDate = async (req, res, next) => {
     }
 
     const currentUserId = req.user.id || req.user._id;
-    const currentUserRole = String(req.user.role || req.user.role_id || '').toLowerCase().trim();
-    const isPrivileged = ['1', '2', 'hr', 'admin'].includes(currentUserRole);
+    const roleStr = String(req.user?.role || '').toLowerCase().trim();
+    const roleIdStr = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const isPrivileged = req.user?.isSuperAdmin === true || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleStr) || ['0', '1', '2'].includes(roleIdStr);
 
     // Fetch current user from DB to check designation
     let desigName = '';
@@ -85,8 +86,9 @@ export const saveReport = async (req, res, next) => {
     }
 
     const currentUserId = req.user.id || req.user._id;
-    const currentUserRole = String(req.user.role || req.user.role_id || '').toLowerCase().trim();
-    const isPrivileged = ['1', '2', 'hr', 'admin'].includes(currentUserRole);
+    const roleStr = String(req.user?.role || '').toLowerCase().trim();
+    const roleIdStr = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const isPrivileged = req.user?.isSuperAdmin === true || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleStr) || ['0', '1', '2'].includes(roleIdStr);
 
     // Fetch current user from DB to check designation
     let userDesignationId = '';
@@ -177,8 +179,9 @@ export const getSubmittedDates = async (req, res, next) => {
   try {
     let targetUserId = req.query.userId;
     const currentUserId = req.user.id || req.user._id;
-    const currentUserRole = String(req.user.role || req.user.role_id || '').toLowerCase().trim();
-    const isPrivileged = ['1', '2', 'hr', 'admin'].includes(currentUserRole);
+    const roleStr = String(req.user?.role || '').toLowerCase().trim();
+    const roleIdStr = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const isPrivileged = req.user?.isSuperAdmin === true || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleStr) || ['0', '1', '2'].includes(roleIdStr);
 
     if (targetUserId) {
       if (targetUserId !== String(currentUserId) && !isPrivileged) {
@@ -221,8 +224,9 @@ export const getReportsByRange = async (req, res, next) => {
     }
 
     const currentUserId = req.user.id || req.user._id;
-    const currentUserRole = String(req.user.role || req.user.role_id || '').toLowerCase().trim();
-    const isPrivileged = ['1', '2', 'hr', 'admin'].includes(currentUserRole);
+    const roleStr = String(req.user?.role || '').toLowerCase().trim();
+    const roleIdStr = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const isPrivileged = req.user?.isSuperAdmin === true || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleStr) || ['0', '1', '2'].includes(roleIdStr);
 
     let userDesignationId = '';
     try {
