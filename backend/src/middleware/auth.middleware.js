@@ -20,7 +20,8 @@ export const verifyToken = (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_key');
+    const secret = process.env.JWT_SECRET || 'supersecretjwtkey_12345';
+    const decoded = jwt.verify(token, secret);
     
     req.user = decoded;
     if (decoded && (decoded.isSuperAdmin || String(decoded.role || '').toLowerCase() === 'superadmin' || String(decoded.role_id || '') === '0')) {
@@ -210,7 +211,7 @@ const protectRoute = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
 
-    const secret = process.env.JWT_SECRET || 'fallback_secret_key';
+    const secret = process.env.JWT_SECRET || 'supersecretjwtkey_12345';
     const decoded = jwt.verify(token, secret);
 
     req.user = decoded || {};

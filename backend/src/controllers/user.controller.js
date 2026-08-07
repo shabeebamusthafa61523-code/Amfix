@@ -22,6 +22,9 @@ cloudinary.config({
 
 const uploadToCloudinary = (fileBuffer) => {
   return new Promise((resolve, reject) => {
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY) {
+      return reject(new Error('Cloudinary credentials missing in environment'));
+    }
     const stream = cloudinary.uploader.upload_stream(
       { folder: 'crm_profiles' },
       (error, result) => {
@@ -31,6 +34,32 @@ const uploadToCloudinary = (fileBuffer) => {
     );
     stream.end(fileBuffer);
   });
+};
+
+const processProfileImageFile = async (req, fallbackUrl = null) => {
+  const file = req.file || (req.files && Array.isArray(req.files) ? (req.files.find(f => ['profileImage', 'avatar', 'profile_image', 'file'].includes(f.fieldname)) || req.files[0]) : null);
+  if (!file || !file.buffer) return fallbackUrl;
+
+  try {
+    if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+      const uploadResult = await uploadToCloudinary(file.buffer);
+      if (uploadResult && uploadResult.secure_url) {
+        return uploadResult.secure_url;
+      }
+    }
+  } catch (uploadError) {
+    console.warn("Cloudinary profile image upload failed, utilizing Base64 fallback:", uploadError?.message || uploadError);
+  }
+
+  try {
+    const mime = file.mimetype || 'image/jpeg';
+    const base64 = file.buffer.toString('base64');
+    return `data:${mime};base64,${base64}`;
+  } catch (e) {
+    console.error("Base64 conversion failed:", e);
+  }
+
+  return fallbackUrl;
 };
 
 const findDesignationById = async (designationVal) => {
@@ -150,9 +179,16 @@ export const userController = {
       )
       .populate('designationId')
       .populate('departmentId')
-      .sort({ name: 1 });
+      const formattedUsers = users.map(u => {
+        const uObj = u.toObject ? u.toObject() : { ...u };
+        const imgUrl = uObj.avatar || uObj.profile_image || uObj.profileImage || null;
+        uObj.avatar = imgUrl;
+        uObj.profile_image = imgUrl;
+        uObj.profileImage = imgUrl;
+        return uObj;
+      });
 
-      return res.status(200).json(users);
+      return res.status(200).json(formattedUsers);
 
     } catch (error) {
       console.error(error);
@@ -273,7 +309,9 @@ export const userController = {
         designationId: resolvedDesignationId,
         designationName: designationMap.get(resolvedDesignationId) || u.designation,
         reportingManager: u.reportingManager,
-        avatar: u.avatar || u.profile_image,
+        avatar: u.avatar || u.profile_image || null,
+        profile_image: u.avatar || u.profile_image || null,
+        profileImage: u.avatar || u.profile_image || null,
         isActive: u.isActive,
         status: u.status || (u.isActive ? 'active' : 'inactive'),
         lastLogin: u.lastLogin,
@@ -351,7 +389,9 @@ export const userController = {
           designationId: user.designationId ? String(user.designationId._id) : '',
           designationName: user.designationId?.name || user.designation,
           reportingManager: user.reportingManager,
-          avatar: user.avatar || user.profile_image,
+          avatar: user.avatar || user.profile_image || null,
+          profile_image: user.avatar || user.profile_image || null,
+          profileImage: user.avatar || user.profile_image || null,
           isActive: user.isActive,
           status: user.status || (user.isActive ? 'active' : 'inactive'),
           lastLogin: user.lastLogin,
@@ -434,15 +474,7 @@ export const userController = {
         await hashPassword(tempPass);
 
       let fileUrl = avatar || profile_image || null;
-
-      if (req.file) {
-        try {
-          const uploadResult = await uploadToCloudinary(req.file.buffer);
-          fileUrl = uploadResult.secure_url;
-        } catch (uploadError) {
-          console.error("Cloudinary upload failed for profile image onboarding:", uploadError);
-        }
-      }
+      fileUrl = await processProfileImageFile(req, fileUrl);
 
       const selectedDesignation = await findDesignationById(designation);
 
@@ -555,15 +587,7 @@ export const userController = {
       }
 
       let fileUrl = undefined;
-
-      if (req.file) {
-        try {
-          const uploadResult = await uploadToCloudinary(req.file.buffer);
-          fileUrl = uploadResult.secure_url;
-        } catch (uploadError) {
-          console.error("Cloudinary upload failed for profile image update:", uploadError);
-        }
-      }
+      fileUrl = await processProfileImageFile(req, undefined);
 
       const selectedDesignation = await findDesignationById(designation);
 
@@ -666,6 +690,13 @@ export const userController = {
           id: updatedUser._id,
           name: updatedUser.name,
           email: updatedUser.email,
+          role: updatedUser.role,
+          employeeId: updatedUser.employeeId,
+          department: updatedUser.department,
+          designation: updatedUser.designation,
+          avatar: updatedUser.avatar || updatedUser.profile_image || null,
+          profile_image: updatedUser.avatar || updatedUser.profile_image || null,
+          profileImage: updatedUser.avatar || updatedUser.profile_image || null,
           status: updatedUser.status,
           isActive: updatedUser.isActive
         }

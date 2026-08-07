@@ -46,34 +46,34 @@ router.get(
 // CREATE USER
 router.post(
   '/create',
-  upload.single('profileImage'),
+  upload.any(),
   userController.createUser
 );
 router.post(
   '/',
-  upload.single('profileImage'),
+  upload.any(),
   userController.createUser
 );
 
 // UPDATE USER
 router.put(
   '/update/:id',
-  upload.single('profileImage'),
+  upload.any(),
   userController.updateUser
 );
 router.post(
   '/update/:id',
-  upload.single('profileImage'),
+  upload.any(),
   userController.updateUser
 );
 router.put(
   '/:id',
-  upload.single('profileImage'),
+  upload.any(),
   userController.updateUser
 );
 router.put(
   '/update',
-  upload.single('profileImage'),
+  upload.any(),
   (req, res, next) => {
     req.params.id = req.body.id || req.body._id;
     next();
@@ -82,7 +82,7 @@ router.put(
 );
 router.post(
   '/update',
-  upload.single('profileImage'),
+  upload.any(),
   (req, res, next) => {
     req.params.id = req.body.id || req.body._id;
     next();

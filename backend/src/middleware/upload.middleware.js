@@ -4,17 +4,21 @@ import multer from 'multer';
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
-  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf'];
-  const ext = file.originalname ? file.originalname.toLowerCase().split('.').pop() : '';
-  const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf'];
+  if (!file) return cb(null, false);
 
-  if (
-    allowedMimeTypes.includes(file.mimetype) || 
-    allowedExtensions.includes(ext)
-  ) {
+  const mimetype = (file.mimetype || '').toLowerCase();
+  const ext = file.originalname ? file.originalname.toLowerCase().split('.').pop() : '';
+
+  const isAllowed = 
+    mimetype.startsWith('image/') || 
+    mimetype === 'application/pdf' || 
+    mimetype === 'application/octet-stream' ||
+    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'svg', 'heic', 'jfif', 'bmp', 'avif', ''].includes(ext);
+
+  if (isAllowed) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only JPEG, PNG, WEBP, GIF, and PDF are allowed.'), false);
+    cb(new Error('Invalid file type. Only image files and PDFs are allowed.'), false);
   }
 };
 

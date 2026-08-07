@@ -6,6 +6,7 @@ import {
   CheckSquare, Square, RefreshCw, User as UserIcon, Mail, Phone, Briefcase, Folder
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
+import { useUser } from '../contexts/UserContext';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -53,6 +54,7 @@ const UserPermissionsPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { refetchUser } = useUser() || {};
 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -150,6 +152,8 @@ const UserPermissionsPage = () => {
       const data = await res.json();
       if (res.ok && data.success) {
         showToast("Sidebar permissions updated successfully!", "success");
+
+        if (refetchUser) refetchUser();
 
         // If updating currently logged in user, refresh localStorage and dispatch storage event
         const currentUser = JSON.parse(localStorage.getItem('user') || '{}');

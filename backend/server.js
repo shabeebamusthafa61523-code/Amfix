@@ -18,9 +18,13 @@ const startServer = () => {
   if (isListening) return;
   isListening = true;
 
+  if (!process.env.JWT_SECRET) {
+    console.warn('⚠️ WARNING: JWT_SECRET environment variable is not defined in environment. Using default secure key fallback.');
+  }
+
   const server = app.listen(PORT, () => {
     console.log(`==================================================`);
-    console.log(`  🚀 Student Attendance Engine is active!`);
+    console.log(`  🚀 Staff Management & CRM Server is active!`);
     console.log(`  Port: ${PORT}`);
     console.log(`==================================================`);
   });

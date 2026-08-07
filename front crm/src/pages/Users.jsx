@@ -655,9 +655,9 @@ const pagedUsers = filteredUsers.slice((currentPage - 1) * ITEMS_PER_PAGE, curre
                         <td className="py-4.5 px-6">
                           <div className="flex items-center gap-4">
                             <div className="relative shrink-0">
-                              {(user.avatar || user.profile_image) && !imgErrors[user._id || user.id] ? (
+                              {(user.avatar || user.profile_image || user.profileImage) && !imgErrors[user._id || user.id] ? (
                                 <img 
-                                  src={user.avatar || user.profile_image} 
+                                  src={user.avatar || user.profile_image || user.profileImage} 
                                   alt={user.name} 
                                   className="w-11 h-11 rounded-full object-cover border border-slate-200 dark:border-slate-800 shadow-sm"
                                   onError={() => {
@@ -1223,8 +1223,13 @@ const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesigna
     // 3. Append your standard state keys to FormData
     Object.keys(form).forEach(key => {
       if (key === 'avatar') {
-        if (form.avatar) fd.append('profileImage', form.avatar);
-      } else {
+        if (form.avatar && form.avatar instanceof File) {
+          fd.append('profileImage', form.avatar);
+        } else if (typeof form.avatar === 'string' && form.avatar) {
+          fd.append('avatar', form.avatar);
+          fd.append('profile_image', form.avatar);
+        }
+      } else if (form[key] !== null && form[key] !== undefined) {
         fd.append(key, form[key]);
       }
     });
@@ -1480,8 +1485,13 @@ const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDes
       const fd = new FormData();
       Object.keys(form).forEach(key => {
         if (key === 'avatar') {
-          if (form.avatar) fd.append('profileImage', form.avatar);
-        } else {
+          if (form.avatar && form.avatar instanceof File) {
+            fd.append('profileImage', form.avatar);
+          } else if (typeof form.avatar === 'string' && form.avatar) {
+            fd.append('avatar', form.avatar);
+            fd.append('profile_image', form.avatar);
+          }
+        } else if (form[key] !== null && form[key] !== undefined) {
           fd.append(key, form[key]);
         }
       });
@@ -1717,9 +1727,9 @@ const ViewModal = ({ user, getDesignationName, getDepartmentName, onClose }) => 
           
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              {(user.avatar || user.profile_image) && !imgError ? (
+              {(user.avatar || user.profile_image || user.profileImage) && !imgError ? (
                 <img
-                  src={user.avatar || user.profile_image}
+                  src={user.avatar || user.profile_image || user.profileImage}
                   alt={user.name}
                   className="w-10 h-10 rounded-xl object-cover"
                   onError={() => setImgError(true)}

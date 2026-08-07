@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import redis from '../config/redis.js';
 import mongoose from 'mongoose';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_12345';
 
 export const signup = async (req, res) => {
   try {

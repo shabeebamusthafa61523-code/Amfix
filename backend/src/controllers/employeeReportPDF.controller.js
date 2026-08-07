@@ -1,7 +1,10 @@
 import https from 'https';
 import http from 'http';
+import mongoose from 'mongoose';
 import EmployeeReports from '../models/employeeReports.model.js';
 import User from '../models/user.model.js';
+import Department from '../modules/departments/department.model.js';
+import Designation from '../models/designation.model.js';
 import DeveloperReport from '../models/developerReport.model.js';
 import GraphicDesignerReport from '../models/graphicDesignerReport.model.js';
 import HodRdReport from '../models/hodRdReport.model.js';
@@ -483,8 +486,55 @@ export const employeeReportPDFController = {
         return res.status(400).json({ success: false, message: 'reportId is required' });
       }
 
-      const record = await EmployeeReports.findById(reportId);
+      let record = await EmployeeReports.findById(reportId);
       if (!record) {
+        // If not found in EmployeeReports (manual file uploads), search across all 9 department shift report collections!
+        const shiftReportModels = [
+          { model: DeveloperReport, type: 'developer' },
+          { model: GraphicDesignerReport, type: 'graphicdesigner' },
+          { model: HodRdReport, type: 'hodrd' },
+          { model: HrReport, type: 'hr' },
+          { model: MarketingReport, type: 'marketing' },
+          { model: OpsReport, type: 'ops' },
+          { model: VideographerReport, type: 'videographer' },
+          { model: AcademicCounselorReport, type: 'academiccounselor' },
+          { model: AccountantReport, type: 'accountant' }
+        ];
+
+        let foundShiftDoc = null;
+        let foundTypeSlug = null;
+        for (const item of shiftReportModels) {
+          const doc = await item.model.findById(reportId);
+          if (doc) {
+            foundShiftDoc = doc;
+            foundTypeSlug = item.type;
+            break;
+          }
+        }
+
+        if (foundShiftDoc) {
+          const empUserId = foundShiftDoc.userId || foundShiftDoc.employee_id;
+          const isAuthorized = await isAuthorizedToAccessUser(req.user, empUserId);
+          if (!isAuthorized) {
+            return res.status(403).json({
+              success: false,
+              message: 'Access denied. You are not authorized to stream this report.'
+            });
+          }
+
+          const employee = await User.findById(empUserId).populate('designationId');
+          const designationName = employee?.designation || employee?.designationId?.name || foundTypeSlug;
+          const pdfBuffer = await generateReportPDFBuffer(foundShiftDoc, employee?.name || 'Employee', designationName);
+
+          const dateStr = foundShiftDoc.dateString || foundShiftDoc.basicDetails?.date || 'saved';
+          const filename = `${foundTypeSlug}_Report_${dateStr}.pdf`;
+
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          res.setHeader('Content-Length', pdfBuffer.length);
+          return res.end(pdfBuffer);
+        }
+
         return res.status(404).json({ success: false, message: 'Report not found in database' });
       }
 

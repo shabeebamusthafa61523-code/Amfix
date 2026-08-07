@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
+import { useUser } from '../contexts/UserContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, 
@@ -245,15 +246,31 @@ const PortalTooltip = ({ children }) => {
 const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen }) => {
   const location = useLocation();
   const activePath = location.pathname;
+  const { user: liveUser } = useUser() || {};
+  const [, setPermissionsVersion] = React.useState(0);
+
+  React.useEffect(() => {
+    const handleStorageChange = () => {
+      setPermissionsVersion(v => v + 1);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   const getVisibleMenuItems = () => {
     try {
-      const savedUser = localStorage.getItem('user');
-      if (!savedUser) {
+      let userObj = liveUser;
+      if (!userObj) {
+        const savedUser = localStorage.getItem('user');
+        if (savedUser) {
+          try { userObj = JSON.parse(savedUser); } catch (e) {}
+        }
+      }
+
+      if (!userObj) {
         return menuItems.filter(item => !item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations);
       }
 
-      const userObj = JSON.parse(savedUser);
       const currentUserRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
       const isSuperAdminUser = 
         userObj.isSuperAdmin === true ||

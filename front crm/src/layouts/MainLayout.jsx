@@ -55,6 +55,54 @@ const MainLayout = ({ children }) => {
     };
   }, []);
 
+  // --- Live user profile & permissions background sync ---
+  React.useEffect(() => {
+    const syncUserProfile = async () => {
+      try {
+        const rawToken = localStorage.getItem('token');
+        const savedUserStr = localStorage.getItem('user');
+        if (!rawToken || !savedUserStr) return;
+
+        const savedUser = JSON.parse(savedUserStr);
+        const currentUserId = savedUser._id || savedUser.id;
+        if (!currentUserId) return;
+
+        const cleanToken = rawToken.replace(/"/g, '');
+        const authHeader = cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`;
+
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${apiBase}/v1/users/${currentUserId}`, {
+          headers: { 'Authorization': authHeader }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.data) {
+            const freshUser = data.data;
+            const updatedLocalUser = {
+              ...savedUser,
+              ...freshUser,
+              permissions: freshUser.permissions || [],
+              isSuperAdmin: Boolean(freshUser.isSuperAdmin || freshUser.role === 'superadmin' || freshUser.role_id === '0')
+            };
+
+            const permissionsChanged = JSON.stringify(savedUser.permissions || []) !== JSON.stringify(freshUser.permissions || []);
+            const roleChanged = savedUser.role !== freshUser.role || savedUser.isSuperAdmin !== freshUser.isSuperAdmin;
+
+            if (permissionsChanged || roleChanged) {
+              localStorage.setItem('user', JSON.stringify(updatedLocalUser));
+              window.dispatchEvent(new Event('storage'));
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to sync user profile permissions:", err);
+      }
+    };
+
+    syncUserProfile();
+  }, [location.pathname]);
+
   // Polished, micro-movements for ambient monochrome contrast fields
 
   const blobVariants = {
