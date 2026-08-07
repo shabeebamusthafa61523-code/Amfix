@@ -69,20 +69,22 @@ const isAuthorizedToAccessUser = async (reqUser, targetUserId) => {
   const loggedInUserRole = String(reqUser.role || '').toLowerCase().trim();
   const loggedInRoleId = String(reqUser.role_id || reqUser.roleId || '').trim();
   
-  let isNonOperational = false;
+  let isHrAdminDept = false;
+  let currentUserObj = null;
+
   if (loggedInUserId) {
-    const currentUserObj = await User.findById(loggedInUserId).populate('departmentId', 'name');
-    const deptName = currentUserObj?.departmentId?.name || currentUserObj?.department || '';
-    isNonOperational = String(deptName).toLowerCase().trim() === 'non-operational';
+    currentUserObj = await User.findById(loggedInUserId).populate('departmentId', 'name');
+    const deptName = String(currentUserObj?.departmentId?.name || currentUserObj?.department || reqUser.department || '').toLowerCase().trim();
+    isHrAdminDept = ['hr', 'admin', 'hr/admin', 'non-operational'].some(d => deptName.includes(d));
   }
 
   const isSuperAdmin = reqUser?.isSuperAdmin === true || reqUser?.is_super_admin === true || loggedInUserRole === 'superadmin' || loggedInRoleId === '0';
   const isAdmin = loggedInUserRole === 'admin' || loggedInRoleId === '1';
   const isHr = loggedInUserRole === 'hr' || loggedInRoleId === '2';
 
-  const isPrivileged = isSuperAdmin || isAdmin || isHr || isNonOperational || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(loggedInUserRole) || ['0', '1', '2'].includes(loggedInRoleId);
+  const isPrivileged = isSuperAdmin || isAdmin || isHr || isHrAdminDept || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(loggedInUserRole) || ['0', '1', '2'].includes(loggedInRoleId);
 
-  // Privileged roles can see everything
+  // Privileged roles & HR/ADMIN department members can see everything
   if (isPrivileged) return true;
 
   // Users can see their own reports
@@ -93,12 +95,19 @@ const isAuthorizedToAccessUser = async (reqUser, targetUserId) => {
     const Department = (await import('../modules/departments/department.model.js')).default;
     const UserDepartment = (await import('../models/userDepartment.model.js')).default;
 
-    const currentUserObj = await User.findById(loggedInUserId).select('departmentId department designation');
+    if (!currentUserObj) {
+      currentUserObj = await User.findById(loggedInUserId).select('departmentId department designation isTeamLead is_team_lead');
+    }
+
     const designationName = String(currentUserObj?.designation || '').toLowerCase();
     let userDeptId = reqUser.departmentId || currentUserObj?.departmentId;
     let userDeptName = currentUserObj?.department;
 
     const isRoleBasedTeamLead = (
+      reqUser?.isTeamLead === true ||
+      reqUser?.is_team_lead === true ||
+      currentUserObj?.isTeamLead === true ||
+      currentUserObj?.is_team_lead === true ||
       loggedInUserRole.includes('manager') ||
       loggedInUserRole.includes('lead') ||
       loggedInUserRole.includes('hod') ||
@@ -350,30 +359,111 @@ export const employeeReportPDFController = {
   async getPDFReportsByUser(req, res, next) {
     try {
       const { userId, sort } = req.query;
-      
-      if (!userId) {
-        return res.status(400).json({
-          success: false,
-          message: 'userId is required query parameter'
-        });
-      }
 
-      // Check authorization
-      const isAuthorized = await isAuthorizedToAccessUser(req.user, userId);
-      if (!isAuthorized) {
-        return res.status(403).json({
-          success: false,
-          message: 'Access denied. You are not authorized to view these reports.'
-        });
+      if (userId && userId !== 'all') {
+        const isAuthorized = await isAuthorizedToAccessUser(req.user, userId);
+        if (!isAuthorized) {
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. You are not authorized to view these reports.'
+          });
+        }
       }
 
       // Determine sort order: descending (newest first) by default
       const sortOrder = sort === 'oldest' ? 1 : -1;
 
-      const list = await EmployeeReports.find({ employee_id: userId })
-        .sort({ report_date: sortOrder, created_at: sortOrder });
+      let pdfQuery = {};
+      let userQuery = {};
 
-      return sendSuccess(res, 'PDF Reports retrieved successfully', list, 200);
+      if (userId && userId !== 'all') {
+        if (mongoose.Types.ObjectId.isValid(userId)) {
+          const objId = new mongoose.Types.ObjectId(userId);
+          pdfQuery = { $or: [{ employee_id: objId }, { employee_id: String(userId) }] };
+          userQuery = {
+            $or: [
+              { userId: objId },
+              { userId: String(userId) },
+              { employee_id: objId },
+              { employee_id: String(userId) }
+            ]
+          };
+        } else {
+          pdfQuery = { employee_id: String(userId) };
+          userQuery = {
+            $or: [
+              { userId: String(userId) },
+              { employee_id: String(userId) }
+            ]
+          };
+        }
+      }
+
+      // 1. Fetch manual PDF file uploads
+      const pdfUploads = await EmployeeReports.find(pdfQuery).lean();
+
+      // 2. Fetch saved shift reports from all 9 report collections for this employee
+      const [
+        devReports,
+        gdReports,
+        hodReports,
+        hrReports,
+        mktReports,
+        opsReports,
+        videoReports,
+        counselorReports,
+        acctReports
+      ] = await Promise.all([
+        DeveloperReport.find(userQuery).lean(),
+        GraphicDesignerReport.find(userQuery).lean(),
+        HodRdReport.find(userQuery).lean(),
+        HrReport.find(userQuery).lean(),
+        MarketingReport.find(userQuery).lean(),
+        OpsReport.find(userQuery).lean(),
+        VideographerReport.find(userQuery).lean(),
+        AcademicCounselorReport.find(userQuery).lean(),
+        AccountantReport.find(userQuery).lean()
+      ]);
+
+      const baseUrl = process.env.VITE_API_URL || '/api';
+      const cleanBase = baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl.replace(/\/+$/, '')}/v1`;
+
+      const mapShiftReport = (doc, reportType, reportTypeSlug) => ({
+        _id: doc._id,
+        employee_id: doc.userId || doc.employee_id,
+        report_date: doc.dateString || doc.basicDetails?.date || (doc.createdAt ? new Date(doc.createdAt).toISOString().split('T')[0] : ''),
+        report_period: doc.reportPeriod || 'daily',
+        report_type: reportType,
+        filename: `${reportType}_Report_${doc.dateString || 'saved'}.pdf`,
+        pdf_url: `${cleanBase}/employee-reports/generate-pdf?userId=${doc.userId || doc.employee_id}&dateString=${doc.dateString}&reportType=${reportTypeSlug}`,
+        created_at: doc.createdAt || doc.updatedAt || new Date(),
+        isShiftReport: true,
+        basicDetails: doc.basicDetails
+      });
+
+      const shiftReports = [
+        ...devReports.map(d => mapShiftReport(d, 'Developer', 'developer')),
+        ...gdReports.map(d => mapShiftReport(d, 'Graphic Designer', 'graphic-designer')),
+        ...hodReports.map(d => mapShiftReport(d, 'HOD R&D', 'hod-rd')),
+        ...hrReports.map(d => mapShiftReport(d, 'HR', 'hr')),
+        ...mktReports.map(d => mapShiftReport(d, 'Marketing', 'marketing')),
+        ...opsReports.map(d => mapShiftReport(d, 'Ops', 'ops')),
+        ...videoReports.map(d => mapShiftReport(d, 'Videographer', 'videographer')),
+        ...counselorReports.map(d => mapShiftReport(d, 'Academic Counselor', 'academic-counselor')),
+        ...acctReports.map(d => mapShiftReport(d, 'Accountant', 'accountant'))
+      ];
+
+      // Merge both lists
+      const combined = [...pdfUploads, ...shiftReports];
+
+      // Sort by report_date / created_at
+      combined.sort((a, b) => {
+        const dA = new Date(a.report_date || a.created_at);
+        const dB = new Date(b.report_date || b.created_at);
+        return sortOrder === 1 ? dA - dB : dB - dA;
+      });
+
+      return sendSuccess(res, 'PDF Reports retrieved successfully', combined, 200);
     } catch (error) {
       console.error('Error in getPDFReportsByUser:', error.message);
       next(error);
