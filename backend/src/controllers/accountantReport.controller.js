@@ -141,11 +141,16 @@ export const getAccountantStaffList = async (req, res, next) => {
       });
     }
 
-    // Query users belonging to the Accountant / Junior Accountant Designation
+    const Designation = (await import('../models/designation.model.js')).default;
+    const accDesigs = await Designation.find({ name: /accountant|accounts|finance/i }).select('_id');
+    const accDesigIds = accDesigs.map(d => d._id);
+    accDesigIds.push('6a2f915e2df21dc234018cac');
+
     const staff = await User.find({
       $or: [
-        { designationId: '6a2f915e2df21dc234018cac' },
-        { designation_id: '6a2f915e2df21dc234018cac' }
+        { designationId: { $in: accDesigIds } },
+        { designation_id: { $in: accDesigIds.map(id => String(id)) } },
+        { designation: /accountant|accounts|finance/i }
       ]
     }, '_id name employeeId email designation')
       .sort({ name: 1 })

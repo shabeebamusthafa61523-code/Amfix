@@ -141,11 +141,17 @@ export const getHrStaffList = async (req, res, next) => {
       });
     }
 
-    // Query users belonging to the HR / Admin Manager Designation
+    const Designation = (await import('../models/designation.model.js')).default;
+    const hrDesigs = await Designation.find({ name: /hr|admin|recruiter/i }).select('_id');
+    const hrDesigIds = hrDesigs.map(d => d._id);
+    hrDesigIds.push('6a2f8efea2fe388770a38987');
+
     const hrStaff = await User.find({
       $or: [
-        { designationId: '6a2f8efea2fe388770a38987' },
-        { designation_id: '6a2f8efea2fe388770a38987' }
+        { designationId: { $in: hrDesigIds } },
+        { designation_id: { $in: hrDesigIds.map(id => String(id)) } },
+        { designation: /hr|admin|recruiter/i },
+        { role: 'hr' }
       ]
     }, '_id name employeeId email designation')
       .sort({ name: 1 })

@@ -22,18 +22,18 @@ export const getReportByDate = async (req, res, next) => {
     const roleIdStr = String(req.user?.role_id || req.user?.roleId || '').trim();
     const isPrivileged = req.user?.isSuperAdmin === true || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleStr) || ['0', '1', '2'].includes(roleIdStr);
 
-    // Fetch current user from DB to check designation
-    let userDesignationId = '';
+    let desigName = '';
     try {
-      const userObj = await User.findById(currentUserId);
+      const userObj = await User.findById(currentUserId).populate('designationId');
       if (userObj) {
-        userDesignationId = String(userObj.designationId || userObj.designation_id || '');
+        userDesignationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '');
+        desigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase();
       }
     } catch (err) {
       console.error('Failed to fetch current user designation:', err);
     }
 
-    const isVideographer = userDesignationId === '6a2f912c2df21dc234018caa';
+    const isVideographer = userDesignationId === '6a2f912c2df21dc234018caa' || desigName.includes('video') || desigName.includes('editor');
 
     // If userId is provided, verify permissions
     if (targetUserId) {
@@ -90,18 +90,18 @@ export const saveReport = async (req, res, next) => {
     const roleIdStr = String(req.user?.role_id || req.user?.roleId || '').trim();
     const isPrivileged = req.user?.isSuperAdmin === true || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleStr) || ['0', '1', '2'].includes(roleIdStr);
 
-    // Fetch current user from DB to check designation
-    let userDesignationId = '';
+    let desigName = '';
     try {
-      const userObj = await User.findById(currentUserId);
+      const userObj = await User.findById(currentUserId).populate('designationId');
       if (userObj) {
-        userDesignationId = String(userObj.designationId || userObj.designation_id || '');
+        userDesignationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '');
+        desigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase();
       }
     } catch (err) {
       console.error('Failed to fetch current user designation:', err);
     }
 
-    const isVideographer = userDesignationId === '6a2f912c2df21dc234018caa';
+    const isVideographer = userDesignationId === '6a2f912c2df21dc234018caa' || desigName.includes('video') || desigName.includes('editor');
 
     // If targetUserId is provided, check if client has rights to save on behalf of that user
     if (targetUserId) {
@@ -149,11 +149,16 @@ export const saveReport = async (req, res, next) => {
  */
 export const getVideographersList = async (req, res, next) => {
   try {
-    // Query users belonging to the Videographer Designation
+    const Designation = (await import('../models/designation.model.js')).default;
+    const vgDesigs = await Designation.find({ name: /video|editor|media/i }).select('_id');
+    const vgDesigIds = vgDesigs.map(d => d._id);
+    vgDesigIds.push('6a2f912c2df21dc234018caa');
+
     const videographers = await User.find({
       $or: [
-        { designationId: '6a2f912c2df21dc234018caa' },
-        { designation_id: '6a2f912c2df21dc234018caa' }
+        { designationId: { $in: vgDesigIds } },
+        { designation_id: { $in: vgDesigIds.map(id => String(id)) } },
+        { designation: /video|editor|media/i }
       ]
     }, '_id name employeeId email designation')
       .sort({ name: 1 })

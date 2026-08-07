@@ -22,18 +22,18 @@ export const getReportByDate = async (req, res, next) => {
     const roleIdStr = String(req.user?.role_id || req.user?.roleId || '').trim();
     const isPrivileged = req.user?.isSuperAdmin === true || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleStr) || ['0', '1', '2'].includes(roleIdStr);
 
-    // Fetch current user from DB to check designation
-    let userDesignationId = '';
+    let desigName = '';
     try {
-      const userObj = await User.findById(currentUserId);
+      const userObj = await User.findById(currentUserId).populate('designationId');
       if (userObj) {
-        userDesignationId = String(userObj.designationId || userObj.designation_id || '');
+        userDesignationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '');
+        desigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase();
       }
     } catch (err) {
       console.error('Failed to fetch current user designation:', err);
     }
 
-    const isGraphicDesigner = userDesignationId === '6a1e8e6e01a0dae8b2f3b18d';
+    const isGraphicDesigner = userDesignationId === '6a1e8e6e01a0dae8b2f3b18d' || desigName.includes('graphic') || desigName.includes('designer');
 
     // If userId is provided, verify permissions
     if (targetUserId) {
@@ -90,18 +90,18 @@ export const saveReport = async (req, res, next) => {
     const roleIdStr = String(req.user?.role_id || req.user?.roleId || '').trim();
     const isPrivileged = req.user?.isSuperAdmin === true || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleStr) || ['0', '1', '2'].includes(roleIdStr);
 
-    // Fetch current user from DB to check designation
-    let userDesignationId = '';
+    let desigName = '';
     try {
-      const userObj = await User.findById(currentUserId);
+      const userObj = await User.findById(currentUserId).populate('designationId');
       if (userObj) {
-        userDesignationId = String(userObj.designationId || userObj.designation_id || '');
+        userDesignationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '');
+        desigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase();
       }
     } catch (err) {
       console.error('Failed to fetch current user designation:', err);
     }
 
-    const isGraphicDesigner = userDesignationId === '6a1e8e6e01a0dae8b2f3b18d';
+    const isGraphicDesigner = userDesignationId === '6a1e8e6e01a0dae8b2f3b18d' || desigName.includes('graphic') || desigName.includes('designer');
 
     // If targetUserId is provided, check if client has rights to save on behalf of that user
     if (targetUserId) {
@@ -149,11 +149,16 @@ export const saveReport = async (req, res, next) => {
  */
 export const getDesignersList = async (req, res, next) => {
   try {
-    // Query users belonging to the Graphic Designer Designation
+    const Designation = (await import('../models/designation.model.js')).default;
+    const gdDesigs = await Designation.find({ name: /graphic|designer|ui|ux/i }).select('_id');
+    const gdDesigIds = gdDesigs.map(d => d._id);
+    gdDesigIds.push('6a1e8e6e01a0dae8b2f3b18d');
+
     const designers = await User.find({
       $or: [
-        { designationId: '6a1e8e6e01a0dae8b2f3b18d' },
-        { designation_id: '6a1e8e6e01a0dae8b2f3b18d' }
+        { designationId: { $in: gdDesigIds } },
+        { designation_id: { $in: gdDesigIds.map(id => String(id)) } },
+        { designation: /graphic|designer|ui|ux/i }
       ]
     }, '_id name employeeId email designation')
       .sort({ name: 1 })

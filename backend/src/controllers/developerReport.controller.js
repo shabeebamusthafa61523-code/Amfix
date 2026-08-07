@@ -138,11 +138,16 @@ export const getDevelopersList = async (req, res, next) => {
       });
     }
 
-    // Query users belonging to the Developer Designation
+    const Designation = (await import('../models/designation.model.js')).default;
+    const devDesigs = await Designation.find({ name: /developer/i }).select('_id');
+    const devDesigIds = devDesigs.map(d => d._id);
+    devDesigIds.push('6a1e8e2d01a0dae8b2f3b18c');
+
     const developers = await User.find({
       $or: [
-        { designationId: '6a1e8e2d01a0dae8b2f3b18c' },
-        { designation_id: '6a1e8e2d01a0dae8b2f3b18c' }
+        { designationId: { $in: devDesigIds } },
+        { designation_id: { $in: devDesigIds.map(id => String(id)) } },
+        { designation: /developer/i }
       ]
     }, '_id name employeeId email designation')
       .sort({ name: 1 })

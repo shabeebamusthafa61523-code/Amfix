@@ -92,16 +92,18 @@ export const saveReport = async (req, res, next) => {
 
     // Fetch current user from DB to check designation
     let userDesignationId = '';
+    let desigName = '';
     try {
-      const userObj = await User.findById(currentUserId);
+      const userObj = await User.findById(currentUserId).populate('designationId');
       if (userObj) {
-        userDesignationId = String(userObj.designationId || userObj.designation_id || '');
+        userDesignationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '');
+        desigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase();
       }
     } catch (err) {
       console.error('Failed to fetch current user designation:', err);
     }
 
-    const isCounselor = userDesignationId === '6a27939af292348deb7d0495';
+    const isCounselor = userDesignationId === '6a27939af292348deb7d0495' || desigName.includes('counselor') || desigName.includes('academic') || desigName.includes('tele');
 
     // If targetUserId is provided, check if client has rights to save on behalf of that user
     if (targetUserId) {
@@ -151,11 +153,16 @@ export const saveReport = async (req, res, next) => {
  */
 export const getCounselorsList = async (req, res, next) => {
   try {
-    // Query users belonging to the Sales Executive / Tele Caller & Academic Counselor Designation
+    const Designation = (await import('../models/designation.model.js')).default;
+    const acDesigs = await Designation.find({ name: /counselor|academic|tele/i }).select('_id');
+    const acDesigIds = acDesigs.map(d => d._id);
+    acDesigIds.push('6a27939af292348deb7d0495');
+
     const counselors = await User.find({
       $or: [
-        { designationId: '6a27939af292348deb7d0495' },
-        { designation_id: '6a27939af292348deb7d0495' }
+        { designationId: { $in: acDesigIds } },
+        { designation_id: { $in: acDesigIds.map(id => String(id)) } },
+        { designation: /counselor|academic|tele/i }
       ]
     }, '_id name employeeId email designation')
       .sort({ name: 1 })
@@ -228,15 +235,16 @@ export const getReportsByRange = async (req, res, next) => {
     const roleIdStr = String(req.user?.role_id || req.user?.roleId || '').trim();
     const isPrivileged = req.user?.isSuperAdmin === true || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleStr) || ['0', '1', '2'].includes(roleIdStr);
 
-    let userDesignationId = '';
+    let desigName = '';
     try {
-      const userObj = await User.findById(currentUserId);
+      const userObj = await User.findById(currentUserId).populate('designationId');
       if (userObj) {
-        userDesignationId = String(userObj.designationId || userObj.designation_id || '');
+        userDesignationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '');
+        desigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase();
       }
     } catch (err) {}
 
-    const isCounselor = userDesignationId === '6a27939af292348deb7d0495';
+    const isCounselor = userDesignationId === '6a27939af292348deb7d0495' || desigName.includes('counselor') || desigName.includes('academic') || desigName.includes('tele');
 
     if (targetUserId) {
       if (targetUserId !== String(currentUserId) && !isPrivileged && !isCounselor) {

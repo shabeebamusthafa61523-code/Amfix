@@ -139,11 +139,16 @@ export const getOpsStaffList = async (req, res, next) => {
       });
     }
 
-    // Query users belonging to the Manager - OPS Sales & Growth Designation
+    const Designation = (await import('../models/designation.model.js')).default;
+    const opsDesigs = await Designation.find({ name: /ops|operation|sales|growth|counselor|telecaller/i }).select('_id');
+    const opsDesigIds = opsDesigs.map(d => d._id);
+    opsDesigIds.push('6a2f91472df21dc234018cab');
+
     const opsStaff = await User.find({
       $or: [
-        { designationId: '6a2f91472df21dc234018cab' },
-        { designation_id: '6a2f91472df21dc234018cab' }
+        { designationId: { $in: opsDesigIds } },
+        { designation_id: { $in: opsDesigIds.map(id => String(id)) } },
+        { designation: /ops|operation|sales|growth|counselor|telecaller/i }
       ]
     }, '_id name employeeId email designation')
       .sort({ name: 1 })
