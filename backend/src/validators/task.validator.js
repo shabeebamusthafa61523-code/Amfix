@@ -4,71 +4,87 @@ import { z } from 'zod';
 const objectIdRegex = /^[0-9a-fA-F]{24}$/;
 
 // Common Schemas
+const preprocessSingleString = (schema) => z.preprocess((val) => Array.isArray(val) ? val[0] : val, schema);
+
 const objectIdSchema = (fieldName) => 
-  z.string()
-    .regex(objectIdRegex, { message: `Invalid format for ${fieldName}` });
+  preprocessSingleString(
+    z.string().regex(objectIdRegex, { message: `Invalid format for ${fieldName}` })
+  );
 
 // Body validation for creating a task
 export const createTaskSchema = z.object({
-  title: z.string({ required_error: 'Title is required' })
-    .trim()
-    .min(1, { message: 'Title cannot be empty' }),
-  description: z.string().trim().optional(),
+  title: preprocessSingleString(
+    z.string({ required_error: 'Title is required' })
+      .trim()
+      .min(1, { message: 'Title cannot be empty' })
+  ),
+  description: preprocessSingleString(z.string().trim().optional()),
   assigned_to: objectIdSchema('assigned_to'),
-  designation_id: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .transform(val => val === '' ? undefined : val),
-  client: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .or(z.literal(null))
-    .transform(val => val === '' || val === null ? undefined : val),
-  project: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .or(z.literal(null))
-    .transform(val => val === '' || val === null ? undefined : val),
-  dueDate: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .transform(val => val === '' ? undefined : val),
+  designation_id: preprocessSingleString(
+    z.string()
+      .optional()
+      .or(z.literal(''))
+      .transform(val => val === '' ? undefined : val)
+  ),
+  client: preprocessSingleString(
+    z.string()
+      .optional()
+      .or(z.literal(''))
+      .or(z.literal(null))
+      .transform(val => val === '' || val === null ? undefined : val)
+  ),
+  project: preprocessSingleString(
+    z.string()
+      .optional()
+      .or(z.literal(''))
+      .or(z.literal(null))
+      .transform(val => val === '' || val === null ? undefined : val)
+  ),
+  dueDate: preprocessSingleString(
+    z.string()
+      .optional()
+      .or(z.literal(''))
+      .or(z.literal(null))
+      .transform(val => val === '' || val === null ? undefined : val)
+  ),
   links: z.string().optional().or(z.array(z.any())).optional()
 }).passthrough();
 
 // Body validation for updating a task
 export const updateTaskSchema = z.object({
-  title: z.string().trim().min(1, { message: 'Title cannot be empty' }).optional(),
-  description: z.string().trim().optional(),
+  title: preprocessSingleString(
+    z.string().trim().min(1, { message: 'Title cannot be empty' }).optional()
+  ),
+  description: preprocessSingleString(z.string().trim().optional()),
   assigned_to: objectIdSchema('assigned_to').optional(),
-  designation_id: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .or(z.literal(null))
-    .transform(val => val === '' ? undefined : val),
-  client: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .or(z.literal(null))
-    .transform(val => val === '' || val === null ? undefined : val),
-  project: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .or(z.literal(null))
-    .transform(val => val === '' || val === null ? undefined : val),
-  dueDate: z
-    .string()
-    .optional()
-    .or(z.literal(''))
-    .or(z.literal(null))
-    .transform(val => val === '' ? undefined : val),
+  designation_id: preprocessSingleString(
+    z.string()
+      .optional()
+      .or(z.literal(''))
+      .or(z.literal(null))
+      .transform(val => val === '' ? undefined : val)
+  ),
+  client: preprocessSingleString(
+    z.string()
+      .optional()
+      .or(z.literal(''))
+      .or(z.literal(null))
+      .transform(val => val === '' || val === null ? undefined : val)
+  ),
+  project: preprocessSingleString(
+    z.string()
+      .optional()
+      .or(z.literal(''))
+      .or(z.literal(null))
+      .transform(val => val === '' || val === null ? undefined : val)
+  ),
+  dueDate: preprocessSingleString(
+    z.string()
+      .optional()
+      .or(z.literal(''))
+      .or(z.literal(null))
+      .transform(val => val === '' || val === null ? undefined : val)
+  ),
   links: z.string().optional().or(z.array(z.any())).optional()
 }).passthrough();
 

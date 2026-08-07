@@ -451,7 +451,6 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
     fd.append('status', 'pending');
     fd.append('priority', form.priority || 'medium');
     if (form.dueDate) fd.append('dueDate', form.dueDate);
-    if (form.dueDate) fd.append('dueDate', form.dueDate);
     if (form.client) fd.append('client', form.client);
     if (form.project) fd.append('project', form.project);
 
