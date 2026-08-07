@@ -384,8 +384,9 @@ const DeveloperReportPage = () => {
         const privileged = ['1', '2', 'hr', 'admin'].includes(role);
         setIsPrivileged(privileged);
         
-        const uId = userObj.id || userObj._id;
-        if (!selectedUserId && uId) {
+        // If not privileged, they can only view/create their own reports
+        if (!privileged) {
+          const uId = userObj.id || userObj._id;
           setSelectedUserId(uId);
         }
       }
@@ -405,20 +406,12 @@ const DeveloperReportPage = () => {
           const data = await res.json();
           if (data.success && Array.isArray(data.data)) {
             setDevelopers(data.data);
-            if (data.data.length > 0) {
-              const exists = data.data.some(d => (d._id || d.id) === selectedUserId);
-              if (!exists) {
-                setSelectedUserId(data.data[0]._id || data.data[0].id);
-              }
-            } else {
-              setLoading(false);
+            if (data.data.length > 0 && !selectedUserId) {
+              setSelectedUserId(data.data[0]._id);
             }
-          } else {
-            setLoading(false);
           }
         } catch (e) {
           console.error("Failed to fetch developers list:", e);
-          setLoading(false);
         }
       };
       fetchDevs();
@@ -612,8 +605,6 @@ const DeveloperReportPage = () => {
   useEffect(() => {
     if (selectedUserId && selectedDate) {
       fetchReport(selectedUserId, selectedDate);
-    } else {
-      setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUserId, selectedDate]);
