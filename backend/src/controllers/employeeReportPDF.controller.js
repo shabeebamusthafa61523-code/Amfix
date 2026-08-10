@@ -311,8 +311,12 @@ export const employeeReportPDFController = {
    */
   async uploadPDFReport(req, res, next) {
     try {
-      const { userId, reportDate, reportType, reportPeriod } = req.body;
+      let { userId, reportDate, reportType, reportPeriod } = req.body;
       
+      if (!userId || userId === 'undefined' || userId === 'null' || userId === '') {
+        userId = req.user?.id || req.user?._id;
+      }
+
       if (!req.file) {
         return res.status(400).json({
           success: false,
@@ -331,14 +335,19 @@ export const employeeReportPDFController = {
       const cleanFilename = `${reportType}_${reportPeriod}_${reportDate}.pdf`;
 
       // Upload to Cloudinary under the employee folder
-      const uploadResult = await uploadToCloudinary(req.file.buffer, userId, `${reportDate.replace(/[^a-zA-Z0-9_-]/g, '_')}_${reportPeriod}`);
+      let uploadResult = null;
+      try {
+        uploadResult = await uploadToCloudinary(req.file.buffer, userId, `${reportDate.replace(/[^a-zA-Z0-9_-]/g, '_')}_${reportPeriod}`);
+      } catch (cloudErr) {
+        console.warn('Cloudinary upload failed (saving DB record anyway):', cloudErr.message);
+      }
 
       // Save to database
       const reportRecord = await EmployeeReports.findOneAndUpdate(
         { employee_id: userId, report_date: reportDate, report_period: reportPeriod },
         {
-          pdf_url: uploadResult.secure_url,
-          pdf_public_id: uploadResult.public_id,
+          pdf_url: uploadResult?.secure_url || '',
+          pdf_public_id: uploadResult?.public_id || '',
           filename: req.file.originalname || cleanFilename,
           employee_id: userId,
           report_date: reportDate,

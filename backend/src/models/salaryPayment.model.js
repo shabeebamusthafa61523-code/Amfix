@@ -11,7 +11,7 @@ const salaryPaymentSchema = new mongoose.Schema({
     required: true
   },
   month: {
-    type: String, // e.g. "2026-08" or "August 2026"
+    type: String, // e.g. "July 2026" or "2026-07"
     required: true
   },
   basicSalary: {
@@ -38,6 +38,109 @@ const salaryPaymentSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+
+  // Detailed Payslip Header & Attendance Fields (from KOD.BRAND official format)
+  kbEmployeeId: {
+    type: String,
+    default: ''
+  },
+  designation: {
+    type: String,
+    default: ''
+  },
+  department: {
+    type: String,
+    default: ''
+  },
+  location: {
+    type: String,
+    default: 'HEAD OFFICE'
+  },
+  payPeriod: {
+    type: String,
+    default: ''
+  },
+  payDateStr: {
+    type: String,
+    default: ''
+  },
+  workingDays: {
+    type: Number,
+    default: 27
+  },
+  daysWorked: {
+    type: Number,
+    default: 27
+  },
+  daysInLeave: {
+    type: Number,
+    default: 0
+  },
+
+  // Earnings Breakdown
+  hra: {
+    type: Number,
+    default: 0
+  },
+  medicalAllowance: {
+    type: Number,
+    default: 0
+  },
+  specialAllowance: {
+    type: Number,
+    default: 0
+  },
+  transportAllowance: {
+    type: Number,
+    default: 0
+  },
+  otherAllowance: {
+    type: Number,
+    default: 0
+  },
+  integrityAward: {
+    type: Number,
+    default: 0
+  },
+  bonus: {
+    type: Number,
+    default: 0
+  },
+  totalEarnings: {
+    type: Number,
+    default: 0
+  },
+
+  // Deductions Breakdown
+  pf: {
+    type: Number,
+    default: 0
+  },
+  professionalTax: {
+    type: Number,
+    default: 0
+  },
+  incomeTax: {
+    type: Number,
+    default: 0
+  },
+  unpaidLeave: {
+    type: Number,
+    default: 0
+  },
+  advanceSalary: {
+    type: Number,
+    default: 0
+  },
+  otherDeductions: {
+    type: Number,
+    default: 0
+  },
+  totalDeductions: {
+    type: Number,
+    default: 0
+  },
+
   expenseId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Expense'
@@ -47,6 +150,26 @@ const salaryPaymentSchema = new mongoose.Schema({
     ref: 'User'
   },
   addedByName: {
+    type: String,
+    default: ''
+  },
+  status: {
+    type: String,
+    enum: ['PENDING', 'APPROVED', 'REJECTED'],
+    default: 'PENDING'
+  },
+  actionBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  actionByName: {
+    type: String,
+    default: ''
+  },
+  actionAt: {
+    type: Date
+  },
+  rejectionReason: {
     type: String,
     default: ''
   }

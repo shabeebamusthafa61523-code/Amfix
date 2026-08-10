@@ -5,6 +5,7 @@ import {
   getMyLeaveRequests,
   getTeamLeaveRequests,
   getAllLeaveRequests,
+  getLeaveHistory,
   approveOrRejectLeave,
   cancelLeaveRequest
 } from '../controllers/leave.controller.js';
@@ -16,6 +17,7 @@ router.use(verifyJWT);
 // Employee routes
 router.post('/', createLeaveRequest);
 router.get('/my', getMyLeaveRequests);
+router.get('/history', getLeaveHistory);
 router.delete('/:id', cancelLeaveRequest);
 
 // Manager / Team Lead routes
@@ -28,3 +30,4 @@ router.get('/all', getAllLeaveRequests);
 router.put('/:id/action', approveOrRejectLeave);
 
 export default router;
+

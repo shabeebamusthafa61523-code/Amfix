@@ -3,7 +3,7 @@ import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X, Maximize2
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, X, Maximize2, ExternalLink
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
@@ -1275,85 +1275,97 @@ const GraphicDesignerReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-5 py-4 w-[30%]">Task / Project Name</th>
-                      <th className="px-5 py-4 w-[12%]">Due Date</th>
-                      <th className="px-5 py-4 w-[40%]">Description / Details</th>
-                      <th className="px-5 py-4 w-[10%] text-center">Start Time</th>
-                      <th className="px-5 py-4 w-[10%] text-center">End Time</th>
-                      <th className="px-5 py-4 w-[10%] text-center">Status</th>
-                      <th className="px-5 py-4 w-[10%]">Drive File Link</th>
-                      <th className="px-5 py-4 w-[3%] text-center"></th>
+                      <th className="px-3 py-3.5 w-[20%]">Task / Project Name</th>
+                      <th className="px-2 py-3.5 w-[8%] text-center">Due Date</th>
+                      <th className="px-3 py-3.5 w-[28%]">Description / Details</th>
+                      <th className="px-2 py-3.5 w-[9%] text-center">Start Time</th>
+                      <th className="px-2 py-3.5 w-[9%] text-center">End Time</th>
+                      <th className="px-2 py-3.5 w-[9%] text-center">Status</th>
+                      <th className="px-3 py-3.5 w-[14%]">Drive File Link</th>
+                      <th className="px-2 py-3.5 w-[3%] text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {taskLog.map((item, index) => (
                       <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
-                        <td className="px-5 py-3">
-                          <input
-                            type="text"
-                            value={item.taskProjectName}
+                        <td className="px-3 py-3 vertical-top">
+                          <textarea
+                            rows={2}
+                            value={item.taskProjectName || ''}
                             onChange={(e) => {
                               const updated = [...taskLog];
                               updated[index].taskProjectName = e.target.value;
                               setTaskLog(updated);
                             }}
                             placeholder="Design Task..."
-                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                            className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 min-h-[44px] resize-y"
                           />
                         </td>
-                        <td className="px-5 py-3">
+                        <td className="px-2 py-3 vertical-top">
                           <input
                             type="text"
-                            value={item.dueDate}
+                            value={item.dueDate || ''}
                             onChange={(e) => {
                               const updated = [...taskLog];
                               updated[index].dueDate = e.target.value;
                               setTaskLog(updated);
                             }}
                             placeholder="DD/MM"
-                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                            className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-xs text-slate-700 dark:text-slate-200 focus:outline-none text-center focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           />
                         </td>
-                        <td className="px-5 py-3">
-                          <textarea
-                            value={item.descriptionDetails}
-                            onChange={(e) => {
-                              const updated = [...taskLog];
-                              updated[index].descriptionDetails = e.target.value;
-                              setTaskLog(updated);
-                            }}
-                            placeholder="Provide design work details..."
-                            rows={1}
-                            className="w-full bg-transparent border-none focus:outline-none resize-y text-slate-700 dark:text-slate-200"
-                          />
+                        <td className="px-3 py-3 vertical-top relative group">
+                          <div className="flex items-start gap-1">
+                            <textarea
+                              rows={2}
+                              value={item.descriptionDetails || ''}
+                              onChange={(e) => {
+                                const updated = [...taskLog];
+                                updated[index].descriptionDetails = e.target.value;
+                                setTaskLog(updated);
+                              }}
+                              placeholder="Provide design work details..."
+                              className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-y min-h-[44px]"
+                            />
+                            {item.descriptionDetails && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(item.descriptionDetails)}
+                                className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 mt-1"
+                                title="Expand / View Full Text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-5 py-3 text-center">
+                        <td className="px-2 py-3 vertical-top text-center">
                           <input
                             type="text"
-                            value={item.startTime}
+                            value={item.startTime || ''}
                             onChange={(e) => {
                               const updated = [...taskLog];
                               updated[index].startTime = e.target.value;
                               setTaskLog(updated);
                             }}
                             placeholder="9:30 AM"
-                            className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
+                            className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-xs text-center focus:outline-none text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           />
                         </td>
-                        <td className="px-5 py-3 text-center">
+                        <td className="px-2 py-3 vertical-top text-center">
                           <input
                             type="text"
-                            value={item.endTime}
+                            value={item.endTime || ''}
                             onChange={(e) => {
                               const updated = [...taskLog];
                               updated[index].endTime = e.target.value;
                               setTaskLog(updated);
                             }}
                             placeholder="11:00 AM"
-                            className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
+                            className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-xs text-center focus:outline-none text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           />
                         </td>
-                        <td className="px-5 py-3 text-center">
+                        <td className="px-2 py-3 vertical-top text-center">
                           <select
                             value={item.status}
                             onChange={(e) => {
@@ -1361,32 +1373,45 @@ const GraphicDesignerReportPage = () => {
                               updated[index].status = e.target.value;
                               setTaskLog(updated);
                             }}
-                            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none text-slate-700 dark:text-slate-200"
+                            className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-xs focus:outline-none text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           >
                             <option value="Done">Done</option>
                             <option value="Pending">Pending</option>
                             <option value="N/A">N/A</option>
                           </select>
                         </td>
-                        <td className="px-5 py-3">
-                          <input
-                            type="text"
-                            value={item.fileLink}
-                            onChange={(e) => {
-                              const updated = [...taskLog];
-                              updated[index].fileLink = e.target.value;
-                              setTaskLog(updated);
-                            }}
-                            placeholder="Link to drive..."
-                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200 text-xs text-indigo-600 dark:text-lime-400"
-                          />
+                        <td className="px-3 py-3 vertical-top">
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={item.fileLink || ''}
+                              onChange={(e) => {
+                                const updated = [...taskLog];
+                                updated[index].fileLink = e.target.value;
+                                setTaskLog(updated);
+                              }}
+                              placeholder="Link to drive..."
+                              className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-indigo-600 dark:text-lime-400 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                            />
+                            {item.fileLink && (
+                              <a
+                                href={item.fileLink.startsWith('http') ? item.fileLink : `https://${item.fileLink}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 mt-0.5"
+                                title="Open Drive Link"
+                              >
+                                <ExternalLink size={14} />
+                              </a>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-5 py-3 text-center">
+                        <td className="px-2 py-3 text-center vertical-top">
                           <button
                             type="button"
                             onClick={() => removeTaskRow(index)}
                             disabled={taskLog.length === 1}
-                            className="text-rose-500 hover:text-rose-700 disabled:opacity-30 transition-colors"
+                            className="text-rose-500 hover:text-rose-700 disabled:opacity-30 transition-colors p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
                           >
                             <Trash2 size={15} />
                           </button>

@@ -608,10 +608,16 @@ export const deleteTask = async (req, res, next) => {
       throw new AppError('Task not found', 404);
     }
 
-    // Verify creator authorization
+    // Verify creator authorization or SuperAdmin privileges
     const userId = req.user.id || req.user._id;
-    if (task.created_by.toString() !== userId.toString()) {
-      throw new AppError('Forbidden: Only the creator of this task can delete it', 403);
+    const roleName = String(req.user.role || '').toLowerCase();
+    const roleId = String(req.user.role_id || req.user.roleId || '');
+    const isSuperAdmin = req.user.isSuperAdmin === true || req.user.is_super_admin === true || roleName === 'superadmin' || roleId === '0';
+
+    const isCreator = task.created_by && task.created_by.toString() === userId.toString();
+
+    if (!isCreator && !isSuperAdmin) {
+      throw new AppError('Forbidden: Only the task creator or SuperAdmin can delete this task', 403);
     }
 
     if (task.file_public_id) {
@@ -716,10 +722,16 @@ export const updateTask = async (req, res, next) => {
       throw new AppError('Task not found', 404);
     }
 
-    // Verify creator authorization
+    // Verify creator authorization or SuperAdmin privileges
     const userId = req.user.id || req.user._id;
-    if (task.created_by.toString() !== userId.toString()) {
-      throw new AppError('Forbidden: Only the creator of this task can edit it', 403);
+    const roleName = String(req.user.role || '').toLowerCase();
+    const roleId = String(req.user.role_id || req.user.roleId || '');
+    const isSuperAdmin = req.user.isSuperAdmin === true || req.user.is_super_admin === true || roleName === 'superadmin' || roleId === '0';
+
+    const isCreator = task.created_by && task.created_by.toString() === userId.toString();
+
+    if (!isCreator && !isSuperAdmin) {
+      throw new AppError('Forbidden: Only the task creator or SuperAdmin can edit this task', 403);
     }
 
     if (title !== undefined) task.title = title.trim();

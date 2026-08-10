@@ -28,6 +28,25 @@ const isHrOrAdmin = (userObj) => {
 };
 
 /**
+ * Helper to check if a user is a Team Lead / Manager
+ */
+const isTlOrManager = (userObj) => {
+  if (!userObj) return false;
+  if (userObj.isTeamLead === true || userObj.is_team_lead === true) return true;
+  const role = String(userObj.role || '').toLowerCase().trim();
+  const roleId = String(userObj.role_id || userObj.roleId || '').trim();
+  const desig = String(userObj.designation || '').toLowerCase().trim();
+
+  return (
+    ['3', 'manager', 'team_lead', 'teamlead', 'tl', 'hod'].includes(role) ||
+    ['3', '10'].includes(roleId) ||
+    desig.includes('manager') ||
+    desig.includes('lead') ||
+    desig.includes('hod')
+  );
+};
+
+/**
  * Helper to fetch HR/Admin user IDs for targeted notifications
  */
 const getHrUserIds = async () => {
@@ -52,11 +71,11 @@ const getHrUserIds = async () => {
  * Helper to find Team Lead User ID by manager name
  */
 const getTeamLeadUserId = async (managerName) => {
-  if (!managerName || managerName.trim() === '' || managerName.toLowerCase() === 'unassigned') {
+  if (!managerName || typeof managerName !== 'string' || managerName.trim() === '' || managerName.toLowerCase() === 'unassigned') {
     return null;
   }
   try {
-    const cleanName = managerName.trim();
+    const cleanName = managerName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const leadUser = await User.findOne({
       name: { $regex: new RegExp(`^${cleanName}$`, 'i') }
     }).select('_id');
@@ -75,7 +94,11 @@ const getTeamLeadUserId = async (managerName) => {
 export const createLeaveRequest = async (req, res) => {
   try {
     const { leaveType, startDate, endDate, reason, ccUserIds } = req.body;
-    const userId = req.user.id || req.user._id;
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'User authentication required.' });
+    }
 
     if (!leaveType || !startDate || !endDate || !reason) {
       return res.status(400).json({
@@ -115,16 +138,26 @@ export const createLeaveRequest = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User record not found.' });
     }
 
-    // Resolve CC Users
+    // Resolve CC Users safely
     let resolvedCcUsers = [];
     if (Array.isArray(ccUserIds) && ccUserIds.length > 0) {
-      const ccDocs = await User.find({ _id: { $in: ccUserIds } }).select('_id name email');
-      resolvedCcUsers = ccDocs.map(u => ({
-        userId: u._id,
-        name: u.name,
-        email: u.email
-      }));
+      const validCcIds = ccUserIds.filter(id => id && mongoose.Types.ObjectId.isValid(id));
+      if (validCcIds.length > 0) {
+        const ccDocs = await User.find({ _id: { $in: validCcIds } }).select('_id name email');
+        resolvedCcUsers = ccDocs.map(u => ({
+          userId: u._id,
+          name: u.name,
+          email: u.email
+        }));
+      }
     }
+
+
+    const requesterIsTl = isTlOrManager(userObj);
+    const initialTeamLeadStatus = requesterIsTl ? 'APPROVED' : 'PENDING';
+    const initialTeamLeadActionBy = requesterIsTl ? userId : undefined;
+    const initialTeamLeadActionAt = requesterIsTl ? new Date() : undefined;
+    const initialTeamLeadComment = requesterIsTl ? 'Auto-approved (Requester is Team Lead)' : undefined;
 
     const newLeave = new LeaveRequest({
       user: userId,
@@ -139,7 +172,10 @@ export const createLeaveRequest = async (req, res) => {
       endDate: end,
       totalDays,
       reason,
-      teamLeadStatus: 'PENDING',
+      teamLeadStatus: initialTeamLeadStatus,
+      teamLeadActionBy: initialTeamLeadActionBy,
+      teamLeadActionAt: initialTeamLeadActionAt,
+      teamLeadComment: initialTeamLeadComment,
       hrStatus: 'PENDING',
       finalStatus: 'PENDING'
     });
@@ -202,7 +238,7 @@ export const createLeaveRequest = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Leave request submitted successfully.',
+      message: 'Leave request submitted successfully (Stage 1: Pending Team Lead review).',
       data: newLeave
     });
 
@@ -255,14 +291,84 @@ export const getTeamLeaveRequests = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found.' });
     }
 
-    // Find requests where reportingManager matches current user's name
-    const managerName = currentUser.name;
-    const leaves = await LeaveRequest.find({
-      $or: [
-        { reportingManager: { $regex: new RegExp(`^${managerName.trim()}$`, 'i') } },
-        { teamLeadActionBy: userId }
-      ]
-    })
+    const managerName = currentUser.name ? currentUser.name.trim() : '';
+    const cleanManagerName = managerName ? managerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
+
+    // 1. Collect all department IDs and department names for this Team Lead
+    let deptIds = [];
+    let deptNames = [];
+
+    if (currentUser.departmentId) {
+      deptIds.push(currentUser.departmentId);
+    }
+    if (currentUser.department && currentUser.department.trim()) {
+      deptNames.push(currentUser.department.trim());
+    }
+
+    try {
+      const Department = (await import('../modules/departments/department.model.js')).default;
+      const ledDepts = await Department.find({ managerId: userId }).select('_id name');
+      ledDepts.forEach(d => {
+        if (d._id) deptIds.push(d._id);
+        if (d.name && !deptNames.includes(d.name)) deptNames.push(d.name);
+      });
+    } catch (e) {}
+
+    // 2. Resolve all employee User IDs under these departments or reporting to this TL
+    let deptUserIds = [];
+    try {
+      const UserDepartment = (await import('../models/userDepartment.model.js')).default;
+      if (deptIds.length > 0) {
+        const udDocs = await UserDepartment.find({ departmentId: { $in: deptIds } }).select('userId');
+        udDocs.forEach(ud => {
+          if (ud.userId) deptUserIds.push(ud.userId.toString());
+        });
+      }
+
+      const userOrConditions = [];
+      if (deptIds.length > 0) {
+        userOrConditions.push({ departmentId: { $in: deptIds } });
+      }
+      if (deptNames.length > 0) {
+        const regexDeptList = deptNames.map(d => new RegExp(`^${d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+        userOrConditions.push({ department: { $in: regexDeptList } });
+      }
+      if (cleanManagerName) {
+        userOrConditions.push({ reportingManager: { $regex: new RegExp(`^${cleanManagerName}$`, 'i') } });
+      }
+
+      if (userOrConditions.length > 0) {
+        const deptUsers = await User.find({ $or: userOrConditions }).select('_id');
+        deptUsers.forEach(u => {
+          if (u._id) deptUserIds.push(u._id.toString());
+        });
+      }
+    } catch (e) {
+      console.error('Error resolving team user IDs for leave request list:', e);
+    }
+
+    const uniqueUserIds = [...new Set(deptUserIds)].filter(id => id && id.toString() !== userId.toString());
+
+    // 3. Query leave requests for department members
+    const leaveOrConditions = [];
+    if (uniqueUserIds.length > 0) {
+      leaveOrConditions.push({ user: { $in: uniqueUserIds } });
+    }
+    if (cleanManagerName) {
+      leaveOrConditions.push({ reportingManager: { $regex: new RegExp(`^${cleanManagerName}$`, 'i') } });
+    }
+    if (deptNames.length > 0) {
+      const regexDeptList = deptNames.map(d => new RegExp(`^${d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+      leaveOrConditions.push({ department: { $in: regexDeptList } });
+    }
+    leaveOrConditions.push({ teamLeadActionBy: userId });
+
+    const query = {
+      user: { $ne: userId },
+      $or: leaveOrConditions
+    };
+
+    const leaves = await LeaveRequest.find(query)
       .populate('user', 'name email department profile_image avatar')
       .populate('teamLeadActionBy', 'name')
       .populate('hrActionBy', 'name')
@@ -288,23 +394,44 @@ export const getTeamLeaveRequests = async (req, res) => {
  */
 export const getAllLeaveRequests = async (req, res) => {
   try {
-    const { status, department, search } = req.query;
+    const { status, department, search, stage } = req.query;
     const query = {};
 
-    if (status && status !== 'ALL') {
-      query.finalStatus = status;
-    }
-
     if (department && department !== 'ALL') {
-      query.department = { $regex: new RegExp(department, 'i') };
+      const cleanDept = department.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.department = { $regex: new RegExp(cleanDept, 'i') };
     }
 
     if (search && search.trim()) {
+      const cleanSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { userName: { $regex: search, $options: 'i' } },
-        { employeeId: { $regex: search, $options: 'i' } },
-        { reason: { $regex: search, $options: 'i' } }
+        { userName: { $regex: cleanSearch, $options: 'i' } },
+        { employeeId: { $regex: cleanSearch, $options: 'i' } },
+        { reason: { $regex: cleanSearch, $options: 'i' } }
       ];
+    }
+
+    if (status === 'PENDING' || stage === 'hr_pending') {
+      // HR only sees pending requests where TL has APPROVED Stage 1, OR where no reporting manager is assigned
+      query.$and = [
+        { finalStatus: 'PENDING' },
+        {
+          $or: [
+            { teamLeadStatus: 'APPROVED', hrStatus: 'PENDING' },
+            {
+              hrStatus: 'PENDING',
+              $or: [
+                { reportingManager: { $exists: false } },
+                { reportingManager: null },
+                { reportingManager: '' },
+                { reportingManager: { $regex: /^unassigned$/i } }
+              ]
+            }
+          ]
+        }
+      ];
+    } else if (status && status !== 'ALL') {
+      query.finalStatus = status;
     }
 
     const leaves = await LeaveRequest.find(query)
@@ -327,7 +454,7 @@ export const getAllLeaveRequests = async (req, res) => {
 };
 
 /**
- * @desc Approve or Reject a Leave Request (Stage 1 or Stage 2)
+ * @desc Approve or Reject a Leave Request (Stage 1: Team Lead -> Stage 2: HR)
  * @route PUT /api/leaves/:id/action
  * @access Protected
  */
@@ -356,6 +483,26 @@ export const approveOrRejectLeave = async (req, res) => {
     let targetType = approvalType;
     if (!targetType) {
       targetType = userIsHr ? 'hr' : 'team_lead';
+    }
+
+    const hasReportingManager = leaveObj.reportingManager && 
+      leaveObj.reportingManager.trim() !== '' && 
+      leaveObj.reportingManager.toLowerCase() !== 'unassigned';
+
+    const requesterUser = await User.findById(leaveObj.user);
+    const requesterIsTl = isTlOrManager(requesterUser);
+
+    // STAGE 2 ENFORCEMENT: HR can only approve/reject after Team Lead has APPROVED Stage 1
+    if (targetType === 'hr' && hasReportingManager && leaveObj.teamLeadStatus !== 'APPROVED' && !requesterIsTl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Stage 1 (Team Lead Approval) must be completed before HR can review or take action.'
+      });
+    }
+
+    if (requesterIsTl && leaveObj.teamLeadStatus !== 'APPROVED') {
+      leaveObj.teamLeadStatus = 'APPROVED';
+      leaveObj.teamLeadComment = 'Auto-approved (Requester is Team Lead)';
     }
 
     // Update specific approval fields
@@ -391,8 +538,10 @@ export const approveOrRejectLeave = async (req, res) => {
       empMsg = `🎉 Your leave request (${leaveObj.leaveType}) from ${new Date(leaveObj.startDate).toLocaleDateString()} to ${new Date(leaveObj.endDate).toLocaleDateString()} has been fully APPROVED by both Team Lead and HR!`;
     } else if (leaveObj.finalStatus === 'REJECTED') {
       empMsg = `❌ Your leave request (${leaveObj.leaveType}) was REJECTED by ${targetType === 'hr' ? 'HR' : 'Team Lead'}. Remarks: ${comment || 'No remarks.'}`;
+    } else if (targetType === 'team_lead' && action === 'APPROVED') {
+      empMsg = `ℹ️ Stage 1 Passed: Your leave request was APPROVED by Team Lead ${actorUser.name}. It has been forwarded to HR for final approval (Stage 2).`;
     } else {
-      empMsg = `ℹ️ Your leave request was ${action} by ${targetType === 'hr' ? 'HR' : 'Team Lead'}. Awaiting response from ${targetType === 'hr' ? 'Team Lead' : 'HR'}.`;
+      empMsg = `ℹ️ Your leave request was ${action} by ${targetType === 'hr' ? 'HR' : 'Team Lead'}.`;
     }
 
     await sendNotification(
@@ -404,24 +553,39 @@ export const approveOrRejectLeave = async (req, res) => {
       actorUser.name
     );
 
-    // 2. Notify the other approver role
-    if (targetType === 'team_lead') {
-      // Notify HR about Team Lead's action
+    // 2. Workflow Progression Notifications
+    if (targetType === 'team_lead' && action === 'APPROVED') {
+      // Team Lead approved Stage 1 -> Notify HR to review Stage 2
       const hrUserIds = await getHrUserIds();
       for (const hrId of hrUserIds) {
         if (hrId.toString() !== actorId.toString()) {
           await sendNotification(
             hrId,
-            `📢 Team Lead ${actorUser.name} ${action} leave request for ${leaveObj.userName}.`,
+            `📢 Stage 1 Approved: Team Lead ${actorUser.name} approved leave request for ${leaveObj.userName} (${leaveObj.leaveType}, ${leaveObj.totalDays} day(s)). Pending your HR review (Stage 2).`,
             'info',
-            'Leave Request TL Activity',
+            'Leave Request Pending HR Approval',
             actorId,
             actorUser.name
           );
         }
       }
-    } else {
-      // Notify Team Lead about HR's action
+    } else if (targetType === 'team_lead' && action === 'REJECTED') {
+      // Team Lead rejected -> Notify HR of rejection
+      const hrUserIds = await getHrUserIds();
+      for (const hrId of hrUserIds) {
+        if (hrId.toString() !== actorId.toString()) {
+          await sendNotification(
+            hrId,
+            `🚫 Team Lead ${actorUser.name} REJECTED leave request for ${leaveObj.userName}.`,
+            'info',
+            'Leave Request Rejected by TL',
+            actorId,
+            actorUser.name
+          );
+        }
+      }
+    } else if (targetType === 'hr') {
+      // HR action -> Notify Team Lead
       const tlId = await getTeamLeadUserId(leaveObj.reportingManager);
       if (tlId && tlId.toString() !== actorId.toString()) {
         await sendNotification(
@@ -467,6 +631,91 @@ export const approveOrRejectLeave = async (req, res) => {
 };
 
 /**
+ * @desc Get Leave History with summary metrics
+ * @route GET /api/leaves/history
+ * @access Protected
+ */
+export const getLeaveHistory = async (req, res) => {
+  try {
+    const userId = req.user.id || req.user._id;
+    const actorUser = await User.findById(userId);
+    const userIsHr = isHrOrAdmin(actorUser);
+
+    const { status, leaveType, search, targetUserId } = req.query;
+    const query = {};
+
+    if (!userIsHr) {
+      // Regular employees can only view their own leave history
+      query.user = userId;
+    } else if (targetUserId && targetUserId !== 'ALL') {
+      // HR viewing specific employee's history
+      query.user = targetUserId;
+    }
+
+    if (status && status !== 'ALL') {
+      query.finalStatus = status;
+    }
+
+    if (leaveType && leaveType !== 'ALL') {
+      query.leaveType = leaveType;
+    }
+
+    if (search && search.trim()) {
+      query.$or = [
+        { userName: { $regex: search, $options: 'i' } },
+        { employeeId: { $regex: search, $options: 'i' } },
+        { reason: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const leaves = await LeaveRequest.find(query)
+      .populate('user', 'name email department profile_image avatar')
+      .populate('teamLeadActionBy', 'name')
+      .populate('hrActionBy', 'name')
+      .sort({ createdAt: -1 });
+
+    // Calculate Summary Metrics
+    let totalDaysApproved = 0;
+    let approvedCount = 0;
+    let rejectedCount = 0;
+    let cancelledCount = 0;
+    let pendingCount = 0;
+
+    leaves.forEach(l => {
+      if (l.finalStatus === 'APPROVED') {
+        approvedCount++;
+        totalDaysApproved += (l.totalDays || 0);
+      } else if (l.finalStatus === 'REJECTED') {
+        rejectedCount++;
+      } else if (l.finalStatus === 'CANCELLED') {
+        cancelledCount++;
+      } else if (l.finalStatus === 'PENDING') {
+        pendingCount++;
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      summary: {
+        totalRequests: leaves.length,
+        totalDaysApproved,
+        approvedCount,
+        rejectedCount,
+        cancelledCount,
+        pendingCount
+      },
+      data: leaves
+    });
+  } catch (error) {
+    console.error('Error fetching leave history:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Server error while fetching leave history.'
+    });
+  }
+};
+
+/**
  * @desc Cancel a pending Leave Request
  * @route DELETE /api/leaves/:id
  * @access Protected (Owner)
@@ -475,29 +724,32 @@ export const cancelLeaveRequest = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id || req.user._id;
+    const currentUser = await User.findById(userId);
 
     const leaveObj = await LeaveRequest.findById(id);
     if (!leaveObj) {
       return res.status(404).json({ success: false, message: 'Leave request not found.' });
     }
 
-    if (leaveObj.user.toString() !== userId.toString()) {
-      return res.status(403).json({ success: false, message: 'Not authorized to cancel this request.' });
+    const isOwner = leaveObj.user.toString() === userId.toString();
+    const userIsHr = isHrOrAdmin(currentUser);
+
+    if (!isOwner && !userIsHr) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this leave request.' });
     }
 
-    leaveObj.finalStatus = 'CANCELLED';
-    await leaveObj.save();
+    await leaveObj.deleteOne();
 
     return res.status(200).json({
       success: true,
-      message: 'Leave request cancelled successfully.',
-      data: leaveObj
+      message: 'Leave request deleted successfully.'
     });
   } catch (error) {
-    console.error('Error cancelling leave request:', error);
+    console.error('Error deleting leave request:', error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Server error while cancelling leave request.'
+      message: error.message || 'Server error while deleting leave request.'
     });
   }
 };
+

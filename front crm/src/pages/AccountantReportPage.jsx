@@ -10,6 +10,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
+import PayslipModal from '../components/accounts/PayslipModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -76,6 +77,9 @@ const AccountantReportPage = () => {
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
   const [isPrivileged, setIsPrivileged] = useState(false);
+
+  // Payslip State
+  const [isPayslipOpen, setIsPayslipOpen] = useState(false);
 
   // Monthly Report States
   const [isMonthlyModalOpen, setIsMonthlyModalOpen] = useState(false);
@@ -2198,13 +2202,22 @@ const AccountantReportPage = () => {
                   <Calendar size={16} />
                   Weekly Report
                 </button>
-              <button
+                <button
                   type="button"
                   onClick={() => setIsMonthlyModalOpen(true)}
                   className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-semibold text-sm transition-all"
                 >
                   <Calendar size={16} />
                   Monthly Report
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPayslipOpen(true)}
+                  className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-200 font-semibold text-sm transition-all cursor-pointer"
+                >
+                  <FileText size={16} />
+                  Generate Payslip
                 </button>
 
                 
@@ -4387,6 +4400,22 @@ const AccountantReportPage = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* OFFICIAL PAYSLIP MODAL */}
+      <PayslipModal
+        isOpen={isPayslipOpen}
+        onClose={() => setIsPayslipOpen(false)}
+        salaryRecord={{
+          employeeName: basicDetails.employeeName || currentUser?.name || 'Accountant Staff',
+          designation: basicDetails.designation || 'Accountant Executive',
+          department: basicDetails.department || 'Accounts & Finance',
+          month: basicDetails.date ? `Disbursal — ${basicDetails.date}` : 'Current Pay Period',
+          basicSalary: 35000,
+          paidAmount: 35000,
+          paymentMode: 'Bank Transfer',
+          status: 'APPROVED'
+        }}
+      />
     </div>
   );
 };
