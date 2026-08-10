@@ -1,34 +1,9 @@
 import { Router } from 'express';
 import { userController } from '../controllers/user.controller.js';
-import checkAuth from '../middleware/auth.middleware.js';
+import checkAuth, { requireRole } from '../middleware/auth.middleware.js';
 import upload from '../middleware/upload.middleware.js';
 
 const router = Router();
-
-// ==========================================
-// ROLE VALIDATION
-// ==========================================
-
-const requireRole = (allowedRoles) => {
-  return (req, res, next) => {
-
-    const userRole =
-      req.user?.role ||
-      req.user?.role_id;
-
-    if (
-      !userRole ||
-      !allowedRoles.includes(String(userRole))
-    ) {
-      return res.status(403).json({
-        detail:
-          'Access denied. Insufficient permissions.'
-      });
-    }
-
-    next();
-  };
-};
 
 // ==========================================
 // AUTH MIDDLEWARE
@@ -71,34 +46,34 @@ router.get(
 // CREATE USER
 router.post(
   '/create',
-  upload.single('profileImage'),
+  upload.any(),
   userController.createUser
 );
 router.post(
   '/',
-  upload.single('profileImage'),
+  upload.any(),
   userController.createUser
 );
 
 // UPDATE USER
 router.put(
   '/update/:id',
-  upload.single('profileImage'),
+  upload.any(),
   userController.updateUser
 );
 router.post(
   '/update/:id',
-  upload.single('profileImage'),
+  upload.any(),
   userController.updateUser
 );
 router.put(
   '/:id',
-  upload.single('profileImage'),
+  upload.any(),
   userController.updateUser
 );
 router.put(
   '/update',
-  upload.single('profileImage'),
+  upload.any(),
   (req, res, next) => {
     req.params.id = req.body.id || req.body._id;
     next();
@@ -107,7 +82,7 @@ router.put(
 );
 router.post(
   '/update',
-  upload.single('profileImage'),
+  upload.any(),
   (req, res, next) => {
     req.params.id = req.body.id || req.body._id;
     next();

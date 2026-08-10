@@ -5,10 +5,13 @@ import {
   ShieldCheck, FolderKanban, FileText, Clock, Plus, ChevronRight, User as UserIcon
 } from 'lucide-react';
 import { getClientById } from '../services/clientService';
+import { useToast } from '../components/ToastProvider';
+import { formatApiError } from '../utils/errorUtils';
 
 const ClientDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
@@ -23,9 +26,12 @@ const ClientDetailsPage = () => {
       const res = await getClientById(id);
       if (res && res.success) {
         setData(res.data);
+      } else {
+        showToast(formatApiError(res, "Failed to load client details"), "error");
       }
     } catch (err) {
       console.error("Failed to fetch client details:", err);
+      showToast(formatApiError(err, "Server error fetching client details"), "error");
     } finally {
       setLoading(false);
     }

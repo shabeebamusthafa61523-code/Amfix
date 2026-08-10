@@ -53,7 +53,7 @@ const ProfileDrawer = ({ isOpen, onClose }) => {
         const authHeader = cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`;
         const API_BASE = import.meta.env.VITE_API_URL || '';
         
-        fetch(`${API_BASE}/user/${activeUserId}`, {
+        fetch(`${API_BASE}/v1/users/${activeUserId}`, {
           headers: { 'Authorization': authHeader }
         })
           .then(res => {
@@ -90,7 +90,7 @@ const ProfileDrawer = ({ isOpen, onClose }) => {
     const userId = user?.id || user?._id;
 
     try {
-      const res = await fetch(`${API_BASE}/user/update/${userId}`, {
+      const res = await fetch(`${API_BASE}/v1/users/update/${userId}`, {
         method: 'PUT',
         headers: {
           'Authorization': authHeader,

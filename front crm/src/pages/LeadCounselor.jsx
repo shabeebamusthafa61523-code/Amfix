@@ -229,15 +229,12 @@ const [activePriority, setActivePriority] = useState('all');
       desigId = String(currentUser.designation_id).trim();
     }
 
-    // Explicitly match Academic Counselor Designation ID: 6a27939af292348deb7d0495
-    if (desigId === '6a27939af292348deb7d0495') {
-      return true;
-    }
-
     const isCounselorOrTelecaller = (
       roleId === '3' ||
       designation.includes('counselor') ||
       designation.includes('telecaller') ||
+      designation.includes('academic') ||
+      designation.includes('sales') ||
       deptName.includes('counselor') ||
       deptName.includes('telecaller')
     );

@@ -2,9 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building, ArrowLeft, Save, ShieldAlert } from 'lucide-react';
 import { createClient } from '../services/clientService';
+import { useToast } from '../components/ToastProvider';
+import { formatApiError } from '../utils/errorUtils';
 
 const CreateClientPage = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -67,13 +70,18 @@ const CreateClientPage = () => {
 
       const res = await createClient(payload);
       if (res && res.success) {
+        showToast("Client profile created successfully!", "success");
         navigate('/clients');
       } else {
-        setError(res.message || 'Failed to create client.');
+        const errMsg = formatApiError(res, 'Failed to create client profile.');
+        setError(errMsg);
+        showToast(errMsg, "error");
       }
     } catch (err) {
       console.error("Create client error:", err);
-      setError(err.response?.data?.message || err.response?.data?.error || err.message || 'Server error creating client.');
+      const errMsg = formatApiError(err, 'Server error creating client profile.');
+      setError(errMsg);
+      showToast(errMsg, "error");
     } finally {
       setSubmitting(false);
     }

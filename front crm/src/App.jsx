@@ -42,8 +42,10 @@ import BasicReportPage from './pages/BasicReportPage';
 import NotificationPage from './pages/NotificationPage';
 import PerformanceDashboard from './pages/PerformanceDashboard';
 import UserPermissionsPage from './pages/UserPermissionsPage';
+import SidebarPermissionsPage from './pages/SidebarPermissionsPage';
 import MdDashboard from './pages/MdDashboard';
 import AccountsPage from './pages/AccountsPage';
+import LeavesPage from './pages/LeavesPage';
 
 
 
@@ -83,7 +85,7 @@ const PublicRoute = ({ children }) => {
         const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
         const designation = String(userObj.designation || '').toLowerCase().trim();
         const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-        const isHr = role === 'hr' || designation.includes('hr') || designationId === '6a2f8efea2fe388770a38987';
+        const isHr = role === 'hr' || designation.includes('hr');
         const isAdmin = ['1', '2', 'admin'].includes(role) || designation.includes('admin');
         
         if (isHr) {
@@ -113,7 +115,7 @@ const LandingRoute = () => {
       const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
       const designation = String(userObj.designation || '').toLowerCase().trim();
       const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-      const isHr = role === 'hr' || designation.includes('hr') || designationId === '6a2f8efea2fe388770a38987';
+      const isHr = role === 'hr' || designation.includes('hr');
       const isAdmin = ['1', '2', 'admin'].includes(role) || designation.includes('admin');
 
       if (isHr) {
@@ -146,6 +148,7 @@ function App() {
         <Route path="/attendance" element={<ProtectedRoute><MainLayout><Attendance /></MainLayout></ProtectedRoute>} />
         <Route path="/todo" element={<ProtectedRoute><MainLayout><RestrictedRoute><Todo /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute><MainLayout><RestrictedRoute><Users /></RestrictedRoute></MainLayout></ProtectedRoute>} />
+        <Route path="/sidebar-permissions" element={<ProtectedRoute><MainLayout><RestrictedRoute><SidebarPermissionsPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/permissions/:userId" element={<ProtectedRoute><MainLayout><RestrictedRoute><UserPermissionsPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/leads" element={<ProtectedRoute><MainLayout><RestrictedRoute><Leads /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/leads-telecaller" element={<ProtectedRoute><MainLayout><RestrictedRoute><LeadsTelecaller /></RestrictedRoute></MainLayout></ProtectedRoute>} />
@@ -176,6 +179,7 @@ function App() {
         <Route path="/basic-report" element={<ProtectedRoute><MainLayout><BasicReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><MainLayout><NotificationPage /></MainLayout></ProtectedRoute>} />
         <Route path="/performance-dashboard" element={<ProtectedRoute><MainLayout><PerformanceDashboard /></MainLayout></ProtectedRoute>} />
+        <Route path="/leaves" element={<ProtectedRoute><MainLayout><LeavesPage /></MainLayout></ProtectedRoute>} />
 
         {/* Accounts Department Module Routes */}
         <Route path="/accounts" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />

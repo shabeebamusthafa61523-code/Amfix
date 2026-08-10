@@ -19,11 +19,11 @@ router.get('/:id/users', departmentController.getUsers);
 router.get('/:id/analytics', departmentController.getAnalytics);
 
 // ==========================================
-// MUTATING ROUTES (Restricted to Admin/Manager only)
+// MUTATING ROUTES (Restricted to Admin/Manager/SuperAdmin)
 // ==========================================
 router.post(
   '/:id/users',
-  requireRole(['admin', 'manager']),
+  requireRole(['admin', 'manager', 'superadmin', '0', '1', '2']),
   [
     body('userId').trim().notEmpty().withMessage('User ID is required')
   ],
@@ -32,13 +32,13 @@ router.post(
 
 router.delete(
   '/:id/users/:userId',
-  requireRole(['admin', 'manager']),
+  requireRole(['admin', 'manager', 'superadmin', '0', '1', '2']),
   departmentController.removeUser
 );
 
 router.post(
   '/create',
-  requireRole(['admin', 'manager']),
+  requireRole(['admin', 'manager', 'superadmin', '0', '1', '2']),
   [
     body('name').trim().notEmpty().withMessage('Department name is required'),
     body('code').trim().notEmpty().withMessage('Department code is required')
@@ -48,7 +48,7 @@ router.post(
 
 router.put(
   '/update',
-  requireRole(['admin', 'manager']),
+  requireRole(['admin', 'manager', 'superadmin', '0', '1', '2']),
   [
     body('id').trim().notEmpty().withMessage('Department ID is required'),
     body('name').trim().notEmpty().withMessage('Department name is required'),
@@ -59,19 +59,19 @@ router.put(
 
 router.delete(
   '/:id',
-  requireRole(['admin', 'manager']),
+  requireRole(['admin', 'manager', 'superadmin', '0', '1', '2']),
   departmentController.delete
 );
 
 router.put(
   '/:id/manager',
-  requireRole(['admin', 'manager']),
+  requireRole(['admin', 'manager', 'superadmin', '0', '1', '2']),
   departmentController.assignManager
 );
 
 router.patch(
   '/:id/status',
-  requireRole(['admin', 'manager']),
+  requireRole(['admin', 'manager', 'superadmin', '0', '1', '2']),
   departmentController.toggleStatus
 );
 

@@ -13,15 +13,15 @@ const API_BASE = import.meta.env.VITE_API_URL;
 
 // Map designation IDs to API endpoint prefixes
 const DESIGNATION_API_MAP = {
-  '6a1e8e2d01a0dae8b2f3b18c': { name: 'Developer',            apiPrefix: 'developer-reports',           byDate: 'by-date' },
-  '6a2f9e086f1c41b0c80a9e21': { name: 'HOD R&D',              apiPrefix: 'hod-rd-reports',              byDate: 'by-date' },
-  '6a1e8e6e01a0dae8b2f3b18d': { name: 'Graphic Designer',     apiPrefix: 'graphic-designer-reports',    byDate: 'by-date' },
-  '6a27939af292348deb7d0495': { name: 'Academic Counselor',   apiPrefix: 'academic-counselor-reports',  byDate: 'by-date' },
-  '6a2f912c2df21dc234018caa': { name: 'Videographer',         apiPrefix: 'videographer-reports',        byDate: 'by-date' },
-  '6a2f8efea2fe388770a38987': { name: 'HR',                   apiPrefix: 'hr-reports',                  byDate: 'by-date' },
-  '6a2f91472df21dc234018cab': { name: 'Ops',                  apiPrefix: 'ops-reports',                 byDate: 'by-date' },
-  '6a2f915e2df21dc234018cac': { name: 'Accountant',           apiPrefix: 'accountant-reports',          byDate: 'by-date' },
-  '6a2f909d2df21dc234018ca8': { name: 'Marketing',            apiPrefix: 'marketing-reports',           byDate: 'by-date' },
+  'developer':         { name: 'Developer',          apiPrefix: 'developer-reports',          byDate: 'by-date' },
+  'hodrd':             { name: 'HOD R&D',            apiPrefix: 'hod-rd-reports',             byDate: 'by-date' },
+  'graphicdesigner':   { name: 'Graphic Designer',   apiPrefix: 'graphic-designer-reports',   byDate: 'by-date' },
+  'academiccounselor': { name: 'Academic Counselor', apiPrefix: 'academic-counselor-reports', byDate: 'by-date' },
+  'videographer':      { name: 'Videographer',       apiPrefix: 'videographer-reports',       byDate: 'by-date' },
+  'hr':                { name: 'HR',                 apiPrefix: 'hr-reports',                 byDate: 'by-date' },
+  'ops':               { name: 'Ops',                apiPrefix: 'ops-reports',                byDate: 'by-date' },
+  'accountant':        { name: 'Accountant',         apiPrefix: 'accountant-reports',         byDate: 'by-date' },
+  'marketing':         { name: 'Marketing',          apiPrefix: 'marketing-reports',          byDate: 'by-date' },
 };
 
 // Badge config for report periods
@@ -104,10 +104,13 @@ const EmployeeReports = () => {
     const fetchEmployees = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${API_BASE}/user/list`, { headers: getAuthHeaders() });
+        let res = await fetch(`${API_BASE}/v1/users/list`, { headers: getAuthHeaders() });
+        if (!res.ok) {
+          res = await fetch(`${API_BASE}/v1/users`, { headers: getAuthHeaders() });
+        }
         if (res.ok) {
           const data = await res.json();
-          const emps = Array.isArray(data) ? data : [];
+          const emps = Array.isArray(data) ? data : (data.data || []);
           setEmployees(emps);
           emps.forEach(emp => {
             const empId = emp._id || emp.id;
@@ -254,18 +257,16 @@ const EmployeeReports = () => {
   }, [searchQuery, selectedDepartment, selectedDesignation, selectedPeriod, globalSort, viewMode]);
 
   const getDesignationConfig = (emp) => {
-    const desigId = emp.designationId?._id || emp.designationId || emp.designation_id;
-    if (DESIGNATION_API_MAP[desigId]) return DESIGNATION_API_MAP[desigId];
     const desigName = String(emp.designation || emp.designationId?.name || '').toLowerCase();
-    if (desigName.includes('developer')) return DESIGNATION_API_MAP['6a1e8e2d01a0dae8b2f3b18c'];
-    if (desigName.includes('hod') || desigName.includes('r&d')) return DESIGNATION_API_MAP['6a2f9e086f1c41b0c80a9e21'];
-    if (desigName.includes('graphic')) return DESIGNATION_API_MAP['6a1e8e6e01a0dae8b2f3b18d'];
-    if (desigName.includes('counselor')) return DESIGNATION_API_MAP['6a27939af292348deb7d0495'];
-    if (desigName.includes('video')) return DESIGNATION_API_MAP['6a2f912c2df21dc234018caa'];
-    if (desigName.includes('hr')) return DESIGNATION_API_MAP['6a2f8efea2fe388770a38987'];
-    if (desigName.includes('ops') || desigName.includes('operations')) return DESIGNATION_API_MAP['6a2f91472df21dc234018cab'];
-    if (desigName.includes('accountant')) return DESIGNATION_API_MAP['6a2f915e2df21dc234018cac'];
-    if (desigName.includes('marketing') || desigName.includes('marketer')) return DESIGNATION_API_MAP['6a2f909d2df21dc234018ca8'];
+    if (desigName.includes('developer')) return DESIGNATION_API_MAP['developer'];
+    if (desigName.includes('hod') || desigName.includes('r&d')) return DESIGNATION_API_MAP['hodrd'];
+    if (desigName.includes('graphic') || desigName.includes('designer')) return DESIGNATION_API_MAP['graphicdesigner'];
+    if (desigName.includes('counselor') || desigName.includes('academic')) return DESIGNATION_API_MAP['academiccounselor'];
+    if (desigName.includes('video') || desigName.includes('editor')) return DESIGNATION_API_MAP['videographer'];
+    if (desigName.includes('hr') || desigName.includes('recruiter')) return DESIGNATION_API_MAP['hr'];
+    if (desigName.includes('ops') || desigName.includes('operations')) return DESIGNATION_API_MAP['ops'];
+    if (desigName.includes('accountant') || desigName.includes('finance')) return DESIGNATION_API_MAP['accountant'];
+    if (desigName.includes('marketing') || desigName.includes('marketer') || desigName.includes('digital')) return DESIGNATION_API_MAP['marketing'];
     return null;
   };
 
