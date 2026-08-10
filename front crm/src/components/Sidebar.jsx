@@ -243,6 +243,8 @@ const menuItems = [
   { icon: UserCheck, label: 'Attendance', path: '/attendance', excludeRoles: ['1', '2', 'hr', 'admin'] },
   { icon: ListCheck, label: 'Task Assign', path: '/todo' },
   { icon: Users, label: 'Student Attendance', path: '/student-attendance', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
+  { icon: BookOpen, label: 'Course Management', path: '/academy/courses', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
+  { icon: FolderKanban, label: 'Batches', path: '/academy/batches', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
   { icon: Building, label: 'Departments', path: '/departments', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
   { icon: Users, label: 'Employee Reports', path: '/employee-reports', allowedRoles: [ 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
   { icon: Users, label: 'Team Reports', path: '/team-reports', isTeamLeadOnly: true },
@@ -443,7 +445,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-1 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {visibleMenuItems.map((item) => (
             <NavItem 
-              key={item.path}
+              key={`${item.path}-${item.label}`}
               icon={<item.icon size={20} />} 
               label={item.label} 
               to={item.path} 
@@ -503,7 +505,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
           {visibleMenuItems.map((item) => (
-            <React.Fragment key={item.path}>
+            <React.Fragment key={`${item.path}-${item.label}`}>
               <Link
                 to={item.children ? item.children[0].path : item.path}
                 onClick={() => setIsMobileOpen(false)}

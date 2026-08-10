@@ -5,22 +5,23 @@ import {
   Search, Calendar as CalendarIcon, GraduationCap, Loader2, LayoutGrid, List, 
   ChevronLeft, ChevronRight, UserCheck, UserPlus, ShieldCheck, AlertCircle, 
   CheckCircle2, XCircle, X, User, Mail, Lock, Phone, ShieldPlus, CreditCard,
-  Download, FileSpreadsheet
+  Download, FileSpreadsheet, Eye, Edit, MapPin, BookOpen, Camera, Upload, ImageIcon
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable'; 
 import { useToast } from '../components/ToastProvider';
+import StudentProfileModal from '../components/StudentProfileModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 const STUDENT_ROLE_ID = "10"; 
 
-const FormInput = ({ label, name, type = "text", icon, onChange, value, placeholder = "" }) => (
+const FormInput = ({ label, name, type = "text", icon, onChange, value, placeholder = "", required = false }) => (
   <div className="space-y-1">
     <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">{label}</label>
     <div className="relative">
       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">{icon}</div>
       <input 
-        required 
+        required={required} 
         name={name} 
         type={type} 
         value={value} 
@@ -32,6 +33,14 @@ const FormInput = ({ label, name, type = "text", icon, onChange, value, placehol
   </div>
 );
 
+const initialFormState = {
+  name: '', email: '', password: '', phone: '', status: 'active',
+  designation_id: '10', joining_date: new Date().toISOString().split('T')[0],
+  address: '', identityType: 'aadhaar', identityNumber: '', profile_image: '',
+  dateOfBirth: '', gender: '', alternatePhone: '', city: '', state: '', pincode: '',
+  qualification: '', institution: '', passingYear: '', coursePreference: ''
+};
+
 const StudentAttendance = () => {
   const [students, setStudents] = useState([]);
   const { showToast } = useToast();
@@ -42,15 +51,18 @@ const StudentAttendance = () => {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid'); 
   const [currentPage, setCurrentPage] = useState(1);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isAddingStudent, setIsAddingStudent] = useState(false);
   const PAGE_SIZE = 20;
 
-  const [formData, setFormData] = useState({
-    name: '', email: '', password: '', phone: '', status: 'active',
-    designation_id: '10', joining_date: new Date().toISOString().split('T')[0],
-    address: '', identityType: 'aadhaar', identityNumber: '', profile_image: ''
-  });
+  // Registration & Edit Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [formData, setFormData] = useState(initialFormState);
+  const [imagePreview, setImagePreview] = useState(null);
+
+  // Student Profile Overview Modal State
+  const [selectedProfileStudentId, setSelectedProfileStudentId] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const getHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
@@ -99,7 +111,6 @@ const StudentAttendance = () => {
       const res = await fetch(endpoint, { headers: getHeaders() });
       
       if (!res.ok) {
-        // Fallback to legacy endpoint
         const fallbackRes = await fetch(`${cleanBase}/user/?role=student&limit=500`, { headers: getHeaders() });
         if (!fallbackRes.ok) return;
         const fbData = await fallbackRes.json();
@@ -137,9 +148,13 @@ const StudentAttendance = () => {
     syncAttendance();
   }, [selectedDate, syncAttendance]);
 
-  // Combined selector rule to isolate matching entries safely
   const getFilteredStudents = () => {
-    return students.filter(s => s.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+    return students.filter(s => {
+      const nameMatch = s.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      const emailMatch = s.email?.toLowerCase().includes(searchQuery.toLowerCase());
+      const idMatch = (s.studentId || s.employeeId || '').toLowerCase().includes(searchQuery.toLowerCase());
+      return nameMatch || emailMatch || idMatch;
+    });
   };
 
   const exportToExcel = () => {
@@ -192,18 +207,117 @@ const StudentAttendance = () => {
     doc.save(`Attendance_Report_${selectedDate}.pdf`);
   };
 
+  const handleImageFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Image size should be less than 10MB.', 'warning');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 350;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+        setImagePreview(compressedBase64);
+        setFormData(prev => ({
+          ...prev,
+          profile_image: compressedBase64
+        }));
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingStudent(null);
+    setFormData(initialFormState);
+    setImagePreview(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (student) => {
+    setEditingStudent(student);
+    const existingImg = student.profile_image || student.avatar || '';
+    setImagePreview(existingImg || null);
+    setFormData({
+      name: student.name || '',
+      email: student.email || '',
+      password: '',
+      phone: student.phone || '',
+      status: student.status || 'active',
+      designation_id: '10',
+      joining_date: student.joining_date ? new Date(student.joining_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      address: student.address || '',
+      identityType: student.identityType || 'aadhaar',
+      identityNumber: student.identityNumber || '',
+      profile_image: existingImg,
+      dateOfBirth: student.dateOfBirth || '',
+      gender: student.gender || '',
+      alternatePhone: student.alternatePhone || '',
+      city: student.city || '',
+      state: student.state || '',
+      pincode: student.pincode || '',
+      qualification: student.qualification || '',
+      institution: student.institution || '',
+      passingYear: student.passingYear || '',
+      coursePreference: student.coursePreference || ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleOpenProfile = (studentId) => {
+    setSelectedProfileStudentId(studentId);
+    setIsProfileModalOpen(true);
+  };
+
   const handleRegister = async (e) => {
     e.preventDefault();
     setIsAddingStudent(true);
 
-    // Phone number validation
+    if (!formData.name || !formData.email) {
+      showToast('Full Name and Email Address are required.', 'warning');
+      setIsAddingStudent(false);
+      return;
+    }
+
+    if (!editingStudent && !formData.password) {
+      showToast('Account Password is required for new registration.', 'warning');
+      setIsAddingStudent(false);
+      return;
+    }
+
     if (!/^\d{10}$/.test(formData.phone || '')) {
       showToast('Phone number must be exactly 10 digits.', 'warning');
       setIsAddingStudent(false);
       return;
     }
 
-    // ID Document Number validation
     const idType = formData.identityType;
     const idNum = (formData.identityNumber || '').trim();
 
@@ -240,21 +354,39 @@ const StudentAttendance = () => {
     };
 
     try {
-      const response = await fetch(`${API_BASE}/auth/signup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finalPayload),
-      });
+      let response;
+      if (editingStudent) {
+        const editId = editingStudent._id || editingStudent.id;
+        response = await fetch(`${API_BASE}/v1/users/update/${editId}`, {
+          method: "PUT",
+          headers: getHeaders(),
+          body: JSON.stringify(finalPayload),
+        });
+        if (!response.ok) {
+          response = await fetch(`${API_BASE}/v1/users/${editId}`, {
+            method: "PUT",
+            headers: getHeaders(),
+            body: JSON.stringify(finalPayload),
+          });
+        }
+      } else {
+        response = await fetch(`${API_BASE}/auth/signup`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(finalPayload),
+        });
+      }
 
       if (response.ok) {
         setIsModalOpen(false);
         fetchStudents();
-        setFormData({
-          name: '', email: '', password: '', phone: '', status: 'active',
-          designation_id: '10', joining_date: new Date().toISOString().split('T')[0],
-          address: '', identityType: 'aadhaar', identityNumber: '', profile_image: ''
-        });
-        showToast("Student Added successfully!", "success");
+        setFormData(initialFormState);
+        setImagePreview(null);
+        setEditingStudent(null);
+        showToast(
+          editingStudent ? "Student Profile updated successfully!" : "Student Added successfully!", 
+          "success"
+        );
       } else {
         let errMsg = "Enrollment failed.";
         try {
@@ -308,7 +440,7 @@ const StudentAttendance = () => {
   };
 
   useEffect(() => {
-    if (isModalOpen) {
+    if (isModalOpen || isProfileModalOpen) {
       window.scrollTo(0, 0); 
     } else {
       document.body.style.overflow = 'unset';
@@ -316,9 +448,8 @@ const StudentAttendance = () => {
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isModalOpen]);
+  }, [isModalOpen, isProfileModalOpen]);
 
-  // Aggregate current view analytics context securely
   const activePresenceCount = Object.values(attendanceData).filter(v => v.status === 'PRESENT').length;
   const unresolvedAbsentCount = Object.values(attendanceData).filter(v => v.status === 'ABSENT').length;
 
@@ -326,20 +457,32 @@ const StudentAttendance = () => {
     <div className="bg-slate-50 dark:bg-slate-950 min-h-screen text-slate-600 dark:text-slate-200 font-sans selection:bg-white-500/30 transition-colors duration-300">
       <div className="relative max-w-[1600px] mx-auto px-4 md:px-8 py-12">
         
+        {/* Top Header Navigation */}
         <nav className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-10">
           <div className="flex items-center gap-6">
             <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl flex items-center justify-center shadow-[0_8px_30px_rgb(79,70,229,0.3)]">
               <ShieldCheck className="text-white" size={32} />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight uppercase">Students <span className="text-indigo-600 italic">Attendance</span></h1>
-              {/* <p className="text-[10px] font-black tracking-[0.2em] text-slate-500 dark:text-slate-400 uppercase mt-1 italic">Verified Student Administration Session</p> */}
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight uppercase">
+                Students <span className="text-indigo-600 italic">Attendance</span>
+              </h1>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
-            <button onClick={() => setViewMode('grid')} className={`p-3 rounded-xl transition-all cursor-pointer ${viewMode === 'grid' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><LayoutGrid size={20} /></button>
-            <button onClick={() => setViewMode('table')} className={`p-3 rounded-xl transition-all cursor-pointer ${viewMode === 'table' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}><List size={20} /></button>
+            <button 
+              onClick={() => setViewMode('grid')} 
+              className={`p-3 rounded-xl transition-all cursor-pointer ${viewMode === 'grid' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+            >
+              <LayoutGrid size={20} />
+            </button>
+            <button 
+              onClick={() => setViewMode('table')} 
+              className={`p-3 rounded-xl transition-all cursor-pointer ${viewMode === 'table' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+            >
+              <List size={20} />
+            </button>
             <div className="h-8 w-[1px] bg-slate-200 dark:bg-slate-800 mx-2 hidden sm:block" />
             
             <div className="relative flex items-center gap-1 px-4 py-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20 group">
@@ -354,6 +497,7 @@ const StudentAttendance = () => {
           </div>
         </nav>
 
+        {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           {[
             { label: 'Total Students', value: totalStudents, icon: GraduationCap },
@@ -372,6 +516,7 @@ const StudentAttendance = () => {
           ))}
         </div>
 
+        {/* Filter Controls & Primary Action Buttons */}
         <div className="flex flex-col lg:flex-row gap-4 mb-10">
           <div className="relative flex-1 group">
             <input 
@@ -382,18 +527,28 @@ const StudentAttendance = () => {
             />
           </div>
           <div className="flex flex-wrap gap-3">
-            <button onClick={exportToPDF} className="flex-1 lg:flex-none bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer">
+            <button 
+              onClick={exportToPDF} 
+              className="flex-1 lg:flex-none bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
               <FileSpreadsheet size={16} /> PDF Report
             </button>
-            <button onClick={exportToExcel} className="flex-1 lg:flex-none bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer">
+            <button 
+              onClick={exportToExcel} 
+              className="flex-1 lg:flex-none bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
               <Download size={16} /> Excel Report
             </button>
-            <button onClick={() => setIsModalOpen(true)} className="flex-1 lg:flex-none bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-600/20 cursor-pointer">
+            <button 
+              onClick={handleOpenAddModal} 
+              className="flex-1 lg:flex-none bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-600/20 cursor-pointer"
+            >
               <UserPlus size={16} /> Add Student
             </button>
           </div>
         </div>
 
+        {/* Student Grid & Table Views */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-40 gap-4">
             <Loader2 className="animate-spin text-indigo-500" size={48} />
@@ -408,52 +563,83 @@ const StudentAttendance = () => {
                   const status = attendanceData[studentId]?.status || 'UNMARKED';
                   const isPresent = status === 'PRESENT';
                   const isAbsent = status === 'ABSENT';
+                  const imgUrl = s.profile_image || s.avatar;
 
                   return (
                     <motion.div 
                       layout
                       key={studentId} 
-                      className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-7 rounded-[2.5rem] hover:shadow-md transition-all relative overflow-hidden shadow-sm"
+                      className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-7 rounded-[2.5rem] hover:shadow-md transition-all relative overflow-hidden shadow-sm flex flex-col justify-between"
                     >
-                      <div className="flex justify-between items-start mb-8">
-                        <div className="w-14 h-14 bg-gradient-to-tr from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xl font-black italic border border-slate-200 dark:border-slate-800">
-                          {s.name ? s.name.charAt(0).toUpperCase() : '?'}
+                      <div>
+                        <div className="flex justify-between items-start mb-8">
+                          <div 
+                            onClick={() => handleOpenProfile(studentId)}
+                            className="w-14 h-14 bg-gradient-to-tr from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xl font-black italic border border-slate-200 dark:border-slate-800 overflow-hidden cursor-pointer group-hover:scale-105 transition-transform flex-shrink-0"
+                          >
+                            {imgUrl ? (
+                              <img src={imgUrl} alt={s.name} className="w-full h-full object-cover" />
+                            ) : (
+                              s.name ? s.name.charAt(0).toUpperCase() : '?'
+                            )}
+                          </div>
+                          <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all duration-500 ${
+                            isPresent ? 'bg-emerald-500 text-white border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 
+                            isAbsent ? 'bg-red-500 text-white border-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 
+                            'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                          }`}>
+                            {status}
+                          </div>
                         </div>
-                        <div className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all duration-500 ${
-                          isPresent ? 'bg-emerald-500 text-white border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 
-                          isAbsent ? 'bg-red-500 text-white border-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 
-                          'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
-                        }`}>
-                          {status}
+
+                        <div className="mb-8 cursor-pointer" onClick={() => handleOpenProfile(studentId)}>
+                          <h3 className="text-slate-900 dark:text-slate-100 font-bold text-lg leading-tight truncate uppercase tracking-tight hover:text-indigo-600 transition-colors">
+                            {s.name}
+                          </h3>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1 truncate lowercase opacity-60 tracking-wider">
+                            {s.email}
+                          </p>
                         </div>
                       </div>
 
-                      <div className="mb-8">
-                        <h3 className="text-slate-900 dark:text-slate-100 font-bold text-lg leading-tight truncate uppercase tracking-tight">{s.name}</h3>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1 truncate lowercase opacity-60 tracking-wider">{s.email}</p>
-                      </div>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => handleOpenProfile(studentId)}
+                            className="py-2 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-indigo-600 border border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Eye size={12} /> Profile
+                          </button>
+                          <button
+                            onClick={() => handleOpenEditModal(s)}
+                            className="py-2 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-indigo-600 border border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
+                          >
+                            <Edit size={12} /> Edit
+                          </button>
+                        </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <button 
-                          onClick={() => handleAction(studentId, 'present')}
-                          className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                            isPresent 
-                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/10' 
-                            : 'bg-slate-50 dark:bg-slate-950 text-emerald-600 border border-slate-100 dark:border-slate-850 hover:bg-emerald-500 hover:text-green hover:border-emerald-500'
-                          }`}
-                        >
-                          <CheckCircle2 size={14} /> {isPresent ? 'Saved' : 'Present'}
-                        </button>
-                        <button 
-                          onClick={() => handleAction(studentId, 'absent')}
-                          className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                            isAbsent 
-                            ? 'bg-red-600 text-white shadow-lg shadow-red-600/10' 
-                            : 'bg-slate-50 dark:bg-slate-950 text-red-600 border border-slate-100 dark:border-slate-850 hover:bg-red-500 hover:text-red hover:border-red-500'
-                          }`}
-                        >
-                          <XCircle size={14} /> {isAbsent ? 'Saved' : 'Absent'}
-                        </button>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button 
+                            onClick={() => handleAction(studentId, 'present')}
+                            className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                              isPresent 
+                              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/10' 
+                              : 'bg-slate-50 dark:bg-slate-950 text-emerald-600 border border-slate-100 dark:border-slate-850 hover:bg-emerald-500 hover:text-white'
+                            }`}
+                          >
+                            <CheckCircle2 size={14} /> {isPresent ? 'Saved' : 'Present'}
+                          </button>
+                          <button 
+                            onClick={() => handleAction(studentId, 'absent')}
+                            className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                              isAbsent 
+                              ? 'bg-red-600 text-white shadow-lg shadow-red-600/10' 
+                              : 'bg-slate-50 dark:bg-slate-950 text-red-600 border border-slate-100 dark:border-slate-850 hover:bg-red-500 hover:text-white'
+                            }`}
+                          >
+                            <XCircle size={14} /> {isAbsent ? 'Saved' : 'Absent'}
+                          </button>
+                        </div>
                       </div>
                     </motion.div>
                   );
@@ -474,26 +660,45 @@ const StudentAttendance = () => {
                       {getFilteredStudents().map((s) => {
                         const studentId = s._id || s.id;
                         const status = attendanceData[studentId]?.status || 'UNMARKED';
+                        const imgUrl = s.profile_image || s.avatar;
                         return (
                           <tr key={studentId} className="border-b border-slate-200 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-950/20 transition-colors group">
-                            <td className="px-8 py-6">
+                            <td className="px-8 py-6 cursor-pointer" onClick={() => handleOpenProfile(studentId)}>
                               <div className="flex items-center gap-5">
-                                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-slate-700 flex-shrink-0">
-                                  {s.name ? s.name.charAt(0).toUpperCase() : '?'}
+                                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-slate-700 flex-shrink-0 overflow-hidden">
+                                  {imgUrl ? (
+                                    <img src={imgUrl} alt={s.name} className="w-full h-full object-cover" />
+                                  ) : (
+                                    s.name ? s.name.charAt(0).toUpperCase() : '?'
+                                  )}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-slate-900 dark:text-slate-100 font-bold text-sm uppercase tracking-tight truncate">{s.name}</p>
+                                  <p className="text-slate-900 dark:text-slate-100 font-bold text-sm uppercase tracking-tight truncate hover:text-indigo-600">{s.name}</p>
                                   <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase truncate">{s.email}</p>
                                 </div>
                               </div>
                             </td>
                             <td className="px-8 py-6 text-center">
-                               <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${status === 'PRESENT' ? 'text-emerald-500 bg-emerald-500/10' : status === 'ABSENT' ? 'text-red-500 bg-red-500/10' : 'text-slate-500 dark:text-slate-400 bg-slate-500/10 dark:bg-slate-500/20'}`}>
+                              <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${status === 'PRESENT' ? 'text-emerald-500 bg-emerald-500/10' : status === 'ABSENT' ? 'text-red-500 bg-red-500/10' : 'text-slate-500 dark:text-slate-400 bg-slate-500/10 dark:bg-slate-500/20'}`}>
                                 {status}
-                               </span>
+                              </span>
                             </td>
                             <td className="px-8 py-6">
-                              <div className="flex justify-end gap-3">
+                              <div className="flex justify-end items-center gap-3">
+                                <button
+                                  onClick={() => handleOpenProfile(studentId)}
+                                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl transition-all cursor-pointer"
+                                  title="View Profile"
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleOpenEditModal(s)}
+                                  className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl transition-all cursor-pointer"
+                                  title="Edit Student"
+                                >
+                                  <Edit size={14} />
+                                </button>
                                 <button 
                                   onClick={() => handleAction(studentId, 'present')} 
                                   className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${status === 'PRESENT' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-emerald-500 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white'}`}
@@ -519,6 +724,7 @@ const StudentAttendance = () => {
           </AnimatePresence>
         )}
 
+        {/* Pagination Navigation */}
         <div className="mt-16 flex items-center justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-3xl shadow-xl">
           <button 
             disabled={currentPage === 1} 
@@ -529,7 +735,7 @@ const StudentAttendance = () => {
           </button>
           
           <div className="hidden md:flex gap-3">
-            {[...Array(Math.ceil(totalStudents / PAGE_SIZE))].map((_, i) => (
+            {[...Array(Math.ceil(totalStudents / PAGE_SIZE) || 1)].map((_, i) => (
               <button 
                 key={i} 
                 onClick={() => setCurrentPage(i + 1)}
@@ -550,6 +756,19 @@ const StudentAttendance = () => {
         </div>
       </div>
 
+      {/* Student Profile Overview Modal */}
+      <StudentProfileModal
+        studentId={selectedProfileStudentId}
+        isOpen={isProfileModalOpen}
+        onClose={() => {
+          setIsProfileModalOpen(false);
+          setSelectedProfileStudentId(null);
+        }}
+        onEditStudent={handleOpenEditModal}
+        getHeaders={getHeaders}
+      />
+
+      {/* Student Registration / Edit Modal */}
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl">
@@ -571,7 +790,7 @@ const StudentAttendance = () => {
                 <header className="mb-10 flex justify-between items-start">
                   <div>
                     <h2 className="text-3xl md:text-5xl font-black text-slate-900 dark:text-slate-100 italic uppercase tracking-tighter">
-                      Add <span className="text-indigo-600">Student</span>
+                      {editingStudent ? 'Edit' : 'Add'} <span className="text-indigo-600">Student</span>
                     </h2>
                     <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.4em] mt-2">
                       Verified Institutional Student Registration Node
@@ -584,45 +803,156 @@ const StudentAttendance = () => {
                     <X size={24}/>
                   </button>
                 </header>
-                <form onSubmit={handleRegister} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <FormInput label="Full Name" name="name" icon={<User size={14}/>} value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
-                  <FormInput label="Email Address" name="email" type="email" icon={<Mail size={14}/>} value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
-                  <FormInput label="Account Password" name="password" type="password" icon={<Lock size={14}/>} value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} />
-                  <div>
-                    <FormInput label="Contact Phone" name="phone" icon={<Phone size={14}/>} value={formData.phone}
-                      onChange={e => {
-                        const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
-                        setFormData({...formData, phone: digits});
-                      }}
-                    />
-                    {formData.phone && formData.phone.length !== 10 && (
-                      <p className="text-[10px] text-red-500 mt-1 ml-2">Must be exactly 10 digits.</p>
-                    )}
-                  </div>
+
+                <form onSubmit={handleRegister} className="space-y-8">
                   
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">ID Type</label>
-                    <div className="relative">
-                      <ShieldPlus className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
-                      <select 
-                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 pl-12 pr-4 text-slate-900 dark:text-slate-100 outline-none appearance-none text-sm focus:border-indigo-500 transition-all cursor-pointer" 
-                        value={formData.identityType} 
-                        onChange={(e) => setFormData({...formData, identityType: e.target.value})}
-                      >
-                        <option value="aadhaar">Aadhar Card</option>
-                        <option value="pancard">PAN Card</option>
-                      </select>
+                  {/* STUDENT PROFILE IMAGE UPLOAD SECTION */}
+                  <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl flex flex-col sm:flex-row items-center gap-6">
+                    <div className="relative w-24 h-24 rounded-3xl bg-slate-200 dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      {imagePreview ? (
+                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="text-center text-slate-400 p-2">
+                          <Camera size={28} className="mx-auto mb-1" />
+                          <span className="text-[8px] font-black uppercase tracking-wider">No Image</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2 flex-1">
+                      <label className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <ImageIcon size={16} className="text-indigo-500" /> Student Profile Photo
+                      </label>
+                      <p className="text-[10px] text-slate-400 font-semibold">
+                        Upload official student photograph (JPEG, PNG or WEBP, max 10MB).
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3 pt-1">
+                        <label className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest flex items-center gap-2 cursor-pointer transition-all shadow-md">
+                          <Upload size={14} /> Upload Photo
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={handleImageFileChange} 
+                          />
+                        </label>
+                        {imagePreview && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImagePreview(null);
+                              setFormData(prev => ({ ...prev, profile_image: '' }));
+                            }}
+                            className="text-[9px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 px-3 py-2 border border-rose-200 dark:border-rose-900/50 rounded-xl cursor-pointer"
+                          >
+                            Remove Image
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <FormInput label="ID Document Number" name="identityNumber" icon={<CreditCard size={14}/>} value={formData.identityNumber} onChange={(e) => setFormData({...formData, identityNumber: e.target.value})} />
-                    {formData.identityNumber && formData.identityType === 'aadhaar' && !/^\d{12}$/.test(formData.identityNumber.replace(/[\s-]/g, '')) && (
-                      <p className="text-[10px] text-red-500 mt-1 ml-2">Aadhaar must be exactly 12 digits.</p>
-                    )}
-                    {formData.identityNumber && formData.identityType === 'pancard' && !/^[A-Za-z]{5}\d{4}[A-Za-z]{1}$/.test(formData.identityNumber) && (
-                      <p className="text-[10px] text-red-500 mt-1 ml-2">Invalid PAN format (E.g. ABCDE1234F).</p>
-                    )}
+                  {/* SECTION 1: Personal Information */}
+                  <div className="space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                      <User size={14} /> Section 1: Personal Information
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <FormInput label="Full Name" name="name" icon={<User size={14}/>} value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} required />
+                      <FormInput label="Email Address" name="email" type="email" icon={<Mail size={14}/>} value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} required />
+                      <FormInput label="Account Password" name="password" type="password" icon={<Lock size={14}/>} value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} required={!editingStudent} />
+                      
+                      <FormInput label="Date of Birth" name="dateOfBirth" type="date" icon={<CalendarIcon size={14}/>} value={formData.dateOfBirth} onChange={(e) => setFormData({...formData, dateOfBirth: e.target.value})} />
+                      
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">Gender</label>
+                        <select 
+                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 px-4 text-slate-900 dark:text-slate-100 outline-none text-sm focus:border-indigo-500 transition-all cursor-pointer"
+                          value={formData.gender}
+                          onChange={(e) => setFormData({...formData, gender: e.target.value})}
+                        >
+                          <option value="">Select Gender</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <FormInput label="Contact Phone" name="phone" icon={<Phone size={14}/>} value={formData.phone}
+                          onChange={e => {
+                            const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                            setFormData({...formData, phone: digits});
+                          }}
+                          required
+                        />
+                        {formData.phone && formData.phone.length !== 10 && (
+                          <p className="text-[10px] text-red-500 mt-1 ml-2">Must be exactly 10 digits.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 2: Contact & Address */}
+                  <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                      <MapPin size={14} /> Section 2: Contact & Address Details
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <FormInput label="Alternate Phone" name="alternatePhone" icon={<Phone size={14}/>} value={formData.alternatePhone} onChange={(e) => setFormData({...formData, alternatePhone: e.target.value})} />
+                      <FormInput label="City" name="city" icon={<MapPin size={14}/>} value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} />
+                      <FormInput label="State" name="state" icon={<MapPin size={14}/>} value={formData.state} onChange={(e) => setFormData({...formData, state: e.target.value})} />
+                      <FormInput label="Pincode" name="pincode" icon={<MapPin size={14}/>} value={formData.pincode} onChange={(e) => setFormData({...formData, pincode: e.target.value})} />
+                      <div className="md:col-span-2">
+                        <FormInput label="Full Residence Address" name="address" icon={<MapPin size={14}/>} value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SECTION 3: Educational Background */}
+                  <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                      <GraduationCap size={14} /> Section 3: Educational Background & Preference
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <FormInput label="Highest Qualification" name="qualification" icon={<GraduationCap size={14}/>} value={formData.qualification} onChange={(e) => setFormData({...formData, qualification: e.target.value})} placeholder="e.g., B.Tech, MCA" />
+                      <FormInput label="Institution / College" name="institution" icon={<BookOpen size={14}/>} value={formData.institution} onChange={(e) => setFormData({...formData, institution: e.target.value})} />
+                      <FormInput label="Passing Year" name="passingYear" icon={<CalendarIcon size={14}/>} value={formData.passingYear} onChange={(e) => setFormData({...formData, passingYear: e.target.value})} placeholder="e.g., 2025" />
+                      <FormInput label="Course Preference" name="coursePreference" icon={<BookOpen size={14}/>} value={formData.coursePreference} onChange={(e) => setFormData({...formData, coursePreference: e.target.value})} placeholder="e.g., Full Stack Dev" />
+                    </div>
+                  </div>
+
+                  {/* SECTION 4: Identity Verification */}
+                  <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-2">
+                      <CreditCard size={14} /> Section 4: Identity Verification Document
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 uppercase ml-2 tracking-widest">ID Type</label>
+                        <div className="relative">
+                          <ShieldPlus className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={14}/>
+                          <select 
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 pl-12 pr-4 text-slate-900 dark:text-slate-100 outline-none appearance-none text-sm focus:border-indigo-500 transition-all cursor-pointer" 
+                            value={formData.identityType} 
+                            onChange={(e) => setFormData({...formData, identityType: e.target.value})}
+                          >
+                            <option value="aadhaar">Aadhar Card</option>
+                            <option value="pancard">PAN Card</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <FormInput label="ID Document Number" name="identityNumber" icon={<CreditCard size={14}/>} value={formData.identityNumber} onChange={(e) => setFormData({...formData, identityNumber: e.target.value})} />
+                        {formData.identityNumber && formData.identityType === 'aadhaar' && !/^\d{12}$/.test(formData.identityNumber.replace(/[\s-]/g, '')) && (
+                          <p className="text-[10px] text-red-500 mt-1 ml-2">Aadhaar must be exactly 12 digits.</p>
+                        )}
+                        {formData.identityNumber && formData.identityType === 'pancard' && !/^[A-Za-z]{5}\d{4}[A-Za-z]{1}$/.test(formData.identityNumber) && (
+                          <p className="text-[10px] text-red-500 mt-1 ml-2">Invalid PAN format (E.g. ABCDE1234F).</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="lg:col-span-3 mt-6">
@@ -632,9 +962,10 @@ const StudentAttendance = () => {
                       className="w-full py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-lg shadow-indigo-600/20 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
                     >
                       {isAddingStudent ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
-                      Confirm 
+                      Confirm
                     </button>
                   </div>
+
                 </form>
               </motion.div>
             </div>

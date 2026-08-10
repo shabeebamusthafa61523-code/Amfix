@@ -1,4 +1,5 @@
 import User from '../models/user.model.js';
+import Counter from '../models/counter.model.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import redis from '../config/redis.js';
@@ -11,7 +12,9 @@ export const signup = async (req, res) => {
     const {
       name, email, password, phone, role_id, status,
       designation_id, department_id, departmentId, joining_date, salary, address,
-      identityType, identityNumber, profile_image
+      identityType, identityNumber, profile_image,
+      dateOfBirth, gender, alternatePhone, city, state, pincode,
+      qualification, institution, passingYear, coursePreference
     } = req.body;
 
     // 1. Check if user already exists
@@ -45,6 +48,19 @@ export const signup = async (req, res) => {
       '10': 'student'
     };
     const userRole = roleMap[role_id] || String(role_id || 'employee');
+
+    // 2.2 Auto-generate Student ID for student role
+    let generatedStudentId = null;
+    if (String(role_id) === '10' || userRole === 'student') {
+      const currentYear = new Date().getFullYear();
+      const counterId = `student_${currentYear}`;
+      const counter = await Counter.findOneAndUpdate(
+        { id: counterId },
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+      generatedStudentId = `STD-${currentYear}-${String(counter.seq).padStart(6, '0')}`;
+    }
 
     // 2.5 Resolve designation and department names if provided
     let resolvedDesignationName = '';
@@ -86,19 +102,34 @@ export const signup = async (req, res) => {
       department: resolvedDepartmentName,
       departmentId: resolvedDepartmentId,
       designation_id: resolvedDesignationId ? String(resolvedDesignationId) : String(designation_id),
-      joining_date: new Date(joining_date),
+      joining_date: joining_date ? new Date(joining_date) : new Date(),
       salary: parseFloat(salary) || 0,
-      address,
-      identityType,
-      identityNumber,
+      address: address || '',
+      identityType: identityType || 'aadhaar',
+      identityNumber: identityNumber || '',
       profile_image: profile_image || null,
       avatar: profile_image || null,
-      employeeId: email
+      employeeId: generatedStudentId || email,
+      studentId: generatedStudentId,
+      dateOfBirth: dateOfBirth || '',
+      gender: gender || '',
+      alternatePhone: alternatePhone || '',
+      city: city || '',
+      state: state || '',
+      pincode: pincode || '',
+      qualification: qualification || '',
+      institution: institution || '',
+      passingYear: passingYear || '',
+      coursePreference: coursePreference || ''
     });
 
     await newUser.save();
 
-    res.status(201).json({ message: "Staff Registration Successful!", userId: newUser._id });
+    res.status(201).json({
+      message: "Student Registration Successful!",
+      userId: newUser._id,
+      studentId: generatedStudentId
+    });
   } catch (error) {
     res.status(500).json({ detail: error.message });
   }

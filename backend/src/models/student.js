@@ -55,7 +55,18 @@ const StudentSchema = new mongoose.Schema({
   profile_image: { 
     type: String, 
     default: '' 
-  }
+  },
+  studentId: { type: String, unique: true, sparse: true },
+  dateOfBirth: { type: String, default: '' },
+  gender: { type: String, default: '' },
+  alternatePhone: { type: String, default: '' },
+  city: { type: String, default: '' },
+  state: { type: String, default: '' },
+  pincode: { type: String, default: '' },
+  qualification: { type: String, default: '' },
+  institution: { type: String, default: '' },
+  passingYear: { type: String, default: '' },
+  coursePreference: { type: String, default: '' }
 }, { timestamps: true });
 
 // Password hashing pre-save hook
