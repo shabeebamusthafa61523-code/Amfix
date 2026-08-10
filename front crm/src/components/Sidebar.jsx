@@ -30,11 +30,21 @@ import {
   Tag,
   ChevronDown,
   Calendar,
+  CheckCircle2,
+  Receipt,
+  CreditCard,
   X
 } from 'lucide-react';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', allowedRoles: ['1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
+  {
+    icon: CheckCircle2,
+    label: 'Approvals',
+    path: '/approvals',
+    allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'],
+    allowedDepartmentNames: ['hr', 'admin', 'management']
+  },
   {
     icon: Calendar,
     label: 'Leave Requests',
@@ -210,6 +220,19 @@ const menuItems = [
       { icon: BookOpen, label: 'Cash Book', path: '/accounts/cash-book' },
       { icon: BarChart3, label: 'Expense Report', path: '/accounts/reports' }
     ]
+  },
+  {
+    icon: Receipt,
+    label: 'Payslips',
+    path: '/payslips',
+    allowedRoles: ['0', '1', '2', '10', 'hr', 'admin', 'accountant', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'],
+    allowedDepartmentNames: ['hr', 'admin', 'accounts', 'finance'],
+    allowedDesignationNames: ['hr', 'recruiter', 'accountant', 'finance', 'accounts']
+  },
+  {
+    icon: CreditCard,
+    label: 'Personal Payslip',
+    path: '/my-payslip'
   },
   {
     icon: FileText,

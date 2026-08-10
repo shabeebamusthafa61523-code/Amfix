@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { getExpenseCategories, getExpenses, createExpense, deleteExpense } from '../../services/accountsService';
 import { PlusCircle, Search, Calendar, CreditCard, UserCheck, FileText, Paperclip, Trash2, Eye, X, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { useToast } from '../ToastProvider';
 
 const AddExpenseTab = () => {
+  const { showToast } = useToast();
   const [categories, setCategories] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -121,7 +123,7 @@ const AddExpenseTab = () => {
         setTimeout(() => setSuccessMsg(''), 3000);
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Error deleting expense.');
+      showToast(err.response?.data?.message || 'Error deleting expense.', 'error');
     }
   };
 
@@ -333,6 +335,7 @@ const AddExpenseTab = () => {
                 <th className="py-3 px-3 font-semibold">Paid To</th>
                 <th className="py-3 px-3 font-semibold">Mode</th>
                 <th className="py-3 px-3 font-semibold text-right">Amount (₹)</th>
+                <th className="py-3 px-3 font-semibold">Status</th>
                 <th className="py-3 px-3 font-semibold">Added By</th>
                 <th className="py-3 px-3 font-semibold text-center">Attachment</th>
                 <th className="py-3 px-3 font-semibold text-right">Action</th>
@@ -341,67 +344,85 @@ const AddExpenseTab = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
                     Loading expenses...
                   </td>
                 </tr>
               ) : expenses.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-400">
+                  <td colSpan={9} className="py-8 text-center text-slate-400">
                     No expense records found.
                   </td>
                 </tr>
               ) : (
-                expenses.map((exp) => (
-                  <tr key={exp._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                    <td className="py-3 px-3 whitespace-nowrap font-medium">
-                      {new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-semibold text-[11px]">
-                        {exp.categoryName || exp.category?.name || 'Expense'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-medium text-slate-900 dark:text-slate-100">
-                      {exp.paidTo}
-                      {exp.description && (
-                        <p className="text-[11px] text-slate-400 font-normal line-clamp-1">{exp.description}</p>
-                      )}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                        {exp.paymentMode}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">
-                      ₹{(exp.amount || 0).toLocaleString('en-IN')}
-                    </td>
-                    <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
-                      {exp.addedByName || exp.addedBy?.name || 'System'}
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      {exp.attachment ? (
+                expenses.map((exp) => {
+                  const status = exp.status || 'APPROVED';
+                  return (
+                    <tr key={exp._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                      <td className="py-3 px-3 whitespace-nowrap font-medium">
+                        {new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 font-semibold text-[11px]">
+                          {exp.categoryName || exp.category?.name || 'Expense'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-medium text-slate-900 dark:text-slate-100">
+                        {exp.paidTo}
+                        {exp.description && (
+                          <p className="text-[11px] text-slate-400 font-normal line-clamp-1">{exp.description}</p>
+                        )}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          {exp.paymentMode}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                        ₹{(exp.amount || 0).toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-3 px-3">
+                        {status === 'APPROVED' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80">
+                            Approved
+                          </span>
+                        ) : status === 'REJECTED' ? (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80" title={exp.rejectionReason}>
+                            Rejected
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80">
+                            Pending MD
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
+                        {exp.addedByName || exp.addedBy?.name || 'System'}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {exp.attachment ? (
+                          <button
+                            onClick={() => setPreviewFile(exp.attachment)}
+                            className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-semibold text-[11px]"
+                          >
+                            <Eye size={14} /> View
+                          </button>
+                        ) : (
+                          <span className="text-slate-400 text-[11px]">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3 text-right">
                         <button
-                          onClick={() => setPreviewFile(exp.attachment)}
-                          className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-semibold text-[11px]"
+                          onClick={() => handleDeleteExpense(exp._id)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                          title="Delete Record"
                         >
-                          <Eye size={14} /> View
+                          <Trash2 size={14} />
                         </button>
-                      ) : (
-                        <span className="text-slate-400 text-[11px]">—</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      <button
-                        onClick={() => handleDeleteExpense(exp._id)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
-                        title="Delete Record"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

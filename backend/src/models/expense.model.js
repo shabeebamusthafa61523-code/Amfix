@@ -55,6 +55,26 @@ const expenseSchema = new mongoose.Schema({
   salaryPaymentId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'SalaryPayment'
+  },
+  status: {
+    type: String,
+    enum: ['APPROVED', 'PENDING', 'REJECTED'],
+    default: 'APPROVED'
+  },
+  actionBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  actionByName: {
+    type: String,
+    default: ''
+  },
+  actionAt: {
+    type: Date
+  },
+  rejectionReason: {
+    type: String,
+    default: ''
   }
 }, {
   timestamps: true,

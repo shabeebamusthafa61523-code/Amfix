@@ -46,6 +46,9 @@ import SidebarPermissionsPage from './pages/SidebarPermissionsPage';
 import MdDashboard from './pages/MdDashboard';
 import AccountsPage from './pages/AccountsPage';
 import LeavesPage from './pages/LeavesPage';
+import ApprovalsPage from './pages/ApprovalsPage';
+import PayslipsPage from './pages/PayslipsPage';
+import PersonalPayslipPage from './pages/PersonalPayslipPage';
 
 
 
@@ -180,6 +183,9 @@ function App() {
         <Route path="/notifications" element={<ProtectedRoute><MainLayout><NotificationPage /></MainLayout></ProtectedRoute>} />
         <Route path="/performance-dashboard" element={<ProtectedRoute><MainLayout><PerformanceDashboard /></MainLayout></ProtectedRoute>} />
         <Route path="/leaves" element={<ProtectedRoute><MainLayout><LeavesPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/approvals" element={<ProtectedRoute><MainLayout><ApprovalsPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/payslips" element={<ProtectedRoute><MainLayout><PayslipsPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/my-payslip" element={<ProtectedRoute><MainLayout><PersonalPayslipPage /></MainLayout></ProtectedRoute>} />
 
         {/* Accounts Department Module Routes */}
         <Route path="/accounts" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />

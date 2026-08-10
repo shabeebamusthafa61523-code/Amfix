@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { getExpenseCategories, createExpenseCategory, updateExpenseCategory, deleteExpenseCategory } from '../../services/accountsService';
 import { FolderPlus, Tag, Edit2, Trash2, CheckCircle, Plus, AlertCircle, RefreshCw } from 'lucide-react';
+import { useToast } from '../ToastProvider';
 
 const ExpenseCategoriesTab = () => {
+  const { showToast } = useToast();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -96,7 +98,7 @@ const ExpenseCategoriesTab = () => {
         setTimeout(() => setSuccessMsg(''), 3000);
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Cannot delete category.');
+      showToast(err.response?.data?.message || 'Cannot delete category.', 'error');
     }
   };
 

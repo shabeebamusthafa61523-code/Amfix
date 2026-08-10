@@ -3,11 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Activity, UserCheck, UserMinus, BarChart3,
   TrendingUp, Clock, CheckCircle2, AlertCircle, Layout, RefreshCw, Eye, PieChart,
-  Loader2
+  Loader2, Calendar, FileText, Check, X, ArrowRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../components/ToastProvider';
 
-const API_URL = import.meta.env?.VITE_API_URL || import.meta.env?.REACT_APP_API_URL || 'http://localhost:5000/api/v1';
+const rawApiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/+$/, '');
+const API_BASE = rawApiBase.endsWith('/v1') ? rawApiBase : `${rawApiBase}/v1`;
 
 const formatTime = (timeString) => {
   if (!timeString) return 'N/A';
@@ -98,32 +100,44 @@ export default function HrDashboard() {
   const [users, setUsers] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [attendance, setAttendance] = useState([]);
+  const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [leaveSubmittingId, setLeaveSubmittingId] = useState(null);
   const navigate = useNavigate();
+  const { showToast } = useToast();
+
+  const getAuthHeaders = () => ({
+    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+    'Content-Type': 'application/json'
+  });
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = getAuthHeaders();
 
       // Fetch users
-      const usersRes = await fetch(`${API_URL}/v1/users/list`, { headers });
+      const usersRes = await fetch(`${API_BASE}/users/list`, { headers });
       const usersData = usersRes.ok ? await usersRes.json() : [];
       
       // Fetch tasks
-      const tasksRes = await fetch(`${API_URL}/tasks/all`, { headers });
+      const tasksRes = await fetch(`${API_BASE}/tasks/all`, { headers });
       const tasksData = tasksRes.ok ? await tasksRes.json() : [];
 
       // Fetch today's attendance
       const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
-      const attRes = await fetch(`${API_URL}/attendance/all/${todayStr}`, { headers });
+      const attRes = await fetch(`${API_BASE}/attendance/all/${todayStr}`, { headers });
       const attData = attRes.ok ? await attRes.json() : [];
+
+      // Fetch leave requests for HR
+      const leavesRes = await fetch(`${API_BASE}/leaves/all?status=PENDING`, { headers });
+      const leavesData = leavesRes.ok ? await leavesRes.json() : [];
 
       setUsers(Array.isArray(usersData) ? usersData : (usersData.data || []));
       setTasks(Array.isArray(tasksData) ? tasksData : (tasksData.data || []));
       setAttendance(Array.isArray(attData) ? attData : []);
+      setLeaves(leavesData.success ? (leavesData.data || []) : (Array.isArray(leavesData) ? leavesData : []));
     } catch (error) {
       console.error('Error fetching HR Dashboard data:', error);
     } finally {
@@ -137,6 +151,33 @@ export default function HrDashboard() {
     const interval = setInterval(fetchData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Handle Quick Leave Approval / Rejection from HR Dashboard
+  const handleQuickLeaveAction = async (leaveId, action) => {
+    setLeaveSubmittingId(leaveId);
+    try {
+      const res = await fetch(`${API_BASE}/leaves/${leaveId}/action`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          action,
+          comment: `Actioned directly via HR Overview Dashboard`,
+          approvalType: 'hr'
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLeaves(prev => prev.filter(l => l._id !== leaveId));
+        showToast(`Leave request ${action.toLowerCase()}ed successfully!`, 'success');
+      } else {
+        showToast(data.message || `Failed to ${action.toLowerCase()} leave request.`, 'error');
+      }
+    } catch (err) {
+      console.error(`Error in leave ${action}:`, err);
+    } finally {
+      setLeaveSubmittingId(null);
+    }
+  };
 
   // Compute Online/Offline stats based on today's attendance
   const userStats = useMemo(() => {
@@ -228,21 +269,39 @@ export default function HrDashboard() {
               HR Overview
             </h1>
             <p className="text-slate-500 dark:text-slate-400 font-medium text-sm md:text-base">
-              Live Staff Availability & Performance Metrics
+              Live Staff Availability, Leave Approvals & Performance Metrics
             </p>
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-2.5">
+            <button
+              onClick={() => navigate('/leaves')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold text-xs border border-indigo-200/80 dark:border-indigo-800/80 hover:bg-indigo-100 transition-all cursor-pointer"
+            >
+              <Calendar size={15} /> Leave Requests {leaves.length > 0 && <span className="px-1.5 py-0.5 bg-indigo-600 text-white rounded-full text-[10px] font-bold">{leaves.length}</span>}
+            </button>
             <button
               onClick={() => navigate('/hr-report')}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold text-sm shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold text-xs shadow-xs border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all cursor-pointer"
             >
-              <Layout size={16} /> Daily Report
+              <Layout size={15} /> Daily Report
+            </button>
+            <button
+              onClick={() => navigate('/payslips')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-semibold text-xs border border-emerald-200/80 dark:border-emerald-800/80 hover:bg-emerald-100 transition-all cursor-pointer"
+            >
+              <FileText size={15} /> Payslips
+            </button>
+            <button
+              onClick={() => navigate('/users')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold text-xs shadow-xs border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-all cursor-pointer"
+            >
+              <Users size={15} /> Staff List
             </button>
             <button
               onClick={fetchData}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 text-white font-semibold text-sm shadow-sm hover:bg-indigo-700 hover:shadow transition-all active:scale-95"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-xs shadow-xs hover:bg-indigo-700 hover:shadow transition-all active:scale-95 cursor-pointer"
             >
-              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
               Refresh
             </button>
           </div>
@@ -254,12 +313,12 @@ export default function HrDashboard() {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] hover:shadow-md transition-shadow"
+            className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-xs hover:shadow-md transition-all"
           >
             <div className="flex justify-between items-start">
               <div className="space-y-3">
-                <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-lg inline-block border border-indigo-100 dark:border-indigo-500/20">
-                  <Users className="text-WHITE-600 dark:text-indigo-400" size={20} />
+                <div className="p-2.5 bg-indigo-50 dark:bg-indigo-500/10 rounded-xl inline-block border border-indigo-100 dark:border-indigo-500/20">
+                  <Users className="text-indigo-600 dark:text-indigo-400" size={20} />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Staff</p>
@@ -276,11 +335,11 @@ export default function HrDashboard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] hover:shadow-md transition-shadow"
+            className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-xs hover:shadow-md transition-all"
           >
             <div className="flex justify-between items-start">
               <div className="space-y-3">
-                <div className="p-2.5 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg inline-block border border-emerald-100 dark:border-emerald-500/20 relative">
+                <div className="p-2.5 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl inline-block border border-emerald-100 dark:border-emerald-500/20 relative">
                   <UserCheck className="text-emerald-600 dark:text-emerald-400" size={20} />
                   <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full border border-white dark:border-slate-900" />
                 </div>
@@ -294,22 +353,25 @@ export default function HrDashboard() {
             </div>
           </motion.div>
 
-          {/* Offline */}
+          {/* Pending Leave Requests */}
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] hover:shadow-md transition-shadow"
+            onClick={() => navigate('/leaves')}
+            className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-amber-200/80 dark:border-amber-900/40 shadow-xs hover:shadow-md transition-all cursor-pointer group"
           >
             <div className="flex justify-between items-start">
               <div className="space-y-3">
-                <div className="p-2.5 bg-slate-50 dark:bg-slate-800/50 rounded-lg inline-block border border-slate-200 dark:border-slate-700/50">
-                  <UserMinus className="text-slate-500 dark:text-slate-400" size={20} />
+                <div className="p-2.5 bg-amber-50 dark:bg-amber-500/10 rounded-xl inline-block border border-amber-100 dark:border-amber-500/20">
+                  <Calendar className="text-amber-600 dark:text-amber-400" size={20} />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Not Checked In</p>
+                  <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                    Pending HR Leaves <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
+                  </p>
                   <h3 className="text-3xl font-bold text-slate-900 dark:text-white mt-1">
-                    {loading ? '...' : userStats.offline.length}
+                    {loading ? '...' : leaves.length}
                   </h3>
                 </div>
               </div>
@@ -321,11 +383,11 @@ export default function HrDashboard() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] hover:shadow-md transition-shadow"
+            className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-xs hover:shadow-md transition-all"
           >
             <div className="flex justify-between items-start">
               <div className="space-y-3">
-                <div className="p-2.5 bg-blue-50 dark:bg-blue-500/10 rounded-lg inline-block border border-blue-100 dark:border-blue-500/20">
+                <div className="p-2.5 bg-blue-50 dark:bg-blue-500/10 rounded-xl inline-block border border-blue-100 dark:border-blue-500/20">
                   <CheckCircle2 className="text-blue-600 dark:text-blue-400" size={20} />
                 </div>
                 <div>
@@ -342,8 +404,77 @@ export default function HrDashboard() {
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Top Performers (Segmented Bars) */}
-          <div className="lg:col-span-2 p-6 md:p-8 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] relative">
+          <div className="lg:col-span-2 space-y-6">
+            {/* Quick Leave Approvals Queue (Stage 2 HR) */}
+            {leaves.length > 0 && (
+              <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-amber-200/90 dark:border-amber-900/50 shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-amber-500" />
+                    Pending Leave Requests (HR Stage 2 Review)
+                    <span className="px-2 py-0.5 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 rounded-full text-xs font-extrabold border border-amber-200/80">
+                      {leaves.length} Pending
+                    </span>
+                  </h2>
+                  <button
+                    onClick={() => navigate('/leaves')}
+                    className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    View All <ArrowRight size={12} />
+                  </button>
+                </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/60 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                  {leaves.map((leave) => (
+                    <div key={leave._id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 dark:text-white">{leave.userName || 'Employee'}</span>
+                          <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-md font-bold text-[10px] border border-indigo-100 dark:border-indigo-900/40">
+                            {leave.leaveType}
+                          </span>
+                          <span className="text-[11px] font-semibold text-slate-500">
+                            ({leave.totalDays} Day{leave.totalDays > 1 ? 's' : ''})
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          📅 {new Date(leave.startDate).toLocaleDateString()} ➔ {new Date(leave.endDate).toLocaleDateString()}
+                          {leave.department ? ` • Dept: ${leave.department}` : ''}
+                        </p>
+                        <p className="text-slate-600 dark:text-slate-300 italic text-[11px] bg-slate-50 dark:bg-slate-800/60 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
+                          "{leave.reason}"
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        <button
+                          onClick={() => handleQuickLeaveAction(leave._id, 'REJECTED')}
+                          disabled={leaveSubmittingId === leave._id}
+                          className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-900/60 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <X className="w-3.5 h-3.5" /> Reject
+                        </button>
+                        <button
+                          onClick={() => handleQuickLeaveAction(leave._id, 'APPROVED')}
+                          disabled={leaveSubmittingId === leave._id}
+                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer flex items-center gap-1"
+                        >
+                          {leaveSubmittingId === leave._id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5" />
+                          )}
+                          Approve
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Top Performers (Segmented Bars) */}
+            <div className="p-6 md:p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-xs relative">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
               <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <BarChart3 className="text-indigo-600 dark:text-indigo-500" size={20} /> Top Performers by Tasks
@@ -408,9 +539,10 @@ export default function HrDashboard() {
               )}
             </div>
           </div>
+        </div>
 
-          {/* Right Column: Doughnut Chart & Availability */}
-          <div className="space-y-6">
+        {/* Right Column: Doughnut Chart & Availability */}
+        <div className="space-y-6">
             
             {/* Company Workload Overview Doughnut */}
             <div className="p-6 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.05)] flex flex-col">

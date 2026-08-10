@@ -154,7 +154,7 @@ export const deleteCategory = async (req, res) => {
 
 export const getExpenses = async (req, res) => {
   try {
-    const { category, paymentMode, startDate, endDate, search } = req.query;
+    const { category, type, startDate, endDate, search, paymentMode, status } = req.query;
     const query = {};
 
     if (category) {
@@ -163,6 +163,10 @@ export const getExpenses = async (req, res) => {
 
     if (paymentMode) {
       query.paymentMode = paymentMode;
+    }
+
+    if (status && status !== 'ALL') {
+      query.status = status;
     }
 
     if (startDate || endDate) {
@@ -222,23 +226,29 @@ export const createExpense = async (req, res) => {
       if (user) addedByName = user.name;
     }
 
+    const expAmount = Number(amount);
+    const initialStatus = expAmount > 1000 ? 'PENDING' : 'APPROVED';
+
     const expense = await Expense.create({
       date: date ? new Date(date) : new Date(),
       category: catObj._id,
       categoryName: catObj.name,
-      amount: Number(amount),
+      amount: expAmount,
       paymentMode,
       paidTo: paidTo.trim(),
       description: description ? description.trim() : '',
       attachment: attachmentUrl,
       addedBy: req.user?.id || null,
       addedByName,
-      type: catObj.name.toLowerCase() === 'salary' ? 'Salary' : 'Expense'
+      type: catObj.name.toLowerCase() === 'salary' ? 'Salary' : 'Expense',
+      status: initialStatus
     });
 
     return res.status(201).json({
       success: true,
-      message: 'Expense added successfully.',
+      message: initialStatus === 'PENDING'
+        ? 'Expense recorded successfully (Submitted for Managing Director approval because amount exceeds ₹1,000).'
+        : 'Expense added successfully.',
       data: expense
     });
   } catch (error) {
@@ -343,9 +353,14 @@ export const getSalaryPayments = async (req, res) => {
 
 export const createSalaryPayment = async (req, res) => {
   try {
-    const { employeeId, month, basicSalary, paidAmount, paymentDate, paymentMode, remarks } = req.body;
+    const {
+      employeeId, month, basicSalary, paidAmount, paymentDate, paymentMode, remarks,
+      kbEmployeeId, location, payPeriod, payDateStr, workingDays, daysWorked, daysInLeave,
+      hra, medicalAllowance, specialAllowance, transportAllowance, otherAllowance, integrityAward, bonus, totalEarnings,
+      pf, professionalTax, incomeTax, unpaidLeave, advanceSalary, otherDeductions, totalDeductions
+    } = req.body;
 
-    if (!employeeId || !month || !paidAmount || !paymentMode) {
+    if (!employeeId || !month || (paidAmount === undefined && totalEarnings === undefined) || !paymentMode) {
       return res.status(400).json({
         success: false,
         message: 'Employee, Month, Paid Amount, and Payment Mode are required.'
@@ -377,16 +392,43 @@ export const createSalaryPayment = async (req, res) => {
       if (adminUser) addedByName = adminUser.name;
     }
 
+    const computedBasic = Number(basicSalary || employeeObj.salary || 0);
+    const computedTotalEarnings = Number(totalEarnings || (computedBasic + Number(hra || 0) + Number(medicalAllowance || 0) + Number(specialAllowance || 0) + Number(transportAllowance || 0) + Number(otherAllowance || 0) + Number(integrityAward || 0) + Number(bonus || 0)));
+    const computedTotalDeductions = Number(totalDeductions || (Number(pf || 0) + Number(professionalTax || 0) + Number(incomeTax || 0) + Number(unpaidLeave || 0) + Number(advanceSalary || 0) + Number(otherDeductions || 0)));
+    const finalPaidAmount = Number(paidAmount !== undefined ? paidAmount : Math.max(0, computedTotalEarnings - computedTotalDeductions));
+
     // 1. Create Salary Payment
     const salaryPayment = new SalaryPayment({
       employee: employeeObj._id,
       employeeName: employeeObj.name,
       month,
-      basicSalary: Number(basicSalary || employeeObj.salary || 0),
-      paidAmount: Number(paidAmount),
+      basicSalary: computedBasic,
+      paidAmount: finalPaidAmount,
       paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
       paymentMode,
       remarks: remarks ? remarks.trim() : '',
+      kbEmployeeId: kbEmployeeId || employeeObj.employeeId || `KB-${(employeeObj.name || '').slice(0, 2).toUpperCase()}-001`,
+      location: location || 'HEAD OFFICE',
+      payPeriod: payPeriod || `${month}`,
+      payDateStr: payDateStr || `On or Before 10th ${month}`,
+      workingDays: Number(workingDays || 27),
+      daysWorked: Number(daysWorked || 27),
+      daysInLeave: Number(daysInLeave || 0),
+      hra: Number(hra || 0),
+      medicalAllowance: Number(medicalAllowance || 0),
+      specialAllowance: Number(specialAllowance || 0),
+      transportAllowance: Number(transportAllowance || 0),
+      otherAllowance: Number(otherAllowance || 0),
+      integrityAward: Number(integrityAward || 0),
+      bonus: Number(bonus || 0),
+      totalEarnings: computedTotalEarnings,
+      pf: Number(pf || 0),
+      professionalTax: Number(professionalTax || 0),
+      incomeTax: Number(incomeTax || 0),
+      unpaidLeave: Number(unpaidLeave || 0),
+      advanceSalary: Number(advanceSalary || 0),
+      otherDeductions: Number(otherDeductions || 0),
+      totalDeductions: computedTotalDeductions,
       addedBy: req.user?.id || null,
       addedByName
     });
@@ -432,6 +474,49 @@ export const createSalaryPayment = async (req, res) => {
     });
   } catch (error) {
     console.error('createSalaryPayment Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Update a Salary Payment (edit payslip fields)
+ * PUT /api/v1/accounts/salary-payments/:id
+ */
+export const updateSalaryPayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const payment = await SalaryPayment.findById(id);
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Salary payment record not found.' });
+    }
+
+    // Fields that can be updated
+    const allowedFields = [
+      'month', 'payPeriod', 'payDateStr', 'location',
+      'kbEmployeeId', 'employeeName', 'designation', 'department',
+      'workingDays', 'daysWorked', 'daysInLeave',
+      'basicSalary', 'hra', 'medicalAllowance', 'specialAllowance',
+      'transportAllowance', 'otherAllowance', 'integrityAward', 'bonus',
+      'totalEarnings', 'pf', 'professionalTax', 'incomeTax',
+      'unpaidLeave', 'advanceSalary', 'otherDeductions', 'totalDeductions',
+      'paidAmount', 'paymentMode', 'remarks'
+    ];
+
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) {
+        payment[field] = req.body[field];
+      }
+    });
+
+    await payment.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payslip updated successfully.',
+      data: payment
+    });
+  } catch (error) {
+    console.error('updateSalaryPayment Error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -659,3 +744,139 @@ export const getSalaryReport = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+/**
+ * Approve or Reject a specific Salary Payment (MD / Admin action)
+ * PUT /api/v1/accounts/salary-payments/:id/action
+ */
+export const approveOrRejectSalaryPayment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, rejectionReason } = req.body; // action: 'APPROVED' | 'REJECTED'
+    const actorId = req.user?.id || req.user?._id;
+
+    if (!['APPROVED', 'REJECTED'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'Action must be APPROVED or REJECTED.' });
+    }
+
+    const salaryPayment = await SalaryPayment.findById(id);
+    if (!salaryPayment) {
+      return res.status(404).json({ success: false, message: 'Salary payment record not found.' });
+    }
+
+    let actorName = req.user?.name || req.user?.email || 'Executive';
+    if (actorId) {
+      const u = await User.findById(actorId).select('name');
+      if (u) actorName = u.name;
+    }
+
+    salaryPayment.status = action;
+    salaryPayment.actionBy = actorId || null;
+    salaryPayment.actionByName = actorName;
+    salaryPayment.actionAt = new Date();
+
+    if (action === 'REJECTED') {
+      salaryPayment.rejectionReason = rejectionReason ? rejectionReason.trim() : '';
+    } else {
+      salaryPayment.rejectionReason = '';
+    }
+
+    await salaryPayment.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Salary payment ${action.toLowerCase()} successfully.`,
+      data: salaryPayment
+    });
+  } catch (error) {
+    console.error('approveOrRejectSalaryPayment Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Bulk Approve all pending Salary Payments in one click (MD / Executive action)
+ * PUT /api/v1/accounts/salary-payments/approve-all
+ */
+export const approveAllSalaryPayments = async (req, res) => {
+  try {
+    const actorId = req.user?.id || req.user?._id;
+    let actorName = req.user?.name || req.user?.email || 'Executive';
+    if (actorId) {
+      const u = await User.findById(actorId).select('name');
+      if (u) actorName = u.name;
+    }
+
+    const result = await SalaryPayment.updateMany(
+      { status: 'PENDING' },
+      {
+        $set: {
+          status: 'APPROVED',
+          actionBy: actorId || null,
+          actionByName: actorName,
+          actionAt: new Date(),
+          rejectionReason: ''
+        }
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Approved ${result.modifiedCount || 0} pending salary payment(s) successfully.`,
+      modifiedCount: result.modifiedCount || 0
+    });
+  } catch (error) {
+    console.error('approveAllSalaryPayments Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * MD Approval / Rejection for Expense (> 1000 INR)
+ * PUT /api/v1/accounts/expenses/:id/action
+ */
+export const approveOrRejectExpense = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, rejectionReason } = req.body;
+
+    const expense = await Expense.findById(id);
+    if (!expense) {
+      return res.status(404).json({ success: false, message: 'Expense record not found.' });
+    }
+
+    let actionByName = req.user?.name || req.user?.email || 'Managing Director';
+    if (req.user?.id) {
+      const u = await User.findById(req.user.id).select('name');
+      if (u) actionByName = u.name;
+    }
+
+    if (action === 'APPROVED') {
+      expense.status = 'APPROVED';
+      expense.actionBy = req.user?.id || null;
+      expense.actionByName = actionByName;
+      expense.actionAt = new Date();
+      expense.rejectionReason = '';
+    } else if (action === 'REJECTED') {
+      expense.status = 'REJECTED';
+      expense.actionBy = req.user?.id || null;
+      expense.actionByName = actionByName;
+      expense.actionAt = new Date();
+      expense.rejectionReason = rejectionReason ? rejectionReason.trim() : 'Rejected by MD';
+    } else {
+      return res.status(400).json({ success: false, message: 'Invalid action. Must be APPROVED or REJECTED.' });
+    }
+
+    await expense.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Expense ${action.toLowerCase()} successfully.`,
+      data: expense
+    });
+  } catch (error) {
+    console.error('approveOrRejectExpense Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+

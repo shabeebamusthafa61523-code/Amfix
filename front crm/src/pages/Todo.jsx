@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
+import { useUser } from '../contexts/UserContext';
 
 const API_BASE = import.meta.env.VITE_API_URL;// --- UTILS & CONSTANTS ---
 const getTaskImageUrl = (path) => {
@@ -864,7 +865,22 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
     }
   };
 
+  const { user: liveUser } = useUser() || {};
+  const storedUser = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('user')); } catch (e) { return null; }
+  }, []);
+  const currentUserObj = liveUser || storedUser;
+
+  const isSuperAdminUser = useMemo(() => {
+    if (!currentUserObj) return false;
+    const roleStr = String(currentUserObj.role || '').toLowerCase().trim();
+    const roleIdStr = String(currentUserObj.role_id || currentUserObj.roleId || '').trim();
+    return currentUserObj.isSuperAdmin === true || currentUserObj.is_super_admin === true || roleStr === 'superadmin' || roleIdStr === '0';
+  }, [currentUserObj]);
+
   const canModify = useMemo(() => {
+    if (isSuperAdminUser) return true;
+
     const getCreatorId = () => {
       const candidates = [
         task?.user_id,
@@ -888,7 +904,7 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
 
     const creatorId = getCreatorId();
     return currentUserId && creatorId && String(currentUserId).trim() === creatorId;
-  }, [task, currentUserId]);
+  }, [task, currentUserId, isSuperAdminUser]);
 
   const [clientsList, setClientsList] = useState([]);
   const [projectsList, setProjectsList] = useState([]);
