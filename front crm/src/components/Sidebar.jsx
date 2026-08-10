@@ -29,11 +29,17 @@ import {
   BookOpen,
   Tag,
   ChevronDown,
+  Calendar,
   X
 } from 'lucide-react';
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', allowedRoles: ['1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
+  {
+    icon: Calendar,
+    label: 'Leave Requests',
+    path: '/leaves'
+  },
    {
     icon: LayoutDashboard,
     label: 'HR Dashboard',
@@ -304,7 +310,8 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         }
         
         let customVisible = menuItems.filter(item => {
-          return allowedSet.includes(item.label.toLowerCase().trim()) || 
+          return item.path === '/leaves' ||
+                 allowedSet.includes(item.label.toLowerCase().trim()) || 
                  allowedSet.includes(item.path.toLowerCase().trim()) ||
                  extraAllowedPaths.includes(item.path.toLowerCase().trim());
         });
@@ -341,7 +348,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       const deptName = userObj.department || userObj.departmentId?.name || '';
       const isNonOperational = String(deptName).toLowerCase().trim() === 'non-operational';
       if (isNonOperational) {
-        return menuItems.filter(item => item.label === 'Employee Reports' || item.label === 'Dashboard');
+        return menuItems.filter(item => item.label === 'Employee Reports' || item.label === 'Dashboard' || item.path === '/leaves');
       }
 
       let currentUserDept = '';

@@ -26,6 +26,7 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'KPI Analytics', path: '/performance-dashboard', category: 'Analytics', desc: 'Quantitative KPI score & performance' },
   { label: 'AI Reports', path: '/ai-report', category: 'Analytics', desc: 'Automated AI reports & summary' },
   { label: 'Attendance', path: '/attendance', category: 'HR', desc: 'Daily attendance clock-in/out' },
+  { label: 'Leave Requests', path: '/leaves', category: 'HR', desc: 'Leave request application & joint approvals' },
   { label: 'Student Attendance', path: '/student-attendance', category: 'HR', desc: 'Student batch attendance logs' },
   { label: 'Employee Reports', path: '/employee-reports', category: 'Reports', desc: 'Employee activity & performance logs' },
   { label: 'Daily Report', path: '/basic-report', category: 'Reports', desc: 'Common daily shift activity & report view' },

@@ -45,6 +45,7 @@ import UserPermissionsPage from './pages/UserPermissionsPage';
 import SidebarPermissionsPage from './pages/SidebarPermissionsPage';
 import MdDashboard from './pages/MdDashboard';
 import AccountsPage from './pages/AccountsPage';
+import LeavesPage from './pages/LeavesPage';
 
 
 
@@ -178,6 +179,7 @@ function App() {
         <Route path="/basic-report" element={<ProtectedRoute><MainLayout><BasicReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><MainLayout><NotificationPage /></MainLayout></ProtectedRoute>} />
         <Route path="/performance-dashboard" element={<ProtectedRoute><MainLayout><PerformanceDashboard /></MainLayout></ProtectedRoute>} />
+        <Route path="/leaves" element={<ProtectedRoute><MainLayout><LeavesPage /></MainLayout></ProtectedRoute>} />
 
         {/* Accounts Department Module Routes */}
         <Route path="/accounts" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />

@@ -119,7 +119,6 @@ toObject: {
 
     return ret;
   }
-  }
 }
 });
 

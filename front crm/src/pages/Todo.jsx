@@ -28,6 +28,7 @@ const getTaskImageUrl = (path) => {
       if (/\.pdf$/i.test(cleanUrl)) {
         cleanUrl = cleanUrl.replace(/\.pdf$/i, '.png');
       }
+      
     }
     return cleanUrl;
   }

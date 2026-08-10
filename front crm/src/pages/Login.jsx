@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, ChevronRight, Eye, EyeOff, X, Phone, Check, Key, Sun, Moon } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../components/ToastProvider';
+import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -11,6 +12,41 @@ const Login = () => {
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const { showToast } = useToast();
   const [isForgotOpen, setIsForgotOpen] = useState(false);
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setIsLoading(true);
+    const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credentialResponse.credential }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.token) {
+        localStorage.setItem('token', result.token);
+        if (result.user?.id || result.user?._id) {
+          localStorage.setItem('user_id', String(result.user.id || result.user._id));
+        }
+        localStorage.setItem('user', JSON.stringify(result.user));
+        showToast('Google Sign-In successful!', 'success');
+
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 500);
+      } else {
+        showToast(result.detail || result.message || 'Google Sign-In failed.', 'error');
+      }
+    } catch (err) {
+      console.error('Google Login Error:', err);
+      showToast('Connection error during Google Sign-In.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const [isDark, setIsDark] = useState(() => {
     return localStorage.getItem('theme') === 'dark' || 
@@ -236,6 +272,32 @@ const Login = () => {
               {!isLoading && <ChevronRight size={18} />}
             </motion.button>
           </form>
+
+          {/* Google Sign In Button */}
+          {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+            <>
+              {/* Divider */}
+              <div className="relative my-6 flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-slate-200 dark:border-slate-800" />
+                </div>
+                <div className="relative bg-white dark:bg-slate-900 px-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  or continue with
+                </div>
+              </div>
+
+              <div className="flex justify-center w-full min-h-[44px]">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => showToast('Google Sign-In failed or closed.', 'error')}
+                  theme={isDark ? 'filled_black' : 'outline'}
+                  shape="pill"
+                  size="large"
+                  width="100%"
+                />
+              </div>
+            </>
+          )}
 
           {/* Registration Link */}
           <div className="mt-8 text-center">

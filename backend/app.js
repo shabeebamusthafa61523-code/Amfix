@@ -4,6 +4,15 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dns from 'dns';
+
+// Fix querySrv ECONNREFUSED issues on local ISP/router DNS resolvers
+dns.setDefaultResultOrder('ipv4first');
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (err) {
+  // Fallback to system default DNS if setting servers fails
+}
 
 // Route Imports
 import authRoutes from './src/routes/auth.routes.js';
@@ -16,6 +25,7 @@ import apiRoutes from './src/routes/api.js';
 import aiRoutes from './src/routes/ai.routes.js';
 import mdDashboardRoutes from './src/routes/mdDashboard.routes.js';
 import accountRoutes from './src/routes/account.routes.js';
+import leaveRoutes from './src/routes/leave.routes.js';
 import Designation from './src/models/designation.model.js';
 import Department from './src/modules/departments/department.model.js';
 const app = express();
@@ -72,6 +82,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/attendance', attendanceRoutes); 
 app.use('/api/user', userRoutes); 
 app.use('/api/tasks', taskRoutes);
+app.use('/api/v1/leaves', leaveRoutes);
+app.use('/api/leaves', leaveRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/md-dashboard', mdDashboardRoutes);
 app.use('/api/md-dashboard', mdDashboardRoutes);
