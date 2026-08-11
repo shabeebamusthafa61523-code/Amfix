@@ -117,10 +117,6 @@ const Navbar = ({ isSidebarCollapsed, toggleMobileSidebar }) => {
           setNotifications(data.data);
           setUnreadCount(data.unreadCount || data.data.filter(n => !n.isRead).length);
         }
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setNotifications(data.data);
-        setUnreadCount(data.unreadCount || data.data.filter(n => !n.isRead).length);
       }
     } catch (err) {
       console.error("Failed to fetch my notifications in Navbar:", err);
