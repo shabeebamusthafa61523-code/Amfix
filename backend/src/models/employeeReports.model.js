@@ -38,6 +38,10 @@ const employeeReportsSchema = new mongoose.Schema({
   }
 });
 
+// Performance optimization indexes
+employeeReportsSchema.index({ employee_id: 1, report_date: -1 });
+employeeReportsSchema.index({ created_at: -1 });
+
 const EmployeeReports = mongoose.model('EmployeeReports', employeeReportsSchema);
 
 export default EmployeeReports;

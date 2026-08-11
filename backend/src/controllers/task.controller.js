@@ -15,10 +15,17 @@ cloudinary.config({
 });
 
 // Helper: Upload file buffer to Cloudinary using upload_stream
-const uploadToCloudinary = (fileBuffer) => {
+const uploadToCloudinary = (fileBuffer, originalname = '') => {
   return new Promise((resolve, reject) => {
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY) {
+      return reject(new Error('Cloudinary credentials missing in environment'));
+    }
+    const isRaw = !/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(originalname);
     const stream = cloudinary.uploader.upload_stream(
-      { folder: 'crm_tasks', resource_type: 'auto' },
+      { 
+        folder: 'crm_tasks', 
+        resource_type: isRaw ? 'raw' : 'auto' 
+      },
       (error, result) => {
         if (error) return reject(error);
         resolve(result);
@@ -162,17 +169,35 @@ export const createTask = async (req, res, next) => {
     const filesList = req.files && req.files.length > 0 ? req.files : (req.file ? [req.file] : []);
     if (filesList.length > 0) {
       for (const f of filesList) {
+        let attachmentUrl = null;
+        let attachmentPublicId = null;
+
         try {
-          const uploadResult = await uploadToCloudinary(f.buffer, f.originalname || '');
+          if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+            const uploadResult = await uploadToCloudinary(f.buffer, f.originalname || '');
+            if (uploadResult && uploadResult.secure_url) {
+              attachmentUrl = uploadResult.secure_url;
+              attachmentPublicId = uploadResult.public_id;
+            }
+          }
+        } catch (err) {
+          console.warn("Cloudinary task attachment upload failed, utilizing Base64 fallback:", err?.message || err);
+        }
+
+        if (!attachmentUrl && f.buffer) {
+          const mime = f.mimetype || 'application/octet-stream';
+          const base64 = f.buffer.toString('base64');
+          attachmentUrl = `data:${mime};base64,${base64}`;
+        }
+
+        if (attachmentUrl) {
           const isImage = f.mimetype?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f.originalname || '');
           attachments.push({
-            url: uploadResult.secure_url,
+            url: attachmentUrl,
             name: f.originalname || 'Attachment',
-            public_id: uploadResult.public_id,
+            public_id: attachmentPublicId,
             fileType: isImage ? 'image' : 'file'
           });
-        } catch (err) {
-          console.error("Cloudinary file upload error:", err);
         }
       }
       if (attachments.length > 0) {
@@ -332,9 +357,7 @@ export const getAllTasks = async (req, res, next) => {
     // Dynamic checks based on Department ID/name, Designation name, and Role
     const isHrAdminDept = (
       userDeptName.includes('hr') ||
-      userDeptName.includes('admin') ||
-      userDeptId === '6a3caed51194353cbc8a3686' ||
-      userDeptId === '6a55c7e8b613a280003481d8'
+      userDeptName.includes('admin')
     );
     const isExecutiveDesignation = ['md', 'managing director', 'coo', 'ceo', 'director', 'executive_director'].some(
       title => userDesignationName.includes(title) || roleName.includes(title)
@@ -498,9 +521,7 @@ export const getUserTasks = async (req, res, next) => {
     // Dynamic checks based on Department ID/name, Designation name, and Role
     const isHrAdminDept = (
       userDeptName.includes('hr') ||
-      userDeptName.includes('admin') ||
-      userDeptId === '6a3caed51194353cbc8a3686' ||
-      userDeptId === '6a55c7e8b613a280003481d8'
+      userDeptName.includes('admin')
     );
     const isExecutiveDesignation = ['md', 'managing director', 'coo', 'ceo', 'director', 'executive_director'].some(
       title => userDesignationName.includes(title) || roleName.includes(title)
@@ -587,10 +608,16 @@ export const deleteTask = async (req, res, next) => {
       throw new AppError('Task not found', 404);
     }
 
-    // Verify creator authorization
+    // Verify creator authorization or SuperAdmin privileges
     const userId = req.user.id || req.user._id;
-    if (task.created_by.toString() !== userId.toString()) {
-      throw new AppError('Forbidden: Only the creator of this task can delete it', 403);
+    const roleName = String(req.user.role || '').toLowerCase();
+    const roleId = String(req.user.role_id || req.user.roleId || '');
+    const isSuperAdmin = req.user.isSuperAdmin === true || req.user.is_super_admin === true || roleName === 'superadmin' || roleId === '0';
+
+    const isCreator = task.created_by && task.created_by.toString() === userId.toString();
+
+    if (!isCreator && !isSuperAdmin) {
+      throw new AppError('Forbidden: Only the task creator or SuperAdmin can delete this task', 403);
     }
 
     if (task.file_public_id) {
@@ -695,10 +722,16 @@ export const updateTask = async (req, res, next) => {
       throw new AppError('Task not found', 404);
     }
 
-    // Verify creator authorization
+    // Verify creator authorization or SuperAdmin privileges
     const userId = req.user.id || req.user._id;
-    if (task.created_by.toString() !== userId.toString()) {
-      throw new AppError('Forbidden: Only the creator of this task can edit it', 403);
+    const roleName = String(req.user.role || '').toLowerCase();
+    const roleId = String(req.user.role_id || req.user.roleId || '');
+    const isSuperAdmin = req.user.isSuperAdmin === true || req.user.is_super_admin === true || roleName === 'superadmin' || roleId === '0';
+
+    const isCreator = task.created_by && task.created_by.toString() === userId.toString();
+
+    if (!isCreator && !isSuperAdmin) {
+      throw new AppError('Forbidden: Only the task creator or SuperAdmin can edit this task', 403);
     }
 
     if (title !== undefined) task.title = title.trim();
@@ -730,21 +763,39 @@ export const updateTask = async (req, res, next) => {
     if (filesList.length > 0) {
       if (!task.attachments) task.attachments = [];
       for (const f of filesList) {
+        let attachmentUrl = null;
+        let attachmentPublicId = null;
+
         try {
-          const uploadResult = await uploadToCloudinary(f.buffer, f.originalname || '');
+          if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+            const uploadResult = await uploadToCloudinary(f.buffer, f.originalname || '');
+            if (uploadResult && uploadResult.secure_url) {
+              attachmentUrl = uploadResult.secure_url;
+              attachmentPublicId = uploadResult.public_id;
+            }
+          }
+        } catch (err) {
+          console.warn("Cloudinary task attachment upload failed, utilizing Base64 fallback:", err?.message || err);
+        }
+
+        if (!attachmentUrl && f.buffer) {
+          const mime = f.mimetype || 'application/octet-stream';
+          const base64 = f.buffer.toString('base64');
+          attachmentUrl = `data:${mime};base64,${base64}`;
+        }
+
+        if (attachmentUrl) {
           const isImage = f.mimetype?.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f.originalname || '');
           task.attachments.push({
-            url: uploadResult.secure_url,
+            url: attachmentUrl,
             name: f.originalname || 'Attachment',
-            public_id: uploadResult.public_id,
+            public_id: attachmentPublicId,
             fileType: isImage ? 'image' : 'file'
           });
           if (!task.file_url) {
-            task.file_url = uploadResult.secure_url;
-            task.file_public_id = uploadResult.public_id;
+            task.file_url = attachmentUrl;
+            task.file_public_id = attachmentPublicId;
           }
-        } catch (err) {
-          console.error("Cloudinary file upload error:", err);
         }
       }
     }

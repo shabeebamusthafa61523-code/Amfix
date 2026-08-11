@@ -1,15 +1,17 @@
 import React, { useRef } from 'react';
 import { UploadCloud, X } from 'lucide-react';
+import { useToast } from './ToastProvider';
 
 const SignatureUpload = ({ value, onChange, placeholder = "Upload signature image", disabled = false }) => {
   const fileInputRef = useRef(null);
+  const { showToast } = useToast();
 
   const handleFileChange = (e) => {
     if (disabled) return;
     const file = e.target.files[0];
     if (file) {
       if (file.size > 1024 * 1024) {
-        alert("File size exceeds 1MB limit.");
+        showToast("File size exceeds 1MB limit.", "error");
         return;
       }
       const reader = new FileReader();

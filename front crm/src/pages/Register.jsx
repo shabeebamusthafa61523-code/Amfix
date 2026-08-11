@@ -125,21 +125,11 @@ const Register = () => {
             department_id: String(loadedDepartments[0].id || loadedDepartments[0]._id || '')
           }));
         } else {
-          throw new Error('Empty departments list');
+          setDepartments([]);
         }
       } catch (err) {
         console.error("Failed to fetch departments:", err);
-        const fallback = [
-          { id: "6a3caed51194353cbc8a3686", name: "HR & Admin" },
-          { id: "6a26a7d72a56a1f9c49da8a3", name: "Marketing" },
-          { id: "6a3caeb31194353cbc8a3683", name: "Development" },
-          { id: "6a3caec01194353cbc8a3684", name: "Designing" }
-        ];
-        setDepartments(fallback);
-        setFormData(prev => ({
-          ...prev,
-          department_id: fallback[0].id
-        }));
+        setDepartments([]);
       }
     };
     

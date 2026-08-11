@@ -225,9 +225,8 @@ const HodRdReportPage = () => {
         const privileged = ['1', '2', 'hr', 'admin'].includes(role);
         setIsPrivileged(privileged);
         
-        // If not privileged, they can only view/create their own reports
-        if (!privileged) {
-          const uId = userObj.id || userObj._id;
+        const uId = userObj.id || userObj._id;
+        if (!selectedUserId && uId) {
           setSelectedUserId(uId);
         }
       }
@@ -2177,113 +2176,115 @@ const HodRdReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-5 py-4 w-[40%]">Activity</th>
-                      <th className="px-5 py-4 w-[15%]">Due Date</th>
-                      <th className="px-5 py-4 w-[15%]">Start Date</th>
-                      <th className="px-5 py-4 w-[15%]">End Date</th>
-                      <th className="px-5 py-4 w-[15%] text-center">Status</th>
-                      <th className="px-5 py-4 w-[10%]">Remarks</th>
-                      <th className="px-5 py-4 w-[5%] text-center">Actions</th>
+                      <th className="px-4 py-3.5 w-[35%]">Activity / Task</th>
+                      <th className="px-3 py-3.5 w-[12%]">Due Date</th>
+                      <th className="px-3 py-3.5 w-[12%]">Start Date</th>
+                      <th className="px-3 py-3.5 w-[12%]">End Date</th>
+                      <th className="px-3 py-3.5 w-[12%] text-center">Status</th>
+                      <th className="px-4 py-3.5 w-[12%]">Remarks</th>
+                      <th className="px-2 py-3.5 w-[5%] text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {dailyTaskSummary.map((item, index) => (
                       <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
-                        <td className="px-5 py-3 relative group">
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="text"
-                              value={item.activity}
+                        <td className="px-4 py-3 relative group">
+                          <div className="flex items-start gap-1.5">
+                            <textarea
+                              rows={2}
+                              value={item.activity || ''}
                               onChange={(e) => {
                                 const updated = [...dailyTaskSummary];
                                 updated[index].activity = e.target.value;
                                 setDailyTaskSummary(updated);
                               }}
-                              className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                              placeholder="Enter task details..."
+                              className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                             />
                             {item.activity && (
                               <button
                                 type="button"
                                 onClick={() => setSelectedActivityText(item.activity)}
-                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
-                                title="View full text"
+                                className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 mt-1"
+                                title="Expand / View Full Text"
                               >
                                 <Maximize2 size={13} />
                               </button>
                             )}
                           </div>
                         </td>
-                          <td className="px-5 py-3">
-                            <input
-                              type="date"
-                              value={item.dueDate || ''}
-                              onChange={(e) => {
-                                const updated = [...dailyTaskSummary];
-                                updated[index].dueDate = e.target.value;
-                                setDailyTaskSummary(updated);
-                              }}
-                              className="bg-transparent border-none focus:outline-none text-sm text-slate-700 dark:text-slate-300 w-full"
-                            />
-                          </td>
-                          <td className="px-5 py-3">
-                            <input
-                              type="date"
-                              value={item.startDate || ''}
-                              onChange={(e) => {
-                                const updated = [...dailyTaskSummary];
-                                updated[index].startDate = e.target.value;
-                                setDailyTaskSummary(updated);
-                              }}
-                              className="bg-transparent border-none focus:outline-none text-sm text-slate-700 dark:text-slate-300 w-full"
-                            />
-                          </td>
-                          <td className="px-5 py-3">
-                            <input
-                              type="date"
-                              value={item.endDate || ''}
-                              onChange={(e) => {
-                                const updated = [...dailyTaskSummary];
-                                updated[index].endDate = e.target.value;
-                                setDailyTaskSummary(updated);
-                              }}
-                              className="bg-transparent border-none focus:outline-none text-sm text-slate-700 dark:text-slate-300 w-full"
-                            />
-                          </td>
-                          <td className="px-5 py-3 text-center">
-                            <select
-                              value={item.status}
-                              onChange={(e) => {
-                                const updated = [...dailyTaskSummary];
-                                updated[index].status = e.target.value;
-                                setDailyTaskSummary(updated);
-                              }}
-                              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none text-slate-700 dark:text-slate-200"
-                            >
-                              <option value="Done">Done</option>
-                              <option value="ongoing">ongoing</option>
-                              <option value="onprogress">onprogress</option>
-                              <option value="Pending">Pending</option>
-                              <option value="NA">NA</option>
-                            </select>
-                          </td>
-                          <td className="px-5 py-3">
-                            <input
-                              type="text"
-                              value={item.remarks}
-                              onChange={(e) => {
-                                const updated = [...dailyTaskSummary];
-                                updated[index].remarks = e.target.value;
-                                setDailyTaskSummary(updated);
-                              }}
-                              className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
-                            />
-                          </td>
-                        <td className="px-5 py-3 text-center">
+                        <td className="px-3 py-3 vertical-top">
+                          <input
+                            type="date"
+                            value={item.dueDate || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyTaskSummary];
+                              updated[index].dueDate = e.target.value;
+                              setDailyTaskSummary(updated);
+                            }}
+                            className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-300 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                          />
+                        </td>
+                        <td className="px-3 py-3 vertical-top">
+                          <input
+                            type="date"
+                            value={item.startDate || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyTaskSummary];
+                              updated[index].startDate = e.target.value;
+                              setDailyTaskSummary(updated);
+                            }}
+                            className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-300 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                          />
+                        </td>
+                        <td className="px-3 py-3 vertical-top">
+                          <input
+                            type="date"
+                            value={item.endDate || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyTaskSummary];
+                              updated[index].endDate = e.target.value;
+                              setDailyTaskSummary(updated);
+                            }}
+                            className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-300 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                          />
+                        </td>
+                        <td className="px-3 py-3 text-center vertical-top">
+                          <select
+                            value={item.status}
+                            onChange={(e) => {
+                              const updated = [...dailyTaskSummary];
+                              updated[index].status = e.target.value;
+                              setDailyTaskSummary(updated);
+                            }}
+                            className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 dark:text-slate-200"
+                          >
+                            <option value="Done">Done</option>
+                            <option value="ongoing">ongoing</option>
+                            <option value="onprogress">onprogress</option>
+                            <option value="Pending">Pending</option>
+                            <option value="NA">NA</option>
+                          </select>
+                        </td>
+                        <td className="px-4 py-3 vertical-top">
+                          <textarea
+                            rows={2}
+                            value={item.remarks || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyTaskSummary];
+                              updated[index].remarks = e.target.value;
+                              setDailyTaskSummary(updated);
+                            }}
+                            placeholder="Remarks..."
+                            className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
+                          />
+                        </td>
+                        <td className="px-2 py-3 text-center vertical-top">
                           <button
                             type="button"
                             onClick={() => removeSummaryRow(index)}
                             disabled={dailyTaskSummary.length === 1}
-                            className="text-rose-500 hover:text-rose-700 disabled:opacity-30 transition-colors"
+                            className="text-rose-500 hover:text-rose-700 disabled:opacity-30 transition-colors p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
                           >
                             <Trash2 size={15} />
                           </button>
@@ -2315,67 +2316,67 @@ const HodRdReportPage = () => {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-5 py-4 w-[25%]">Project</th>
-                      <th className="px-5 py-4 w-[45%]">Development Activity</th>
-                      <th className="px-5 py-4 w-[12%] text-center">Status</th>
-                      <th className="px-5 py-4 w-[13%]">Remark</th>
-                      <th className="px-5 py-4 w-[5%] text-center">Actions</th>
+                      <th className="px-4 py-3.5 w-[25%]">Project</th>
+                      <th className="px-4 py-3.5 w-[45%]">Development Activity</th>
+                      <th className="px-3 py-3.5 w-[12%] text-center">Status</th>
+                      <th className="px-4 py-3.5 w-[13%]">Remark</th>
+                      <th className="px-2 py-3.5 w-[5%] text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {developmentWorkReport.map((item, index) => (
                       <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
-                        <td className="px-5 py-3 relative group">
-                          <div className="flex items-center gap-1.5">
+                        <td className="px-4 py-3 vertical-top relative group">
+                          <div className="flex items-start gap-1.5">
                             <input
                               type="text"
-                              value={item.project}
+                              value={item.project || ''}
                               onChange={(e) => {
                                 const updated = [...developmentWorkReport];
                                 updated[index].project = e.target.value;
                                 setDevelopmentWorkReport(updated);
                               }}
                               placeholder="Ayurvedic website, CRM"
-                              className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                              className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                             />
                             {item.project && (
                               <button
                                 type="button"
                                 onClick={() => setSelectedActivityText(item.project)}
-                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
-                                title="View full text"
+                                className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 mt-1"
+                                title="Expand / View Full Text"
                               >
                                 <Maximize2 size={13} />
                               </button>
                             )}
                           </div>
                         </td>
-                        <td className="px-5 py-3 relative group">
-                          <div className="flex items-center gap-1.5">
+                        <td className="px-4 py-3 vertical-top relative group">
+                          <div className="flex items-start gap-1.5">
                             <textarea
-                              value={item.activity}
+                              rows={2}
+                              value={item.activity || ''}
                               onChange={(e) => {
                                 const updated = [...developmentWorkReport];
                                 updated[index].activity = e.target.value;
                                 setDevelopmentWorkReport(updated);
                               }}
                               placeholder="Changes in UI, debugging, etc."
-                              rows={1}
-                              className="w-full bg-transparent border-none focus:outline-none resize-y text-slate-700 dark:text-slate-200"
+                              className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                             />
                             {item.activity && (
                               <button
                                 type="button"
                                 onClick={() => setSelectedActivityText(item.activity)}
-                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
-                                title="View full text"
+                                className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 mt-1"
+                                title="Expand / View Full Text"
                               >
                                 <Maximize2 size={13} />
                               </button>
                             )}
                           </div>
                         </td>
-                        <td className="px-5 py-3 text-center">
+                        <td className="px-3 py-3 text-center vertical-top">
                           <select
                             value={item.status}
                             onChange={(e) => {
@@ -2383,7 +2384,7 @@ const HodRdReportPage = () => {
                               updated[index].status = e.target.value;
                               setDevelopmentWorkReport(updated);
                             }}
-                            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none text-slate-700 dark:text-slate-200"
+                            className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 dark:text-slate-200"
                           >
                             <option value="Done">Done</option>
                             <option value="ongoing">ongoing</option>
@@ -2391,25 +2392,25 @@ const HodRdReportPage = () => {
                             <option value="Pending">Pending</option>
                           </select>
                         </td>
-                        <td className="px-5 py-3">
-                          <input
-                            type="text"
-                            value={item.remark}
+                        <td className="px-4 py-3 vertical-top">
+                          <textarea
+                            rows={2}
+                            value={item.remark || ''}
                             onChange={(e) => {
                               const updated = [...developmentWorkReport];
                               updated[index].remark = e.target.value;
                               setDevelopmentWorkReport(updated);
                             }}
                             placeholder="e.g. Client verified"
-                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                            className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                           />
                         </td>
-                        <td className="px-5 py-3 text-center">
+                        <td className="px-2 py-3 text-center vertical-top">
                           <button
                             type="button"
                             onClick={() => removeDevRow(index)}
                             disabled={developmentWorkReport.length === 1}
-                            className="text-rose-500 hover:text-rose-700 disabled:opacity-30 transition-colors"
+                            className="text-rose-500 hover:text-rose-700 disabled:opacity-30 transition-colors p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
                           >
                             <Trash2 size={15} />
                           </button>
@@ -3057,43 +3058,80 @@ const HodRdReportPage = () => {
                       <table className="w-full text-left border-collapse text-sm">
                         <thead>
                           <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase border-b border-slate-100 dark:border-slate-800">
-                            <th className="px-5 py-4 w-[40%]">Activity</th>
-                            <th className="px-5 py-4 w-[15%]">Due Date</th>
-                            <th className="px-5 py-4 w-[15%]">Start Date</th>
-                            <th className="px-5 py-4 w-[15%]">End Date</th>
-                            <th className="px-5 py-4 w-[15%] text-center">Status</th>
-                            <th className="px-5 py-4 w-[10%]">Remarks</th>
-                            <th className="px-5 py-4 w-[5%] text-center">Action</th>
+                            <th className="px-4 py-3.5 w-[35%]">Activity / Task</th>
+                            <th className="px-3 py-3.5 w-[12%]">Due Date</th>
+                            <th className="px-3 py-3.5 w-[12%]">Start Date</th>
+                            <th className="px-3 py-3.5 w-[12%]">End Date</th>
+                            <th className="px-3 py-3.5 w-[12%] text-center">Status</th>
+                            <th className="px-4 py-3.5 w-[12%]">Remarks</th>
+                            <th className="px-2 py-3.5 w-[5%] text-center">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {monthlyDailyTaskSummary.map((item, idx) => (
                             <tr key={idx} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
-                              <td className="px-5 py-3 relative group">
-                                <div className="flex items-center gap-1.5">
-                                  <input
-                                    type="text"
-                                    value={item.activity}
+                              <td className="px-4 py-3 relative group">
+                                <div className="flex items-start gap-1.5">
+                                  <textarea
+                                    rows={2}
+                                    value={item.activity || ''}
                                     onChange={(e) => {
                                       const updated = [...monthlyDailyTaskSummary];
                                       updated[idx].activity = e.target.value;
                                       setMonthlyDailyTaskSummary(updated);
                                     }}
-                                    className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                                    placeholder="Enter activity details..."
+                                    className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                                   />
                                   {item.activity && (
                                     <button
                                       type="button"
                                       onClick={() => setSelectedActivityText(item.activity)}
-                                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
-                                      title="View full text"
+                                      className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 mt-1"
+                                      title="Expand / View Full Text"
                                     >
                                       <Maximize2 size={13} />
                                     </button>
                                   )}
                                 </div>
                               </td>
-                              <td className="px-5 py-3 text-center">
+                              <td className="px-3 py-3 vertical-top">
+                                <input
+                                  type="date"
+                                  value={item.dueDate || ''}
+                                  onChange={(e) => {
+                                    const updated = [...monthlyDailyTaskSummary];
+                                    updated[idx].dueDate = e.target.value;
+                                    setMonthlyDailyTaskSummary(updated);
+                                  }}
+                                  className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-300 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                />
+                              </td>
+                              <td className="px-3 py-3 vertical-top">
+                                <input
+                                  type="date"
+                                  value={item.startDate || ''}
+                                  onChange={(e) => {
+                                    const updated = [...monthlyDailyTaskSummary];
+                                    updated[idx].startDate = e.target.value;
+                                    setMonthlyDailyTaskSummary(updated);
+                                  }}
+                                  className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-300 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                />
+                              </td>
+                              <td className="px-3 py-3 vertical-top">
+                                <input
+                                  type="date"
+                                  value={item.endDate || ''}
+                                  onChange={(e) => {
+                                    const updated = [...monthlyDailyTaskSummary];
+                                    updated[idx].endDate = e.target.value;
+                                    setMonthlyDailyTaskSummary(updated);
+                                  }}
+                                  className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-300 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                />
+                              </td>
+                              <td className="px-3 py-3 text-center vertical-top">
                                 <select
                                   value={item.status}
                                   onChange={(e) => {
@@ -3101,7 +3139,7 @@ const HodRdReportPage = () => {
                                     updated[idx].status = e.target.value;
                                     setMonthlyDailyTaskSummary(updated);
                                   }}
-                                  className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs text-slate-700 dark:text-slate-200"
+                                  className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 dark:text-slate-200"
                                 >
                                   <option value="Done">Done</option>
                                   <option value="ongoing">ongoing</option>
@@ -3110,20 +3148,21 @@ const HodRdReportPage = () => {
                                   <option value="NA">NA</option>
                                 </select>
                               </td>
-                              <td className="px-5 py-3">
-                                <input
-                                  type="text"
-                                  value={item.remarks}
+                              <td className="px-4 py-3 vertical-top">
+                                <textarea
+                                  rows={2}
+                                  value={item.remarks || ''}
                                   onChange={(e) => {
                                     const updated = [...monthlyDailyTaskSummary];
                                     updated[idx].remarks = e.target.value;
                                     setMonthlyDailyTaskSummary(updated);
                                   }}
-                                  className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                                  placeholder="Remarks..."
+                                  className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                                 />
                               </td>
-                              <td className="px-5 py-3 text-center">
-                                <button type="button" onClick={() => removeMonthlySummaryRow(idx)} className="text-rose-500 hover:text-rose-700 transition-colors">
+                              <td className="px-2 py-3 text-center vertical-top">
+                                <button type="button" onClick={() => removeMonthlySummaryRow(idx)} className="text-rose-500 hover:text-rose-700 transition-colors p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40">
                                   <Trash2 size={14} />
                                 </button>
                               </td>

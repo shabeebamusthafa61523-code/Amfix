@@ -20,9 +20,13 @@ export const verifyToken = (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret_key');
+    const secret = process.env.JWT_SECRET || 'supersecretjwtkey_12345';
+    const decoded = jwt.verify(token, secret);
     
     req.user = decoded;
+    if (decoded && (decoded.isSuperAdmin || String(decoded.role || '').toLowerCase() === 'superadmin' || String(decoded.role_id || '') === '0')) {
+      req.user.isSuperAdmin = true;
+    }
     next();
   } catch (error) {
     console.error('JWT Verification Error:', error);
@@ -35,41 +39,74 @@ export const verifyToken = (req, res, next) => {
  * @param {Array<String>} allowedRoles - Roles allowed to mutate resources
  */
 export const requireRole = (allowedRoles = []) => {
-  return (req, res, next) => {
-    // Collect possible role identifiers from req.user
-    const roleId = String(req.user?.role_id || '');
-    const roleName = String(req.user?.role || '');
+  return async (req, res, next) => {
+    // Collect possible role identifiers and user ID from req.user
+    const roleId = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const roleName = String(req.user?.role || '').toLowerCase().trim();
+    const userId = req.user?.id || req.user?._id || req.user?.userId;
+
+    let isSuperAdmin = 
+      req.user?.isSuperAdmin === true ||
+      req.user?.is_super_admin === true ||
+      roleId === '0' ||
+      roleName.includes('super');
+
+    if (!isSuperAdmin && userId) {
+      try {
+        const User = (await import('../models/user.model.js')).default;
+        const userObj = await User.findById(userId);
+        if (userObj && (
+          userObj.isSuperAdmin === true || 
+          userObj.is_super_admin === true ||
+          String(userObj.role).toLowerCase().includes('super') || 
+          String(userObj.role_id) === '0' ||
+          String(userObj.roleId) === '0'
+        )) {
+          isSuperAdmin = true;
+          req.user.isSuperAdmin = true;
+        }
+      } catch (err) {}
+    }
+
+    if (isSuperAdmin) return next();
 
     // Map of roles for broad compatibility
-    // Allows admin access if allowedRoles contains 'admin' and user is admin/1/MD/COO/EXECUTIVE_DIRECTOR
     const isAllowed = allowedRoles.some(allowed => {
-      const target = allowed.toLowerCase();
+      const target = allowed.toLowerCase().trim();
       
       // Admin checks
       if (target === 'admin') {
         return (
-          roleName.toLowerCase() === 'admin' ||
+          roleName === 'admin' ||
           roleId === '1' ||
           roleId === '10' ||
           roleName === '10' ||
           roleName.toUpperCase() === 'MD' ||
-          roleName.toUpperCase() === 'COO' ||
-          roleName.toUpperCase() === 'EXECUTIVE_DIRECTOR'
+          roleName.toUpperCase() === 'COO'
         );
       }
       
-      // Manager checks
-      if (target === 'manager') {
+      // Employee checks
+      if (target === 'employee') {
         return (
-          roleName.toLowerCase() === 'manager' ||
-          roleId === '2' ||
-          roleName.toUpperCase() === 'DEPARTMENT_MANAGER'
+          roleName === 'employee' ||
+          roleName === 'staff' ||
+          roleId === '3' ||
+          roleId === '2'
+        );
+      }
+
+      // Student checks
+      if (target === 'student') {
+        return (
+          roleName === 'student' ||
+          roleId === '4'
         );
       }
 
       // Exact checks (e.g. custom role strings or IDs)
       return (
-        roleName.toLowerCase() === target ||
+        roleName === target ||
         roleId === target
       );
     });
@@ -91,6 +128,15 @@ export const restrictToRoles = (allowedRoles = []) => {
     const userRole = String(req.user?.role || '').toLowerCase().trim();
     const userRoleId = String(req.user?.role_id || '').trim();
 
+    const isSuperAdmin = 
+      req.user?.isSuperAdmin === true ||
+      req.user?.is_super_admin === true ||
+      userRoleId === '0' ||
+      userRole === 'superadmin' ||
+      userRole === 'super_admin';
+
+    if (isSuperAdmin) return next();
+
     const isAllowed = allowedRoles.some(role => {
       const target = role.toLowerCase().trim();
       return userRole === target || userRoleId === target;
@@ -107,45 +153,39 @@ export const restrictToRoles = (allowedRoles = []) => {
   };
 };
 
-export const restrictToDepartment = (departmentId) => {
+export const restrictToDepartment = (targetDeptNames = []) => {
+  const allowedNames = (Array.isArray(targetDeptNames) ? targetDeptNames : [targetDeptNames]).map(n => String(n).toLowerCase().trim());
   return async (req, res, next) => {
-    // Administrative roles (1, 2, hr, admin) can bypass department checks
-    const role = String(req.user?.role || req.user?.role_id || '').toLowerCase().trim();
-    const isPrivileged = ['1', '2', 'hr', 'admin'].includes(role);
+    const role = String(req.user?.role || '').toLowerCase().trim();
+    const roleId = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const isSuperAdmin = req.user?.isSuperAdmin === true || req.user?.is_super_admin === true || role === 'superadmin' || roleId === '0';
+    const isPrivileged = isSuperAdmin || ['1', '2', 'admin', 'hr'].includes(role) || ['1', '2'].includes(roleId);
     if (isPrivileged) {
       return next();
     }
 
-    let userDeptId = req.user?.departmentId;
-
-    // Fallback: If departmentId is missing from token (e.g. active session), query from DB
-    if (!userDeptId && req.user?.id) {
+    const userId = req.user?.id || req.user?._id;
+    if (userId) {
       try {
         const User = (await import('../models/user.model.js')).default;
-        const userObj = await User.findById(req.user.id);
-        if (userObj) {
-          userDeptId = userObj.departmentId;
+        const userObj = await User.findById(userId).populate('departmentId', 'name');
+        const deptName = String(userObj?.departmentId?.name || userObj?.department || '').toLowerCase().trim();
+
+        if (deptName.includes('hr') || deptName.includes('admin') || deptName.includes('non-operational')) {
+          return next();
         }
+
+        const matches = allowedNames.some(target => deptName.includes(target) || target.includes(deptName));
+        if (matches) return next();
       } catch (err) {
-        console.error("Failed to fetch user department fallback:", err);
+        console.error("Department restriction check error:", err);
       }
     }
 
-    userDeptId = String(userDeptId || '').trim();
-
-    // Bypass for HR/ADMIN & Non-Operational departments
-    if (userDeptId === '6a3caed51194353cbc8a3686' || userDeptId === '6a55c7e8b613a280003481d8') {
-      return next();
-    }
-
-    if (userDeptId !== String(departmentId).trim()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Exclusive to the marketing department.'
-      });
-    }
-
-    next();
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied for this department.'
+    });
   };
 };
 
@@ -171,10 +211,15 @@ const protectRoute = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
 
-    const secret = process.env.JWT_SECRET || 'fallback_secret_key';
+    const secret = process.env.JWT_SECRET || 'supersecretjwtkey_12345';
     const decoded = jwt.verify(token, secret);
 
-    req.user = decoded;
+    req.user = decoded || {};
+    const rId = String(req.user.role_id || req.user.roleId || '').trim();
+    const rName = String(req.user.role || '').toLowerCase().trim();
+    if (req.user.isSuperAdmin === true || req.user.is_super_admin === true || rId === '0' || rName.includes('super')) {
+      req.user.isSuperAdmin = true;
+    }
 
     // --- Inactivity sliding session check (30 mins = 1800 seconds) ---
     try {

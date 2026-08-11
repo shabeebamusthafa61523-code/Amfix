@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
+import { useUser } from '../contexts/UserContext';
 
 const API_BASE = import.meta.env.VITE_API_URL;// --- UTILS & CONSTANTS ---
 const getTaskImageUrl = (path) => {
@@ -19,32 +20,24 @@ const getTaskImageUrl = (path) => {
   }
   if (typeof path !== 'string') return null;
 
-  // Cloudinary PDF handling: convert .pdf to .png viewable URL so Cloudinary streams it on screen cleanly
-  if (path.includes('res.cloudinary.com')) {
-    let cleanUrl = path
-      .replace('/raw/upload/', '/image/upload/')
-      .replace('/image/upload/fl_inline/', '/image/upload/');
+  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:") || path.startsWith("blob:")) {
+    let cleanUrl = path;
+    if (path.includes('res.cloudinary.com')) {
+      cleanUrl = cleanUrl
+        .replace('/raw/upload/', '/image/upload/')
+        .replace('/image/upload/fl_inline/', '/image/upload/');
+      if (/\.pdf$/i.test(cleanUrl)) {
+        cleanUrl = cleanUrl.replace(/\.pdf$/i, '.png');
+      }
       
-    if (/\.pdf$/i.test(cleanUrl)) {
-      cleanUrl = cleanUrl.replace(/\.pdf$/i, '.png');
     }
     return cleanUrl;
   }
 
-  if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:") || path.startsWith("blob:")) {
-    return path;
-  }
-
   const cleanPath = path.replace(/^\//, '');
-  if (cleanPath.startsWith('uploads') || cleanPath.startsWith('files')) {
-    const backendHost = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1').replace('/api/v1', '').replace('/api', '');
-    return `${backendHost}/${cleanPath}`;
-  }
-
-  const fileName = path.split(/[\\/]/).pop();
-  if (fileName.startsWith('http')) return fileName;
-  const cleanFileName = fileName.replace(/\.pdf$/i, '.png');
-  return `https://res.cloudinary.com/davmqgfsq/image/upload/v1776844261/tasks/${cleanFileName}`;
+  const apiBase = import.meta.env.VITE_API_URL || '';
+  const backendHost = apiBase ? apiBase.replace(/\/api\/v1\/?$/, '').replace(/\/api\/?$/, '') : window.location.origin;
+  return `${backendHost}/${cleanPath}`;
 };
 
 const COLUMN_META = {
@@ -81,17 +74,10 @@ const PRIORITY_META = {
   }
 };
 
-const DEFAULT_DESIGNATIONS = [
-  { id: "1", name: "HR Manager" }, { id: "2", name: "Graphic Designer" },
-  { id: "3", name: "Digital Marketer" }, { id: "4", name: "React Developer" },
-  { id: "5", name: "Node Developer" }, { id: "6", name: "Flutter Developer" },
-  { id: "7", name: "Fullstack" }, { id: "8", name: "Admin" }, { id: "9", name: "Manager" }
-];
-
 const Todo = () => {
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
-  const [designations, setDesignations] = useState(DEFAULT_DESIGNATIONS);
+  const [designations, setDesignations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
@@ -122,6 +108,7 @@ const Todo = () => {
     const cleanToken = rawToken ? rawToken.replace(/"/g, '') : '';
     return { 'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}` };
   }, []);
+
 const fetchData = useCallback(async () => {
   try {
 
@@ -130,7 +117,7 @@ const fetchData = useCallback(async () => {
         headers: getAuthHeaders()
       }),
 
-      fetch(`${API_BASE}/user/list`, {
+      fetch(`${API_BASE}/v1/users/list`, {
         headers: getAuthHeaders()
       }),
 
@@ -163,11 +150,24 @@ const fetchData = useCallback(async () => {
     }));
 
     setTasks(cleanedTasks);
-    setUsers(
-      Array.isArray(uData) ? uData : []
-    );
+    const fetchedUsers = Array.isArray(uData) ? uData : (uData.data || []);
+    setUsers(fetchedUsers);
+
     if (Array.isArray(dData) && dData.length > 0) {
       setDesignations(dData);
+    } else {
+      const desigMap = new Map();
+      fetchedUsers.forEach(u => {
+        const dObj = u.designationId || u.designation;
+        if (dObj && typeof dObj === 'object' && (dObj._id || dObj.id) && (dObj.name || dObj.designation_name)) {
+          const id = dObj._id || dObj.id;
+          const name = dObj.name || dObj.designation_name;
+          desigMap.set(String(id), { id, _id: id, name, designation_name: name });
+        } else if (typeof dObj === 'string' && dObj.trim()) {
+          desigMap.set(dObj.trim().toLowerCase(), { id: dObj.trim(), _id: dObj.trim(), name: dObj.trim(), designation_name: dObj.trim() });
+        }
+      });
+      setDesignations(Array.from(desigMap.values()));
     }
   } catch (e) {
     console.error("Fetch Error:", e);
@@ -450,7 +450,6 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
     fd.append('designation_id', form.designation_id);
     fd.append('status', 'pending');
     fd.append('priority', form.priority || 'medium');
-    if (form.dueDate) fd.append('dueDate', form.dueDate);
     if (form.dueDate) fd.append('dueDate', form.dueDate);
     if (form.client) fd.append('client', form.client);
     if (form.project) fd.append('project', form.project);
@@ -866,7 +865,22 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
     }
   };
 
+  const { user: liveUser } = useUser() || {};
+  const storedUser = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('user')); } catch (e) { return null; }
+  }, []);
+  const currentUserObj = liveUser || storedUser;
+
+  const isSuperAdminUser = useMemo(() => {
+    if (!currentUserObj) return false;
+    const roleStr = String(currentUserObj.role || '').toLowerCase().trim();
+    const roleIdStr = String(currentUserObj.role_id || currentUserObj.roleId || '').trim();
+    return currentUserObj.isSuperAdmin === true || currentUserObj.is_super_admin === true || roleStr === 'superadmin' || roleIdStr === '0';
+  }, [currentUserObj]);
+
   const canModify = useMemo(() => {
+    if (isSuperAdminUser) return true;
+
     const getCreatorId = () => {
       const candidates = [
         task?.user_id,
@@ -890,7 +904,7 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
 
     const creatorId = getCreatorId();
     return currentUserId && creatorId && String(currentUserId).trim() === creatorId;
-  }, [task, currentUserId]);
+  }, [task, currentUserId, isSuperAdminUser]);
 
   const [clientsList, setClientsList] = useState([]);
   const [projectsList, setProjectsList] = useState([]);

@@ -36,11 +36,18 @@ const userSchema = new mongoose.Schema({
   coursePreference: { type: String },
   permissions: [{ type: String }],
   isSuperAdmin: { type: Boolean, default: false },
+  googleId: { type: String },
+  isGoogleAuth: { type: Boolean, default: false },
   lastLogin: { type: Date },
 }, { timestamps: true });
 
 // Case-insensitive index searching support for the controller search features
 userSchema.index({ name: 'text', email: 'text', employeeId: 'text', studentId: 'text' });
+
+// Performance optimization indexes
+userSchema.index({ departmentId: 1, status: 1 });
+userSchema.index({ role: 1 });
+userSchema.index({ isActive: 1 });
 
 const User = mongoose.model('User', userSchema);
 export default User;

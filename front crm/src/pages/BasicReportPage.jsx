@@ -3,7 +3,7 @@ import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ArrowLeft,
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, ArrowLeft,
   X, Maximize2, Trash, ClipboardList, PenTool, BookOpen
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
@@ -12,7 +12,8 @@ import autoTable from 'jspdf-autotable';
 import SignatureUpload from '../components/SignatureUpload';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const RAW_API_BASE = import.meta.env.VITE_API_URL || '/api';
+const API_BASE = RAW_API_BASE.replace(/\/v1\/?$/, '').replace(/\/+$/, '');
 
 const DEFAULT_BLOCKERS_PLAN = {
   blockersToday: '',
@@ -28,6 +29,8 @@ const BasicReportPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [submittedDates, setSubmittedDates] = useState([]);
   
   // Form states
   const [basicDetails, setBasicDetails] = useState({
@@ -50,6 +53,24 @@ const BasicReportPage = () => {
     return { Authorization: tk.startsWith('Bearer ') ? tk : `Bearer ${tk}`, 'Content-Type': 'application/json' };
   }, []);
 
+  const fetchSubmittedDates = useCallback(async (userId) => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`${API_BASE}/v1/employee-reports/list?userId=${userId}`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          const dates = data.data.map(r => r.report_date).filter(Boolean);
+          setSubmittedDates(dates);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch submitted dates:', e);
+    }
+  }, [getAuthHeaders]);
+
   // Fetch tasks and initialize report form
   useEffect(() => {
     const loadUserDataAndTasks = async () => {
@@ -59,10 +80,14 @@ const BasicReportPage = () => {
         const userId = (localStorage.getItem('user_id') || '').replace(/"/g, '').trim();
         let userObj = {};
         if (saved) {
-          userObj = JSON.parse(saved);
-          userObj.user_id = userId;
-          setCurrentUser(userObj);
+          try {
+            userObj = JSON.parse(saved);
+          } catch (e) {}
         }
+        const realUserId = userObj._id || userObj.id || userId;
+        userObj.user_id = realUserId;
+        setCurrentUser(userObj);
+        fetchSubmittedDates(realUserId);
 
         const deptName = userObj.departmentId?.name || userObj.department || 'General';
         const desigName = userObj.designationId?.name || userObj.designation || 'Staff';
@@ -78,7 +103,7 @@ const BasicReportPage = () => {
         });
 
         // Try load draft from localStorage
-        const draftKey = `basic_report_draft_${userId}_${selectedDate}`;
+        const draftKey = `basic_report_draft_${realUserId}_${selectedDate}`;
         const savedDraft = localStorage.getItem(draftKey);
 
         if (savedDraft) {
@@ -322,37 +347,30 @@ const BasicReportPage = () => {
     return doc;
   };
 
-  // Local PDF download
-  const handleDownloadPDF = () => {
-    try {
-      const doc = buildPDFDoc();
-      const fn = `daily_report_${currentUser.name?.replace(/\s+/g, '_') || 'employee'}_${selectedDate}.pdf`;
-      doc.save(fn);
-      showToast('PDF downloaded successfully', 'success');
-    } catch (err) {
-      console.error(err);
-      showToast('Failed to generate PDF', 'error');
-    }
-  };
-
-  // Submit report to server
-  const handleSubmitReport = async () => {
+  // Combined Save & Download Report function (downloads locally & uploads to server for Employee Reports)
+  const handleSaveAndDownloadReport = async () => {
     // Basic verification
     const hasNotes = taskSummary.some(t => t.detailsNotes && t.detailsNotes.trim().length > 0);
     if (!hasNotes) {
-      showToast('Please add progress details / notes in at least one activity row before submitting.', 'warning');
+      showToast('Please add progress details / notes in at least one activity row before saving.', 'warning');
       return;
     }
 
     setSubmitting(true);
     try {
       const doc = buildPDFDoc();
-      const pdfBlob = doc.output('blob');
       const filename = `daily_report_${currentUser.name?.replace(/\s+/g, '_') || 'employee'}_${selectedDate}.pdf`;
+
+      // 1. Download PDF to user's computer
+      doc.save(filename);
+
+      // 2. Upload PDF to server to store under Employee Reports
+      const pdfBlob = doc.output('blob');
+      const targetUserId = currentUser?._id || currentUser?.id || currentUser?.user_id || (localStorage.getItem('user_id') || '').replace(/"/g, '').trim();
       const reportType = String(basicDetails.department).toLowerCase().replace(/[^a-z0-9]/g, '') || 'basic';
 
       const response = await uploadCompiledPDFReport(
-        currentUser.user_id,
+        targetUserId,
         selectedDate,
         pdfBlob,
         filename,
@@ -362,21 +380,36 @@ const BasicReportPage = () => {
 
       if (response.status === 201 || response.status === 200 || response.data?.success) {
         // Clear local draft
-        const draftKey = `basic_report_draft_${currentUser.user_id}_${selectedDate}`;
+        const draftKey = `basic_report_draft_${targetUserId}_${selectedDate}`;
         localStorage.removeItem(draftKey);
 
-        showToast('Daily Report submitted successfully!', 'success');
-        navigate('/common-dashboard');
+        fetchSubmittedDates(targetUserId);
+
+        showToast('Report saved & downloaded successfully!', 'success');
       } else {
-        showToast('Failed to upload report to server', 'error');
+        showToast('PDF downloaded locally, but failed to save to server.', 'error');
       }
     } catch (err) {
       console.error(err);
-      showToast('Error uploading report: ' + (err.response?.data?.message || err.message), 'error');
+      showToast('Error saving report: ' + (err.response?.data?.message || err.message), 'error');
     } finally {
       setSubmitting(false);
     }
   };
+
+  const getRecentDates = () => {
+    const dates = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateString = d.toISOString().split('T')[0];
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
+      const displayDate = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+      dates.push({ dateString, dayName, displayDate });
+    }
+    return dates;
+  };
+  const recentDates = getRecentDates();
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
@@ -396,318 +429,350 @@ const BasicReportPage = () => {
   );
 
   return (
-    <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-8">
+    <div className="p-3 lg:p-5 w-full min-w-0 max-w-full space-y-4 max-h-screen overflow-y-auto overflow-x-hidden">
       
       {/* ══ HEADER ══ */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/common-dashboard')}
-            className="p-2 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 text-slate-500 hover:text-indigo-500 transition-all shadow-sm">
-            <ArrowLeft size={16} />
+            className="p-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-400 text-slate-500 hover:text-indigo-500 transition-all shadow-sm cursor-pointer">
+            <ArrowLeft size={15} />
           </button>
           <div>
-            <h1 className="text-xl lg:text-2xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight flex items-center gap-2">
-              <FileText size={20} className="text-indigo-500" />
+            <h1 className="text-lg lg:text-xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight flex items-center gap-2">
+              <FileText size={18} className="text-indigo-500" />
               Daily Work Report
             </h1>
-            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">Submit and log your work activities for today</p>
+            <p className="text-[11px] font-semibold text-slate-400 dark:text-slate-500">Submit and log your work activities for today</p>
           </div>
         </div>
 
         {/* Date Selector */}
-        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1.5 rounded-2xl shadow-sm self-start sm:self-auto">
-          <Calendar size={14} className="text-slate-400 ml-2" />
+        <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl shadow-sm self-start sm:self-auto">
+          <Calendar size={13} className="text-slate-400 ml-2" />
           <input
             type="date"
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="bg-transparent text-xs font-black text-slate-700 dark:text-slate-350 focus:outline-none pr-2"
+            className="bg-transparent text-xs font-black text-slate-700 dark:text-slate-350 focus:outline-none pr-2 py-0.5"
           />
         </div>
       </div>
 
-      {/* ══ DETAILS CARD ══ */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/70 rounded-3xl p-6 shadow-sm">
-        <h2 className="text-xs font-black text-indigo-500 uppercase tracking-widest mb-4 flex items-center gap-1.5">
-          <User size={12} /> Employee Profile Details
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase">Employee Name</label>
-            <p className="text-xs font-black text-slate-700 dark:text-slate-200 mt-0.5">{basicDetails.employeeName}</p>
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase">Employee ID</label>
-            <p className="text-xs font-black text-slate-700 dark:text-slate-200 mt-0.5">{basicDetails.employeeId}</p>
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase">Department</label>
-            <p className="text-xs font-black text-slate-700 dark:text-slate-200 mt-0.5">{basicDetails.department}</p>
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-slate-400 uppercase">Designation</label>
-            <p className="text-xs font-black text-slate-700 dark:text-slate-200 mt-0.5">{basicDetails.designation}</p>
-          </div>
-        </div>
-      </div>
+      {/* ══ MAIN FLEX WRAPPER WITH DATE SIDEBAR ══ */}
+      <div className="flex gap-4 items-start w-full relative flex-col lg:flex-row">
+        {/* LEFT PANEL: Date Select Sidebar */}
+        <div className={`transition-all duration-300 ease-in-out shrink-0 bg-white/70 dark:bg-slate-900/70 border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md rounded-2xl p-4 shadow-sm relative max-h-[calc(100vh-7rem)] overflow-y-auto ${
+          isSidebarOpen 
+            ? 'w-full lg:w-56 opacity-100 translate-x-0' 
+            : 'w-0 lg:w-0 opacity-0 -translate-x-12 overflow-hidden p-0 border-none pointer-events-none'
+        }`}>
+          <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center gap-1.5">
+            <Calendar size={13} className="text-indigo-500" />
+            Report Log (14 Days)
+          </h3>
 
-      {/* ══ ACTIVITIES TABLE ══ */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/70 rounded-3xl p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h2 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">Activity Logs</h2>
-            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5">List of tasks worked on with descriptions</p>
-          </div>
-          <button onClick={handleAddRow}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-indigo-500/30 text-indigo-500 hover:bg-indigo-500 hover:text-white text-[10px] font-black uppercase transition-all">
-            <Plus size={11} /> Add Row
-          </button>
-        </div>
-
-        {/* Responsive Table Wrapper */}
-        <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/80 rounded-2xl">
-          <table className="w-full text-left border-collapse min-w-[900px]">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/50 text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                <th className="py-3.5 px-4 w-[5%]">#</th>
-                <th className="py-3.5 px-4 w-[22%]">Activity / Task Title</th>
-                <th className="py-3.5 px-4 w-[11%]">Start Date</th>
-                <th className="py-3.5 px-4 w-[11%]">End Date</th>
-                <th className="py-3.5 px-4 w-[11%]">Due Date</th>
-                <th className="py-3.5 px-4 w-[24%]">Details / Progress Notes</th>
-                <th className="py-3.5 px-4 w-[11%]">Status</th>
-                <th className="py-3.5 px-4 w-[5%] text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {taskSummary.map((t, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
-                  <td className="py-3 px-4 text-xs font-black text-slate-400">{idx + 1}</td>
-                  
-                  {/* Task Title */}
-                  <td className="py-3 px-4">
-                    <input
-                      type="text"
-                      value={t.task}
-                      readOnly={t.isBackendTask}
-                      onChange={(e) => handleUpdateCell(idx, 'task', e.target.value)}
-                      placeholder="e.g. Code feature deployment"
-                      className={`w-full py-1.5 px-2.5 rounded-lg border text-xs font-semibold focus:outline-none ${
-                        t.isBackendTask
-                          ? 'bg-slate-50 dark:bg-slate-800/30 border-transparent text-slate-500 cursor-not-allowed'
-                          : 'bg-transparent border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:border-indigo-500'
-                      }`}
-                    />
-                  </td>
-
-                  {/* Start Date */}
-                  <td className="py-3 px-4">
-                    <input
-                      type="date"
-                      value={t.startDate || ''}
-                      onChange={(e) => handleUpdateCell(idx, 'startDate', e.target.value)}
-                      className="w-full bg-transparent border border-slate-200 dark:border-slate-700 py-1.5 px-2 rounded-lg text-[11px] font-semibold text-slate-700 dark:text-slate-200 focus:border-indigo-500 focus:outline-none"
-                    />
-                  </td>
-
-                  {/* End Date */}
-                  <td className="py-3 px-4">
-                    <input
-                      type="date"
-                      value={t.endDate || ''}
-                      onChange={(e) => handleUpdateCell(idx, 'endDate', e.target.value)}
-                      className="w-full bg-transparent border border-slate-200 dark:border-slate-700 py-1.5 px-2 rounded-lg text-[11px] font-semibold text-slate-700 dark:text-slate-200 focus:border-indigo-500 focus:outline-none"
-                    />
-                  </td>
-
-                  {/* Due Date */}
-                  <td className="py-3 px-4">
-                    <input
-                      type="date"
-                      value={t.dueDate || ''}
-                      onChange={(e) => handleUpdateCell(idx, 'dueDate', e.target.value)}
-                      className="w-full bg-transparent border border-slate-200 dark:border-slate-700 py-1.5 px-2 rounded-lg text-[11px] font-semibold text-slate-700 dark:text-slate-200 focus:border-indigo-500 focus:outline-none"
-                    />
-                  </td>
-
-                  {/* Progress Notes */}
-                  <td className="py-3 px-4">
-                    <textarea
-                      value={t.detailsNotes || ''}
-                      onChange={(e) => handleUpdateCell(idx, 'detailsNotes', e.target.value)}
-                      placeholder="What did you achieve today? Include details..."
-                      rows={2}
-                      className="w-full bg-transparent border border-slate-200 dark:border-slate-700 py-1.5 px-2.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 focus:border-indigo-500 focus:outline-none resize-none placeholder:text-slate-400"
-                    />
-                  </td>
-
-                  {/* Status dropdown */}
-                  <td className="py-3 px-4">
-                    <select
-                      value={t.status || 'pending'}
-                      onChange={(e) => handleUpdateCell(idx, 'status', e.target.value)}
-                      className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-1.5 px-2 rounded-lg text-xs font-black text-slate-700 dark:text-slate-200 focus:border-indigo-500 focus:outline-none uppercase tracking-wider"
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="current">In Progress</option>
-                      <option value="preview">In Review</option>
-                      <option value="done">Completed</option>
-                    </select>
-                  </td>
-
-                  {/* Delete Button */}
-                  <td className="py-3 px-4 text-center">
-                    <button
-                      onClick={() => handleDeleteRow(idx)}
-                      disabled={t.isBackendTask}
-                      className={`p-1.5 rounded-lg border text-rose-500 transition-all ${
-                        t.isBackendTask
-                          ? 'border-transparent text-rose-300 dark:text-rose-900 cursor-not-allowed opacity-30'
-                          : 'border-rose-100 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/20'
-                      }`}
-                    >
-                      <Trash size={12} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ══ BLOCKERS & TOMORROW'S PLAN ══ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Blocker & Tomorrow Inputs */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/70 rounded-3xl p-6 shadow-sm space-y-4 flex flex-col justify-between">
-          <div>
-            <h2 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-0.5">Addons & Notes</h2>
-            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Submit plans and document issues</p>
-          </div>
-
-          <div className="space-y-3.5">
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Blockers Faced Today</label>
-              <input
-                type="text"
-                placeholder="e.g. API down, waiting for assets..."
-                value={blockersTomorrowPlan.blockersToday || ''}
-                onChange={(e) => setBlockersTomorrowPlan({...blockersTomorrowPlan, blockersToday: e.target.value})}
-                className="w-full mt-1 py-2 px-3 rounded-xl bg-transparent border border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:outline-none text-xs font-semibold text-slate-700 dark:text-slate-250 placeholder:text-slate-400"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3.5">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Work Priority</label>
-                <select
-                  value={blockersTomorrowPlan.priority || 'Medium'}
-                  onChange={(e) => setBlockersTomorrowPlan({...blockersTomorrowPlan, priority: e.target.value})}
-                  className="w-full mt-1 py-2 px-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:outline-none text-xs font-black text-slate-700 dark:text-slate-250 uppercase tracking-wider"
-                >
-                  <option value="High">High</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Low">Low</option>
-                </select>
-              </div>
+          <div className="flex lg:flex-col gap-1.5 overflow-x-auto lg:overflow-x-visible pb-1 lg:pb-0 scrollbar-none">
+            {recentDates.map(dateObj => {
+              const isSelected = selectedDate === dateObj.dateString;
+              const isSubmitted = submittedDates.includes(dateObj.dateString);
               
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Main Task Tomorrow</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Deploy dashboard module"
-                  value={blockersTomorrowPlan.tomorrowMainTask || ''}
-                  onChange={(e) => setBlockersTomorrowPlan({...blockersTomorrowPlan, tomorrowMainTask: e.target.value})}
-                  className="w-full mt-1 py-2 px-3 rounded-xl bg-transparent border border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:outline-none text-xs font-semibold text-slate-700 dark:text-slate-250 placeholder:text-slate-400"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wide">Extra Comments</label>
-              <textarea
-                placeholder="Any other comments or feedback..."
-                value={blockersTomorrowPlan.notes || ''}
-                rows={2}
-                onChange={(e) => setBlockersTomorrowPlan({...blockersTomorrowPlan, notes: e.target.value})}
-                className="w-full mt-1 py-2 px-3 rounded-xl bg-transparent border border-slate-200 dark:border-slate-700 focus:border-indigo-500 focus:outline-none text-xs font-semibold text-slate-700 dark:text-slate-250 resize-none placeholder:text-slate-400"
-              />
-            </div>
+              return (
+                <button
+                  key={dateObj.dateString}
+                  onClick={() => setSelectedDate(dateObj.dateString)}
+                  className={`flex items-center justify-between w-48 lg:w-full shrink-0 px-3 py-2 rounded-xl border text-left transition-all duration-300 cursor-pointer
+                    ${isSelected 
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm shadow-indigo-600/20' 
+                      : 'bg-slate-50/50 dark:bg-slate-950/30 border-slate-200/60 dark:border-slate-800/60 hover:bg-slate-50 dark:hover:bg-slate-950/60 text-slate-700 dark:text-slate-300'
+                    }`}
+                >
+                  <div className="flex flex-col">
+                    <span className={`text-[9px] font-semibold ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
+                      {dateObj.dayName}
+                    </span>
+                    <span className="text-[11px] font-bold mt-0.5">
+                      {dateObj.displayDate}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    {isSubmitted ? (
+                      <CheckCircle size={14} className={isSelected ? 'text-emerald-300' : 'text-emerald-500'} />
+                    ) : (
+                      <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-indigo-300' : 'bg-slate-300 dark:bg-slate-700'}`} />
+                    )}
+                    <ChevronRight size={12} className="opacity-50" />
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Signature & Confirm Block */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/70 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            <h2 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider mb-0.5">Sign & Verify</h2>
-            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Provide signature to authenticate your report</p>
-          </div>
-
-          <div className="space-y-4 my-4">
-            <SignatureUpload
-              value={staffSignature}
-              onChange={setStaffSignature}
-              placeholder="Sign here (Upload PNG signature)"
-            />
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-amber-500/5 border border-amber-500/15 text-[10px] font-medium text-amber-600/90 dark:text-amber-500/95 leading-relaxed">
-            <strong>Verification Notice:</strong> Submitting this report compiled will upload a signed PDF to the employee records department. Your direct team lead will be notified to review status.
-          </div>
-        </div>
-
-      </div>
-
-      {/* ══ ACTIONS BAR ══ */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+        {/* Sidebar Toggle Arrow Button */}
         <button
-          onClick={() => {
-            if (window.confirm('Are you sure you want to clear this entire form draft?')) {
-              setTaskSummary([{ task: '', detailsNotes: '', status: 'pending', startDate: '', endDate: '', dueDate: '', remarks: '' }]);
-              setBlockersTomorrowPlan(DEFAULT_BLOCKERS_PLAN);
-              setStaffSignature('');
-            }
-          }}
-          className="px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-600 dark:text-slate-400 text-xs font-black uppercase tracking-wider transition-all"
+          type="button"
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="mt-4 z-30 flex items-center justify-center w-7 h-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-indigo-500 text-slate-600 dark:text-slate-350 hover:text-indigo-600 rounded-full shadow-sm transition-all shrink-0 cursor-pointer"
         >
-          Clear Draft
+          {isSidebarOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
         </button>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <button
-            onClick={handleSaveDraft}
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 hover:border-slate-300 text-slate-600 dark:text-slate-400 hover:text-indigo-500 text-xs font-black uppercase tracking-wider transition-all shadow-sm"
-          >
-            <Save size={13} />
-            Save Draft
-          </button>
-          
-          <button
-            onClick={handleDownloadPDF}
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 hover:border-slate-300 text-slate-600 dark:text-slate-400 hover:text-indigo-500 text-xs font-black uppercase tracking-wider transition-all shadow-sm"
-          >
-            <Download size={13} />
-            Download PDF
-          </button>
+        {/* RIGHT PANEL: Form Content */}
+        <div className="flex-1 min-w-0 w-full space-y-4">
+          {/* ══ DETAILS CARD ══ */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/70 rounded-2xl p-4 shadow-sm">
+            <h2 className="text-[11px] font-black text-indigo-500 uppercase tracking-widest mb-2.5 flex items-center gap-1.5">
+              <User size={12} /> Employee Profile Details
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label className="text-[9px] font-bold text-slate-400 uppercase">Employee Name</label>
+                <p className="text-xs font-black text-slate-700 dark:text-slate-200 mt-0.5">{basicDetails.employeeName}</p>
+              </div>
+              <div>
+                <label className="text-[9px] font-bold text-slate-400 uppercase">Employee ID</label>
+                <p className="text-xs font-black text-slate-700 dark:text-slate-200 mt-0.5">{basicDetails.employeeId}</p>
+              </div>
+              <div>
+                <label className="text-[9px] font-bold text-slate-400 uppercase">Department</label>
+                <p className="text-xs font-black text-slate-700 dark:text-slate-200 mt-0.5">{basicDetails.department}</p>
+              </div>
+              <div>
+                <label className="text-[9px] font-bold text-slate-400 uppercase">Designation</label>
+                <p className="text-xs font-black text-slate-700 dark:text-slate-200 mt-0.5">{basicDetails.designation}</p>
+              </div>
+            </div>
+          </div>
 
-          <button
-            onClick={handleSubmitReport}
-            disabled={submitting}
-            className="flex items-center gap-1.5 px-6 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-400 text-white text-xs font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-500/20"
-          >
-            {submitting ? (
-              <>
-                <Loader2 size={13} className="animate-spin" />
-                Submitting...
-              </>
-            ) : (
-              <>
-                <CheckCircle size={13} />
-                Submit Report
-              </>
-            )}
-          </button>
+          {/* ══ TASKS SUMMARY TABLE ══ */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/70 rounded-2xl p-4 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[11px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5">
+                <ClipboardList size={13} /> Work Activity & Progress Summary
+              </h2>
+              <button
+                onClick={handleAddRow}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold hover:bg-indigo-100 transition-all cursor-pointer"
+              >
+                <Plus size={12} /> Add Row
+              </button>
+            </div>
+
+            <div className="overflow-x-auto max-h-48 overflow-y-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-wider sticky top-0 bg-white dark:bg-slate-900 z-10">
+                    <th className="pb-2 px-1.5 w-7">#</th>
+                    <th className="pb-2 px-1.5 min-w-[200px]">Activity / Task <span className="text-rose-500">*</span></th>
+                    <th className="pb-2 px-1.5 w-24">Start Date</th>
+                    <th className="pb-2 px-1.5 w-24">End Date</th>
+                    <th className="pb-2 px-1.5 w-24">Due Date</th>
+                    <th className="pb-2 px-1.5 min-w-[220px]">Details / Notes <span className="text-rose-500">*</span></th>
+                    <th className="pb-2 px-1.5 w-24">Status</th>
+                    <th className="pb-2 px-1.5 min-w-[100px]">Remarks</th>
+                    <th className="pb-2 px-1.5 w-8 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-700 dark:text-slate-300">
+                  {taskSummary.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
+                      <td className="py-1.5 px-1.5 font-bold text-slate-400 text-[10px]">{idx + 1}</td>
+                      <td className="py-1.5 px-1.5">
+                        <input
+                          type="text"
+                          value={row.task}
+                          onChange={(e) => handleUpdateCell(idx, 'task', e.target.value)}
+                          placeholder="Task description..."
+                          className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5 text-xs font-semibold"
+                        />
+                      </td>
+                      <td className="py-1.5 px-1.5">
+                        <input
+                          type="date"
+                          value={row.startDate}
+                          onChange={(e) => handleUpdateCell(idx, 'startDate', e.target.value)}
+                          className="bg-transparent text-[10px] font-medium text-slate-600 dark:text-slate-400 focus:outline-none"
+                        />
+                      </td>
+                      <td className="py-1.5 px-1.5">
+                        <input
+                          type="date"
+                          value={row.endDate}
+                          onChange={(e) => handleUpdateCell(idx, 'endDate', e.target.value)}
+                          className="bg-transparent text-[10px] font-medium text-slate-600 dark:text-slate-400 focus:outline-none"
+                        />
+                      </td>
+                      <td className="py-1.5 px-1.5">
+                        <input
+                          type="date"
+                          value={row.dueDate}
+                          onChange={(e) => handleUpdateCell(idx, 'dueDate', e.target.value)}
+                          className="bg-transparent text-[10px] font-medium text-slate-600 dark:text-slate-400 focus:outline-none"
+                        />
+                      </td>
+                      <td className="py-1.5 px-1.5">
+                        <input
+                          type="text"
+                          value={row.detailsNotes}
+                          onChange={(e) => handleUpdateCell(idx, 'detailsNotes', e.target.value)}
+                          placeholder="Progress details / notes..."
+                          className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5 text-xs"
+                        />
+                      </td>
+                      <td className="py-1.5 px-1.5">
+                        <select
+                          value={row.status}
+                          onChange={(e) => handleUpdateCell(idx, 'status', e.target.value)}
+                          className="bg-transparent border border-slate-200 dark:border-slate-800 rounded px-1.5 py-0.5 text-[10px] font-semibold focus:outline-none"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="completed">Completed</option>
+                          <option value="blocked">Blocked</option>
+                        </select>
+                      </td>
+                      <td className="py-1.5 px-1.5">
+                        <input
+                          type="text"
+                          value={row.remarks}
+                          onChange={(e) => handleUpdateCell(idx, 'remarks', e.target.value)}
+                          placeholder="Remarks..."
+                          className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none py-0.5 text-xs"
+                        />
+                      </td>
+                      <td className="py-1.5 px-1.5 text-right">
+                        {taskSummary.length > 1 && (
+                          <button
+                            onClick={() => handleDeleteRow(idx)}
+                            className="text-slate-400 hover:text-rose-500 transition-colors p-0.5"
+                            title="Remove row"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* ══ BLOCKERS & SIGNATURE CARD ══ */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/70 rounded-2xl p-4 shadow-sm space-y-2.5">
+              <h2 className="text-[11px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5">
+                <PenTool size={12} /> Blockers & Tomorrow's Plan
+              </h2>
+              
+              <div className="space-y-2">
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase">Blockers Today</label>
+                  <textarea
+                    rows={1}
+                    value={blockersTomorrowPlan.blockersToday}
+                    onChange={(e) => setBlockersTomorrowPlan({ ...blockersTomorrowPlan, blockersToday: e.target.value })}
+                    placeholder="Any blockers or issues faced today..."
+                    className="w-full mt-0.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-2 text-xs focus:outline-none focus:border-indigo-500 resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-400 uppercase">Priority Level</label>
+                    <select
+                      value={blockersTomorrowPlan.priority}
+                      onChange={(e) => setBlockersTomorrowPlan({ ...blockersTomorrowPlan, priority: e.target.value })}
+                      className="w-full mt-0.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-1.5 text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="Low">Low</option>
+                      <option value="Medium">Medium</option>
+                      <option value="High">High</option>
+                      <option value="Urgent">Urgent</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-400 uppercase">Main Task Tomorrow</label>
+                    <input
+                      type="text"
+                      value={blockersTomorrowPlan.tomorrowMainTask}
+                      onChange={(e) => setBlockersTomorrowPlan({ ...blockersTomorrowPlan, tomorrowMainTask: e.target.value })}
+                      placeholder="Main task planned..."
+                      className="w-full mt-0.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl p-1.5 text-xs focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/70 rounded-2xl p-4 shadow-sm flex flex-col justify-between space-y-2">
+              <div>
+                <h2 className="text-[11px] font-black text-indigo-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <BookOpen size={12} /> Staff Authorization Signature
+                </h2>
+                <SignatureUpload
+                  value={staffSignature}
+                  onChange={setStaffSignature}
+                  placeholder="Sign here (Upload PNG signature)"
+                />
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/15 text-[9px] font-medium text-amber-600/90 dark:text-amber-500/95 leading-tight">
+                <strong>Verification Notice:</strong> Saving this report compiles and uploads a signed PDF to employee records.
+              </div>
+            </div>
+
+          </div>
+
+          {/* ══ ACTIONS BAR ══ */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to clear this entire form draft?')) {
+                  setTaskSummary([{ task: '', detailsNotes: '', status: 'pending', startDate: '', endDate: '', dueDate: '', remarks: '' }]);
+                  setBlockersTomorrowPlan(DEFAULT_BLOCKERS_PLAN);
+                  setStaffSignature('');
+                }
+              }}
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-600 dark:text-slate-400 text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer"
+            >
+              Clear Draft
+            </button>
+
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <button
+                onClick={handleSaveDraft}
+                className="flex items-center gap-1 px-4 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 hover:border-slate-300 text-slate-600 dark:text-slate-400 hover:text-indigo-500 text-[11px] font-black uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+              >
+                <Save size={12} />
+                Save Draft
+              </button>
+
+              <button
+                onClick={handleSaveAndDownloadReport}
+                disabled={submitting}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[11px] font-black uppercase tracking-wider transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" />
+                    Saving & Downloading...
+                  </>
+                ) : (
+                  <>
+                    <Save size={13} />
+                    <Download size={13} />
+                    Save & Download Report
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
 

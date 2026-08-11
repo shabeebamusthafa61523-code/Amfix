@@ -46,20 +46,20 @@ export const calculateEmployeeKPI = async (employeeId, monthStr) => {
   });
 
   const tasksCompleted = tasks.filter(t => t.status === 'done').length;
-  const totalTasks = tasks.length || 1;
-  const taskCompletionPercentage = Math.round((tasksCompleted / totalTasks) * 100);
+  const totalTasks = tasks.length;
+  const taskCompletionPercentage = totalTasks > 0 ? Math.round((tasksCompleted / totalTasks) * 100) : 0;
   const taskScore = taskCompletionPercentage;
 
   // 3. Reports Submission Metrics (25% Weight)
-  let reportScore = 80;
+  let reportScore = 0;
   try {
     const reportsCount = await EmployeeReports.countDocuments({
       employee_id: employeeId,
       created_at: { $gte: new Date(startDateStr), $lte: endDateObj }
     });
-    reportScore = Math.min(100, Math.max(50, Math.round((reportsCount / 20) * 100)));
+    reportScore = Math.min(100, Math.round((reportsCount / 20) * 100));
   } catch (err) {
-    reportScore = 80;
+    reportScore = 0;
   }
 
   // 4. Fetch Ratings & Status (HR Rating 15%, TL Rating 15%, Performance Status 10%)

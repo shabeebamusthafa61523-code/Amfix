@@ -50,8 +50,13 @@ import BasicReportPage from './pages/BasicReportPage';
 import NotificationPage from './pages/NotificationPage';
 import PerformanceDashboard from './pages/PerformanceDashboard';
 import UserPermissionsPage from './pages/UserPermissionsPage';
+import SidebarPermissionsPage from './pages/SidebarPermissionsPage';
 import MdDashboard from './pages/MdDashboard';
 import AccountsPage from './pages/AccountsPage';
+import LeavesPage from './pages/LeavesPage';
+import ApprovalsPage from './pages/ApprovalsPage';
+import PayslipsPage from './pages/PayslipsPage';
+import PersonalPayslipPage from './pages/PersonalPayslipPage';
 
 
 
@@ -78,31 +83,6 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const RestrictedRoute = ({ children }) => {
-  try {
-    const userStr = localStorage.getItem('user');
-    if (userStr) {
-      const userObj = JSON.parse(userStr);
-      const deptName = userObj.department || userObj.departmentId?.name || '';
-      const isNonOperational = String(deptName).toLowerCase().trim() === 'non-operational';
-      if (isNonOperational) {
-        return (
-          <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
-            <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/20 text-rose-500 rounded-2xl flex items-center justify-center mb-6">
-              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-            <h1 className="text-xl font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2">Access Denied</h1>
-            <p className="text-xs font-semibold text-slate-400 max-w-sm mb-6">
-              Your department does not have permission to view this section. Please contact your administrator.
-            </p>
-          </div>
-        );
-      }
-    }
-  } catch (e) {
-    console.error("Restricted route check failed:", e);
-  }
   return children;
 };
 
@@ -116,7 +96,7 @@ const PublicRoute = ({ children }) => {
         const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
         const designation = String(userObj.designation || '').toLowerCase().trim();
         const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-        const isHr = role === 'hr' || designation.includes('hr') || designationId === '6a2f8efea2fe388770a38987';
+        const isHr = role === 'hr' || designation.includes('hr');
         const isAdmin = ['1', '2', 'admin'].includes(role) || designation.includes('admin');
         
         if (isHr) {
@@ -146,7 +126,7 @@ const LandingRoute = () => {
       const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
       const designation = String(userObj.designation || '').toLowerCase().trim();
       const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-      const isHr = role === 'hr' || designation.includes('hr') || designationId === '6a2f8efea2fe388770a38987';
+      const isHr = role === 'hr' || designation.includes('hr');
       const isAdmin = ['1', '2', 'admin'].includes(role) || designation.includes('admin');
 
       if (isHr) {
@@ -179,6 +159,7 @@ function App() {
         <Route path="/attendance" element={<ProtectedRoute><MainLayout><Attendance /></MainLayout></ProtectedRoute>} />
         <Route path="/todo" element={<ProtectedRoute><MainLayout><RestrictedRoute><Todo /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute><MainLayout><RestrictedRoute><Users /></RestrictedRoute></MainLayout></ProtectedRoute>} />
+        <Route path="/sidebar-permissions" element={<ProtectedRoute><MainLayout><RestrictedRoute><SidebarPermissionsPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/permissions/:userId" element={<ProtectedRoute><MainLayout><RestrictedRoute><UserPermissionsPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/leads" element={<ProtectedRoute><MainLayout><RestrictedRoute><Leads /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/leads-telecaller" element={<ProtectedRoute><MainLayout><RestrictedRoute><LeadsTelecaller /></RestrictedRoute></MainLayout></ProtectedRoute>} />
@@ -217,6 +198,10 @@ function App() {
         <Route path="/basic-report" element={<ProtectedRoute><MainLayout><BasicReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/notifications" element={<ProtectedRoute><MainLayout><NotificationPage /></MainLayout></ProtectedRoute>} />
         <Route path="/performance-dashboard" element={<ProtectedRoute><MainLayout><PerformanceDashboard /></MainLayout></ProtectedRoute>} />
+        <Route path="/leaves" element={<ProtectedRoute><MainLayout><LeavesPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/approvals" element={<ProtectedRoute><MainLayout><ApprovalsPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/payslips" element={<ProtectedRoute><MainLayout><PayslipsPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/my-payslip" element={<ProtectedRoute><MainLayout><PersonalPayslipPage /></MainLayout></ProtectedRoute>} />
 
         {/* Accounts Department Module Routes */}
         <Route path="/accounts" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />

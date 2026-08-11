@@ -20,8 +20,9 @@ export const getReportByDate = async (req, res, next) => {
     }
 
     const currentUserId = req.user.id || req.user._id;
-    const currentUserRole = String(req.user.role || req.user.role_id || '').toLowerCase().trim();
-    const isPrivileged = ['1', '2', 'hr', 'admin'].includes(currentUserRole);
+    const roleStr = String(req.user?.role || '').toLowerCase().trim();
+    const roleIdStr = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const isPrivileged = req.user?.isSuperAdmin === true || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleStr) || ['0', '1', '2'].includes(roleIdStr);
 
     // If userId is provided, verify permissions
     if (targetUserId) {
@@ -74,8 +75,9 @@ export const saveReport = async (req, res, next) => {
     }
 
     const currentUserId = req.user.id || req.user._id;
-    const currentUserRole = String(req.user.role || req.user.role_id || '').toLowerCase().trim();
-    const isPrivileged = ['1', '2', 'hr', 'admin'].includes(currentUserRole);
+    const roleStr = String(req.user?.role || '').toLowerCase().trim();
+    const roleIdStr = String(req.user?.role_id || req.user?.roleId || '').trim();
+    const isPrivileged = req.user?.isSuperAdmin === true || ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleStr) || ['0', '1', '2'].includes(roleIdStr);
 
     // If targetUserId is provided, check if client has rights to save on behalf of that user
     if (targetUserId) {
@@ -137,11 +139,15 @@ export const getOpsStaffList = async (req, res, next) => {
       });
     }
 
-    // Query users belonging to the Manager - OPS Sales & Growth Designation
+    const Designation = (await import('../models/designation.model.js')).default;
+    const opsDesigs = await Designation.find({ name: /ops|operation|sales|growth|counselor|telecaller/i }).select('_id');
+    const opsDesigIds = opsDesigs.map(d => d._id);
+
     const opsStaff = await User.find({
       $or: [
-        { designationId: '6a2f91472df21dc234018cab' },
-        { designation_id: '6a2f91472df21dc234018cab' }
+        { designationId: { $in: opsDesigIds } },
+        { designation_id: { $in: opsDesigIds.map(id => String(id)) } },
+        { designation: /ops|operation|sales|growth|counselor|telecaller/i }
       ]
     }, '_id name employeeId email designation')
       .sort({ name: 1 })

@@ -263,7 +263,6 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
 
       const isMd = currentUserDesignation.includes('md') || 
                    currentUserDesignation.includes('managing director') || 
-                   currentUserDesignationId === '6a7187de0bdbef63c8658832' || 
                    ['md', 'coo', 'executive_director'].includes(currentUserRole);
 
       if (isMd && !isEmbedded) {
@@ -273,27 +272,18 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
 
       // Check if user is HR -> redirect to HR Dashboard
       const isHr = currentUserRole === 'hr' || 
-                   currentUserDesignation.includes('hr') || 
-                   currentUserDesignationId === '6a2f8efea2fe388770a38987';
+                   currentUserDesignation.includes('hr');
 
       if (isHr && !isEmbedded) {
         navigate('/hr-dashboard', { replace: true });
         return;
       }
 
-      // Check if user has administrative/privileged role
-      let currentUserDept = '';
-      if (parsedUser.departmentId) {
-        if (typeof parsedUser.departmentId === 'object' && parsedUser.departmentId._id) {
-          currentUserDept = String(parsedUser.departmentId._id).trim();
-        } else {
-          currentUserDept = String(parsedUser.departmentId).trim();
-        }
-      }
+      const currentUserDeptName = String(parsedUser.department || parsedUser.departmentId?.name || '').toLowerCase().trim();
       const privileged = isEmbedded ||
                          ['1', '2', 'admin'].includes(currentUserRole) || 
-                         currentUserDept === '6a3caed51194353cbc8a3686' || 
-                         currentUserDept === '6a55c7e8b613a280003481d8';
+                         currentUserDeptName.includes('hr') || 
+                         currentUserDeptName.includes('admin');
       setIsAdmin(privileged);
     }
 
@@ -1141,7 +1131,7 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
                 : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-350 dark:hover:border-slate-700"
             }`}
           >
-            Admin Dashboard
+            Overview
           </button>
 
           {/* MD-only tabs — only shown when accessed via MdDashboard */}
@@ -2012,7 +2002,7 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
         <div className="flex items-center gap-2">
           <Loader2 size={16} className="text-indigo-400 animate-spin" />
           <p className="text-[11px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest">
-            Loading Admin Dashboard
+            Loading Overview
           </p>
         </div>
       </motion.div>

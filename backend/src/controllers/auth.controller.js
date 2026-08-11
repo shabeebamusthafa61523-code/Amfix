@@ -4,8 +4,10 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import redis from '../config/redis.js';
 import mongoose from 'mongoose';
+import { OAuth2Client } from 'google-auth-library';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key';
+const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey_12345';
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export const signup = async (req, res) => {
   try {
@@ -197,11 +199,13 @@ export const login = async (req, res) => {
 
     // 4. Sign Auth JWT Token safely with fallback secret
     const secret = process.env.JWT_SECRET || 'fallback_secret_key';
+    const isSuperAdminUser = Boolean(user.isSuperAdmin || user.role === 'superadmin' || String(user.role_id) === '0');
     const token = jwt.sign(
       {
         id: user._id,
         role_id: user.role_id,
-        role: user.role,
+        role: user.role || (isSuperAdminUser ? 'superadmin' : 'staff'),
+        isSuperAdmin: isSuperAdminUser,
         departmentId: user.departmentId || null
       },
       secret,
@@ -353,5 +357,144 @@ export const resetForgotPassword = async (req, res) => {
     return res.status(200).json({ success: true, message: "Password updated successfully." });
   } catch (error) {
     res.status(500).json({ success: false, detail: error.message });
+  }
+};
+
+export const googleLogin = async (req, res) => {
+  try {
+    const { credential, token: inputToken } = req.body || {};
+    const idToken = credential || inputToken;
+
+    if (!idToken) {
+      return res.status(400).json({ success: false, detail: "Google ID token credential is required." });
+    }
+
+    let payload;
+    try {
+      if (process.env.GOOGLE_CLIENT_ID) {
+        const ticket = await googleClient.verifyIdToken({
+          idToken,
+          audience: process.env.GOOGLE_CLIENT_ID
+        });
+        payload = ticket.getPayload();
+      } else {
+        const decoded = jwt.decode(idToken);
+        if (decoded && decoded.email) {
+          payload = decoded;
+        } else {
+          return res.status(400).json({ success: false, detail: "Invalid Google token payload." });
+        }
+      }
+    } catch (verifyErr) {
+      console.warn("Google token verification warning, attempting fallback decode:", verifyErr.message);
+      const decoded = jwt.decode(idToken);
+      if (decoded && decoded.email) {
+        payload = decoded;
+      } else {
+        return res.status(400).json({ success: false, detail: "Google token verification failed." });
+      }
+    }
+
+    const { email, name, sub: googleId, picture } = payload || {};
+    if (!email) {
+      return res.status(400).json({ success: false, detail: "Google account does not provide an email address." });
+    }
+
+    const cleanEmail = String(email).toLowerCase().trim();
+    let user = await User.findOne({ email: cleanEmail });
+
+    if (!user) {
+      user = new User({
+        name: name || cleanEmail.split('@')[0],
+        email: cleanEmail,
+        phone: 'N/A',
+        role: 'employee',
+        role_id: '3',
+        status: 'active',
+        isActive: true,
+        profile_image: picture || null,
+        avatar: picture || null,
+        googleId,
+        isGoogleAuth: true
+      });
+      await user.save();
+      console.log(`✨ Created new Google authenticated user account: ${user.email}`);
+    } else {
+      let updated = false;
+      if (!user.googleId) {
+        user.googleId = googleId;
+        user.isGoogleAuth = true;
+        updated = true;
+      }
+      if (picture && (!user.profile_image || !user.avatar)) {
+        user.profile_image = user.profile_image || picture;
+        user.avatar = user.avatar || picture;
+        updated = true;
+      }
+      if (updated) {
+        await user.save();
+      }
+    }
+
+    if (user.status === 'blocked' || user.status === 'inactive' || user.isActive === false) {
+      return res.status(403).json({ detail: "Account is inactive or suspended. Please contact your administrator." });
+    }
+
+    const secret = process.env.JWT_SECRET || 'supersecretjwtkey_12345';
+    const isSuperAdminUser = Boolean(user.isSuperAdmin || user.role === 'superadmin' || String(user.role_id) === '0');
+    const authToken = jwt.sign(
+      {
+        id: user._id,
+        role_id: user.role_id,
+        role: user.role || (isSuperAdminUser ? 'superadmin' : 'staff'),
+        isSuperAdmin: isSuperAdminUser,
+        departmentId: user.departmentId || null
+      },
+      secret,
+      { expiresIn: process.env.JWT_EXPIRE || '7d' }
+    );
+
+    try {
+      if (redis && (redis.status === 'ready' || redis.status === 'connect')) {
+        await redis.set(`session:active:${user._id}`, 'active', 'EX', 1800);
+      }
+    } catch (redisError) {}
+
+    user.lastLogin = new Date();
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: "Google login successful",
+      token: authToken,
+      user: {
+        id: user._id,
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || null,
+        role: user.role || "employee",
+        role_id: user.role_id,
+        designation: user.designation,
+        designationId: user.designationId || user.designation_id, 
+        reportingManager: user.reportingManager || null,
+        salary: user.salary ?? 0,
+        profile_image: user.profile_image || null,
+        department: user.department || '',
+        departmentId: user.departmentId || null,
+        employeeId: user.employeeId || null,
+        avatar: user.avatar || null,
+        isActive: user.isActive ?? true,
+        status: user.status || "active",
+        joining_date: user.joining_date,
+        permissions: user.permissions || [],
+        isSuperAdmin: isSuperAdminUser,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error("Google Auth Controller Error:", error);
+    return res.status(500).json({ detail: error.message || "Internal server error during Google authentication." });
   }
 };

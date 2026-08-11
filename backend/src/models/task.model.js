@@ -122,5 +122,11 @@ toObject: {
 }
 });
 
+// Performance optimization indexes
+taskSchema.index({ assigned_to: 1, status: 1 });
+taskSchema.index({ created_by: 1 });
+taskSchema.index({ user_id: 1 });
+taskSchema.index({ createdAt: -1 });
+
 const Task = mongoose.model('Task', taskSchema);
 export default Task;

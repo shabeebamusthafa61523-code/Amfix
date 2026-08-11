@@ -25,8 +25,8 @@ const buildDepartmentUserQuery = async (reqUser) => {
   const roleId = String(loggedUser?.role_id || reqUser?.role_id || '').trim();
 
   const isUserAdminOrHr = (
-    ['1', '2', 'admin', 'hr', 'superadmin'].includes(roleId) ||
-    ['admin', 'hr', 'superadmin', 'md', 'coo'].includes(roleName)
+    ['0', '1', '2', 'admin', 'hr', 'superadmin'].includes(roleId) ||
+    ['0', 'admin', 'hr', 'superadmin', 'md', 'coo'].includes(roleName)
   );
 
   const query = { status: { $ne: 'inactive' } };
@@ -101,6 +101,10 @@ export const getEmployeePerformance = async (req, res) => {
     const tlRemark = await PerformanceRemark.findOne({ employeeId, month, type: 'TEAM_LEAD' })
       .populate('reviewerId', 'name email role designation');
 
+    // 3.5 Fetch Admin Remark
+    const adminRemark = await PerformanceRemark.findOne({ employeeId, month, type: 'ADMIN' })
+      .populate('reviewerId', 'name email role designation');
+
     // 4. Fetch Performance Review record
     let review = await PerformanceReview.findOne({ employeeId, month });
 
@@ -136,6 +140,7 @@ export const getEmployeePerformance = async (req, res) => {
       kpiScore,
       hrRemark,
       teamLeadRemark: tlRemark,
+      adminRemark,
       review,
       taskSummary,
       history
@@ -164,6 +169,7 @@ export const saveHRRemark = async (req, res) => {
       improvementAreas,
       generalNotes,
       overallRating = 7,
+      performanceStatus = '',
       status = 'submitted'
     } = req.body;
 
@@ -177,6 +183,7 @@ export const saveHRRemark = async (req, res) => {
         month,
         type: 'HR',
         status,
+        performanceStatus,
         performanceRemark,
         strengths,
         weaknesses,
@@ -201,7 +208,7 @@ export const saveHRRemark = async (req, res) => {
         hrRemarkId: remarkObj._id,
         overallKPIScore: updatedKPI.overallScore,
         grade: updatedKPI.grade,
-        status: status === 'submitted' ? 'completed' : 'draft',
+        status: performanceStatus || (status === 'submitted' ? 'completed' : 'draft'),
         reviewedBy: reviewerId,
         completedAt: new Date()
       },
@@ -253,6 +260,12 @@ export const saveHRRemark = async (req, res) => {
  */
 export const saveTeamLeadRemark = async (req, res) => {
   try {
+    const userRole = String(req.user?.role_id || req.user?.role || '').toLowerCase();
+    const isHrUser = userRole === 'hr' || userRole === '1';
+    if (isHrUser) {
+      return sendError(res, 'HR users have View Only access for Team Lead evaluations.', 403);
+    }
+
     const { employeeId } = req.params;
     const {
       month = new Date().toISOString().slice(0, 7),
@@ -268,6 +281,7 @@ export const saveTeamLeadRemark = async (req, res) => {
       discipline = 7,
       additionalRemarks = '',
       overallRating = 7,
+      performanceStatus = '',
       status = 'submitted'
     } = req.body;
 
@@ -281,6 +295,7 @@ export const saveTeamLeadRemark = async (req, res) => {
         month,
         type: 'TEAM_LEAD',
         status,
+        performanceStatus,
         technicalPerformance,
         taskQuality,
         communication,
@@ -309,6 +324,7 @@ export const saveTeamLeadRemark = async (req, res) => {
         teamLeadRemarkId: remarkObj._id,
         overallKPIScore: updatedKPI.overallScore,
         grade: updatedKPI.grade,
+        status: performanceStatus || (status === 'submitted' ? 'completed' : 'draft'),
         reviewedBy: reviewerId
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -351,6 +367,64 @@ export const saveTeamLeadRemark = async (req, res) => {
   } catch (error) {
     console.error('Error saving Team Lead remark:', error);
     return sendError(res, error.message || 'Failed to save Team Lead remark', 500);
+  }
+};
+
+/**
+ * Save or Update Admin Remark
+ */
+export const saveAdminRemark = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const {
+      month = new Date().toISOString().slice(0, 7),
+      performanceRemark = '',
+      overallRating = 7,
+      performanceStatus = '',
+      status = 'submitted'
+    } = req.body;
+
+    const reviewerId = req.user.id;
+
+    const remarkObj = await PerformanceRemark.findOneAndUpdate(
+      { employeeId, month, type: 'ADMIN' },
+      {
+        employeeId,
+        reviewerId,
+        month,
+        type: 'ADMIN',
+        status,
+        performanceStatus,
+        performanceRemark,
+        overallRating
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const updatedKPI = await calculateEmployeeKPI(employeeId, month);
+
+    // Update overall PerformanceReview record
+    const review = await PerformanceReview.findOneAndUpdate(
+      { employeeId, month },
+      {
+        employeeId,
+        month,
+        overallKPIScore: updatedKPI.overallScore,
+        grade: updatedKPI.grade,
+        status: performanceStatus || (status === 'submitted' ? 'completed' : 'draft'),
+        reviewedBy: reviewerId
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    return sendSuccess(res, `Admin Remark ${status === 'submitted' ? 'submitted' : 'saved as draft'} successfully`, {
+      remark: remarkObj,
+      kpiScore: updatedKPI,
+      review
+    });
+  } catch (error) {
+    console.error('Error saving Admin remark:', error);
+    return sendError(res, error.message || 'Failed to save Admin remark', 500);
   }
 };
 
@@ -449,15 +523,15 @@ export const getPerformanceAnalytics = async (req, res) => {
           kScore = await calculateEmployeeKPI(u._id, month);
         } catch (e) {
           kScore = {
-            overallScore: 75,
-            grade: 'Good'
+            overallScore: 0,
+            grade: 'Not Evaluated'
           };
         }
       }
       kpiScores.push({
         user: u,
-        overallScore: kScore.overallScore || 75,
-        grade: kScore.grade || 'Good'
+        overallScore: kScore.overallScore ?? 0,
+        grade: kScore.grade || 'Not Evaluated'
       });
     }
 
@@ -603,6 +677,8 @@ export const getPerformanceReports = async (req, res) => {
         hrRemark: review?.hrRemark || '',
         tlRating: review?.tlRating || 5,
         tlRemark: review?.tlRemark || '',
+        adminRating: review?.adminRating || 5,
+        adminRemark: review?.adminRemark || '',
         remarks: review?.remarks || '',
         aiSummary: review?.aiSummary ? review.aiSummary.slice(0, 200) + '...' : 'Verified KPI Record'
       });
@@ -621,7 +697,7 @@ export const getPerformanceReports = async (req, res) => {
 };
 
 /**
- * Update individual Performance Evaluation Record (HR Rating & Remarks, TL Rating & Remarks, Status, Remarks)
+ * Update individual Performance Evaluation Record (HR Rating & Remarks, TL Rating & Remarks, Admin Rating & Remarks, Status, Remarks)
  */
 export const updatePerformanceRecord = async (req, res) => {
   try {
@@ -632,6 +708,8 @@ export const updatePerformanceRecord = async (req, res) => {
       hrRemark,
       tlRating,
       tlRemark,
+      adminRating,
+      adminRemark,
       remarks,
       status
     } = req.body;
@@ -650,6 +728,8 @@ export const updatePerformanceRecord = async (req, res) => {
     if (hrRemark !== undefined) updateFields.hrRemark = hrRemark;
     if (tlRating !== undefined) updateFields.tlRating = Number(tlRating);
     if (tlRemark !== undefined) updateFields.tlRemark = tlRemark;
+    if (adminRating !== undefined) updateFields.adminRating = Number(adminRating);
+    if (adminRemark !== undefined) updateFields.adminRemark = adminRemark;
     if (remarks !== undefined) updateFields.remarks = remarks;
     if (status !== undefined) updateFields.status = status;
 
@@ -668,7 +748,8 @@ export const updatePerformanceRecord = async (req, res) => {
           month,
           type: 'HR',
           overallRating: hrRating !== undefined ? Number(hrRating) : 5,
-          performanceRemark: hrRemark || ''
+          performanceRemark: hrRemark || '',
+          performanceStatus: status || ''
         },
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );
@@ -683,7 +764,24 @@ export const updatePerformanceRecord = async (req, res) => {
           month,
           type: 'TEAM_LEAD',
           overallRating: tlRating !== undefined ? Number(tlRating) : 5,
-          performanceRemark: tlRemark || ''
+          performanceRemark: tlRemark || '',
+          performanceStatus: status || ''
+        },
+        { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+      );
+    }
+
+    if (adminRemark !== undefined || adminRating !== undefined) {
+      await PerformanceRemark.findOneAndUpdate(
+        { employeeId, month, type: 'ADMIN' },
+        {
+          employeeId,
+          reviewerId: req.user.id,
+          month,
+          type: 'ADMIN',
+          overallRating: adminRating !== undefined ? Number(adminRating) : 5,
+          performanceRemark: adminRemark || '',
+          performanceStatus: status || ''
         },
         { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
       );

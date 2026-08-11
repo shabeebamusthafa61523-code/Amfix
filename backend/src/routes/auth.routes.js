@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { signup, login, verifyForgotPassword, resetForgotPassword } from '../controllers/auth.controller.js';
+import { signup, login, googleLogin, verifyForgotPassword, resetForgotPassword } from '../controllers/auth.controller.js';
 import { designationController } from '../controllers/designation.controller.js';
 import { departmentController } from '../modules/departments/department.controller.js';
 import verifyJWT from '../middleware/auth.middleware.js';
@@ -16,6 +16,7 @@ const router = Router();
 
 router.post('/signup', signup);
 router.post('/login', login);
+router.post('/google', googleLogin);
 router.post('/forgot-password/verify', verifyForgotPassword);
 router.post('/forgot-password/reset', resetForgotPassword);
 router.get('/designations', designationController.getDesignations);

@@ -30,7 +30,7 @@ export const DeleteDepartmentModal = ({ isOpen, onClose, onSuccess, department }
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-start justify-center pt-6 overflow-y-auto p-4">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -46,7 +46,7 @@ export const DeleteDepartmentModal = ({ isOpen, onClose, onSuccess, department }
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ type: 'spring', damping: 25, stiffness: 150 }}
-          className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 rounded-[2.5rem] shadow-2xl p-8 z-10"
+          className="relative w-full max-w-md my-auto bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 rounded-[2.5rem] shadow-2xl p-8 z-10"
         >
           {/* Close button */}
           <button

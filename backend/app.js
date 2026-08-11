@@ -4,6 +4,15 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dns from 'dns';
+
+// Fix querySrv ECONNREFUSED issues on local ISP/router DNS resolvers
+dns.setDefaultResultOrder('ipv4first');
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (err) {
+  // Fallback to system default DNS if setting servers fails
+}
 
 // Route Imports
 import authRoutes from './src/routes/auth.routes.js';
@@ -18,6 +27,7 @@ import mdDashboardRoutes from './src/routes/mdDashboard.routes.js';
 import accountRoutes from './src/routes/account.routes.js';
 import academyRoutes from './src/routes/academy.routes.js';
 import notificationRoutes from './src/routes/notification.routes.js';
+import leaveRoutes from './src/routes/leave.routes.js';
 import Designation from './src/models/designation.model.js';
 import Department from './src/modules/departments/department.model.js';
 const app = express();
@@ -49,11 +59,16 @@ app.options('*', cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
 // 3. Specific/Dedicated API Routers
 app.use('/api/auth', authRoutes);
 app.use('/api/attendance', attendanceRoutes); 
 app.use('/api/user', userRoutes); 
 app.use('/api/tasks', taskRoutes);
+// app.use('/api/v1/leaves', leaveRoutes);
+app.use('/api/leaves', leaveRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/md-dashboard', mdDashboardRoutes);
 app.use('/api/md-dashboard', mdDashboardRoutes);
@@ -117,7 +132,7 @@ app.use((err, req, res, next) => {
 });
 
 // 7. Database Connection Section
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/student_attendance_db';
+const MONGO_URI = process.env.MONGO_URI || process.env.DATABASE_URL || 'mongodb+srv://shabeeba:9995982324@cluster0.i23tzbf.mongodb.net/crm?appName=Cluster0';
 
 mongoose.connect(MONGO_URI)
   .then(async () => {
