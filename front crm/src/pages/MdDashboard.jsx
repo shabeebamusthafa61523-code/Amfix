@@ -12,10 +12,11 @@ const MdDashboard = () => {
   const [data, setData] = useState(null);
 
   const getAuthHeaders = useCallback(() => {
-    const token = localStorage.getItem('token');
+    const rawToken = localStorage.getItem('token');
+    const cleanToken = rawToken ? rawToken.replace(/"/g, '').trim() : '';
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`
     };
   }, []);
 

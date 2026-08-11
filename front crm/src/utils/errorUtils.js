@@ -19,6 +19,10 @@ export const formatApiError = (errOrData, defaultMsg = 'An error occurred') => {
       return data.message;
     }
 
+    if (typeof data.detail === 'string' && data.detail.trim()) {
+      return data.detail;
+    }
+
     if (typeof data.error === 'string' && data.error.trim()) {
       return data.error;
     }
