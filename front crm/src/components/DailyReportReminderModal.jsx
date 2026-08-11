@@ -62,8 +62,8 @@ const DailyReportReminderModal = () => {
     const d = new Date();
     const hours = d.getHours();
     const minutes = d.getMinutes();
-    // Set to 16:10 for testing
-    return hours > 16 || (hours === 16 && minutes >= 10);
+    // Operational time: 4:45 PM (16:45)
+    return hours > 16 || (hours === 16 && minutes >= 45);
   };
 
   const dispatchInAppAndPushNotification = useCallback(async (currentUser, config) => {
@@ -265,13 +265,13 @@ const DailyReportReminderModal = () => {
             <div className="space-y-2 pr-6">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wider uppercase bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/60">
                 <Clock size={12} />
-                <span>Daily Report Reminder</span>
+                <span>4:45 PM Daily Reminder</span>
               </div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white leading-snug">
                 Daily Report Not Saved Yet
               </h3>
               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                Your <strong className="text-amber-700 dark:text-amber-400">{config.name}</strong> for today has not been saved yet. Please fill out your report before end of shift.
+                It is past 4:45 PM and your <strong className="text-amber-700 dark:text-amber-400">{config.name}</strong> for today has not been saved yet. Please fill out your report before end of shift.
               </p>
             </div>
           </div>
