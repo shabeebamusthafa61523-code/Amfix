@@ -2,10 +2,11 @@ import { Router } from 'express';
 import protectRoute from '../middleware/auth.middleware.js';
 import courseController from '../controllers/course.controller.js';
 import batchController from '../controllers/batch.controller.js';
+import enrollmentController from '../controllers/enrollment.controller.js';
 
 const router = Router();
 
-// Protect all Academy Module 4.2 endpoints
+// Protect all Academy Module endpoints
 router.use(protectRoute);
 
 // Eligible Instructors List
@@ -30,5 +31,12 @@ router.patch('/batches/:id', batchController.updateBatch);
 router.patch('/batches/:id/students', batchController.addStudentsToBatch);
 router.delete('/batches/:id/students/:studentId', batchController.removeStudentFromBatch);
 router.post('/batches/:id/cancel', batchController.cancelBatch);
+
+// Enrollment & Progress Tracking Routes (Module 4.3)
+router.get('/enrollments', enrollmentController.getEnrollments);
+router.post('/enrollments', enrollmentController.createEnrollment);
+router.get('/enrollments/:id', enrollmentController.getEnrollmentById);
+router.patch('/enrollments/:id/progress', enrollmentController.updateProgress);
+router.patch('/enrollments/:id/status', enrollmentController.updateStatus);
 
 export default router;
