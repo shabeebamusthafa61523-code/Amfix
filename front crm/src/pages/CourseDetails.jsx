@@ -4,9 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, BookOpen, Calendar, Clock, User, Users, Plus, Edit, 
   Trash2, ShieldCheck, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, 
-  FolderKanban, Loader2, X, Sparkles, AlertTriangle, Layers
+  FolderKanban, Loader2, X, Sparkles, AlertTriangle, Layers, Award
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
+import LmsContentManager from '../components/lms/LmsContentManager';
+import AssignmentManager from '../components/lms/AssignmentManager';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -35,6 +37,7 @@ const CourseDetails = () => {
   const [loading, setLoading] = useState(true);
   const [instructors, setInstructors] = useState([]);
   const [expandedModules, setExpandedModules] = useState({});
+  const [activeTab, setActiveTab] = useState('OVERVIEW'); // 'OVERVIEW' | 'LMS_CONTENT' | 'ASSIGNMENTS'
 
   // Batch Modal State
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
@@ -283,212 +286,261 @@ const CourseDetails = () => {
           </div>
         </div>
 
-        {/* Content Layout Grid: Syllabus Left, Batches Right */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Left Column: Interactive Syllabus Tree */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-[2.5rem] shadow-sm">
-              <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-3">
-                  <BookOpen className="text-indigo-600 dark:text-indigo-400" size={24} />
-                  <h2 className="text-xl font-bold uppercase tracking-tight text-slate-900 dark:text-slate-100">
-                    Course Syllabus & Modules
-                  </h2>
+        {/* Course Navigation Tabs */}
+        <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2">
+          <button
+            onClick={() => setActiveTab('OVERVIEW')}
+            className={`pb-4 px-6 text-xs font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 flex items-center gap-2 ${
+              activeTab === 'OVERVIEW'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <BookOpen size={16} /> Overview & Batches
+          </button>
+          <button
+            onClick={() => setActiveTab('LMS_CONTENT')}
+            className={`pb-4 px-6 text-xs font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 flex items-center gap-2 ${
+              activeTab === 'LMS_CONTENT'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <Layers size={16} /> Curriculum & LMS Lessons
+          </button>
+          <button
+            onClick={() => setActiveTab('ASSIGNMENTS')}
+            className={`pb-4 px-6 text-xs font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 flex items-center gap-2 ${
+              activeTab === 'ASSIGNMENTS'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            <Award size={16} /> Assignments & Grading
+          </button>
+        </div>
+
+        {/* Tab 1: Overview & Batches Grid */}
+        {activeTab === 'OVERVIEW' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left Column: Interactive Syllabus Tree */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-[2.5rem] shadow-sm">
+                <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <BookOpen className="text-indigo-600 dark:text-indigo-400" size={24} />
+                    <h2 className="text-xl font-bold uppercase tracking-tight text-slate-900 dark:text-slate-100">
+                      Course Syllabus & Modules
+                    </h2>
+                  </div>
+                  <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                    {course.syllabus?.length || 0} Modules Total
+                  </span>
                 </div>
-                <span className="text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                  {course.syllabus?.length || 0} Modules Total
-                </span>
-              </div>
 
-              {!course.syllabus || course.syllabus.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 font-medium">
-                  No syllabus modules defined for this course yet.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {course.syllabus.map((mod, modIdx) => {
-                    const modKey = mod.moduleId || modIdx;
-                    const isExpanded = expandedModules[modKey];
+                {!course.syllabus || course.syllabus.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 font-medium">
+                    No syllabus modules defined for this course yet.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {course.syllabus.map((mod, modIdx) => {
+                      const modKey = mod.moduleId || modIdx;
+                      const isExpanded = expandedModules[modKey];
 
-                    return (
-                      <div key={modKey} className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs">
-                        <button
-                          onClick={() => toggleModuleExpand(modKey)}
-                          className="w-full p-6 flex items-center justify-between text-left hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors cursor-pointer"
-                        >
-                          <div className="flex items-center gap-4">
-                            <span className="w-9 h-9 rounded-2xl bg-indigo-600 text-white font-black text-sm flex items-center justify-center flex-shrink-0">
-                              {modIdx + 1}
-                            </span>
-                            <div>
-                              <h3 className="text-base font-extrabold uppercase tracking-tight text-slate-900 dark:text-slate-100">
-                                {mod.title}
-                              </h3>
-                              {mod.description && (
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{mod.description}</p>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-800">
-                              {mod.topics?.length || 0} Topics
-                            </span>
-                            {isExpanded ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
-                          </div>
-                        </button>
-
-                        {isExpanded && (
-                          <div className="px-6 pb-6 pt-2 space-y-3 border-t border-slate-100 dark:border-slate-800/80">
-                            {(mod.topics || []).map((top, topIdx) => (
-                              <div key={top.topicId || topIdx} className="flex items-start gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                                <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold text-xs flex items-center justify-center flex-shrink-0">
-                                  {topIdx + 1}
-                                </span>
-                                <div>
-                                  <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-tight">
-                                    {top.title}
-                                  </h4>
-                                  {top.description && (
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">{top.description}</p>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Column: Scheduled Batches Hub */}
-          <div className="space-y-6">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-[2.5rem] shadow-sm">
-              <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-3">
-                  <FolderKanban className="text-indigo-600 dark:text-indigo-400" size={24} />
-                  <h2 className="text-xl font-bold uppercase tracking-tight text-slate-900 dark:text-slate-100">
-                    Batches Hub
-                  </h2>
-                </div>
-                <button
-                  onClick={handleOpenAddBatchModal}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-indigo-600/20"
-                  title="Schedule New Batch"
-                >
-                  <Plus size={18} />
-                </button>
-              </div>
-
-              {batches.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 font-medium space-y-3">
-                  <FolderKanban className="mx-auto opacity-40" size={36} />
-                  <p className="text-xs">No batches currently scheduled for this course.</p>
-                  <button
-                    onClick={handleOpenAddBatchModal}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest cursor-pointer inline-flex items-center gap-1.5"
-                  >
-                    <Plus size={14} /> Schedule Batch
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {batches.map(b => {
-                    const batchId = b._id || b.id;
-                    const instructor = b.instructorId || {};
-                    const isCancelled = b.status === 'CANCELLED';
-
-                    return (
-                      <div key={batchId} className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl space-y-4 shadow-xs">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 inline-block mb-1">
-                              {b.batchCode}
-                            </span>
-                            <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-slate-100">
-                              {b.batchName}
-                            </h3>
-                          </div>
-                          <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                            b.status === 'UPCOMING' ? 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20' :
-                            b.status === 'ONGOING' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
-                            b.status === 'CANCELLED' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' :
-                            'bg-slate-200 dark:bg-slate-800 text-slate-500'
-                          }`}>
-                            {b.status}
-                          </span>
-                        </div>
-
-                        {/* Batch Details */}
-                        <div className="space-y-2 text-xs">
-                          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                            <span className="flex items-center gap-1.5 font-semibold">
-                              <Calendar size={14} className="text-indigo-500" /> Date Range:
-                            </span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">
-                              {new Date(b.startDate).toLocaleDateString()} - {new Date(b.endDate).toLocaleDateString()}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                            <span className="flex items-center gap-1.5 font-semibold">
-                              <Clock size={14} className="text-indigo-500" /> Time & Days:
-                            </span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">
-                              {b.startTime} - {b.endTime} ({(b.daysOfWeek || []).join(', ')})
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
-                            <span className="flex items-center gap-1.5 font-semibold">
-                              <Users size={14} className="text-indigo-500" /> Max Capacity:
-                            </span>
-                            <span className="font-bold text-slate-800 dark:text-slate-200">
-                              {b.capacity} Seats
-                            </span>
-                          </div>
-
-                          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 pt-1">
-                            <span className="flex items-center gap-1.5 font-semibold">
-                              <User size={14} className="text-indigo-500" /> Instructor:
-                            </span>
-                            <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                              {instructor.name || 'Unassigned'}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Batch Controls */}
-                        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                      return (
+                        <div key={modKey} className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs">
                           <button
-                            onClick={() => handleOpenEditBatchModal(b)}
-                            className="flex-1 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                            onClick={() => toggleModuleExpand(modKey)}
+                            className="w-full p-6 flex items-center justify-between text-left hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors cursor-pointer"
                           >
-                            <Edit size={12} /> Edit Batch
+                            <div className="flex items-center gap-4">
+                              <span className="w-9 h-9 rounded-2xl bg-indigo-600 text-white font-black text-sm flex items-center justify-center flex-shrink-0">
+                                {modIdx + 1}
+                              </span>
+                              <div>
+                                <h3 className="text-base font-extrabold uppercase tracking-tight text-slate-900 dark:text-slate-100">
+                                  {mod.title}
+                                </h3>
+                                {mod.description && (
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{mod.description}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                                {mod.topics?.length || 0} Topics
+                              </span>
+                              {isExpanded ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                            </div>
                           </button>
-                          {!isCancelled && (
-                            <button
-                              onClick={() => handleCancelBatch(batchId)}
-                              className="px-3 py-2.5 bg-white dark:bg-rose-950/30 text-rose-500 border border-rose-200 dark:border-rose-900/50 rounded-xl text-[9px] font-black uppercase tracking-widest cursor-pointer"
-                              title="Cancel Batch"
-                            >
-                              Cancel
-                            </button>
+
+                          {isExpanded && (
+                            <div className="px-6 pb-6 pt-2 space-y-3 border-t border-slate-100 dark:border-slate-800/80">
+                              {(mod.topics || []).map((top, topIdx) => (
+                                <div key={top.topicId || topIdx} className="flex items-start gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                                  <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold text-xs flex items-center justify-center flex-shrink-0">
+                                    {topIdx + 1}
+                                  </span>
+                                  <div>
+                                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-tight">
+                                      {top.title}
+                                    </h4>
+                                    {top.description && (
+                                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">{top.description}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column: Scheduled Batches Hub */}
+            <div className="space-y-6">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-[2.5rem] shadow-sm">
+                <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <FolderKanban className="text-indigo-600 dark:text-indigo-400" size={24} />
+                    <h2 className="text-xl font-bold uppercase tracking-tight text-slate-900 dark:text-slate-100">
+                      Batches Hub
+                    </h2>
+                  </div>
+                  <button
+                    onClick={handleOpenAddBatchModal}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+                    title="Schedule New Batch"
+                  >
+                    <Plus size={18} />
+                  </button>
                 </div>
-              )}
+
+                {batches.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 font-medium space-y-3">
+                    <FolderKanban className="mx-auto opacity-40" size={36} />
+                    <p className="text-xs">No batches currently scheduled for this course.</p>
+                    <button
+                      onClick={handleOpenAddBatchModal}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest cursor-pointer inline-flex items-center gap-1.5"
+                    >
+                      <Plus size={14} /> Schedule Batch
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {batches.map(b => {
+                      const batchId = b._id || b.id;
+                      const instructor = b.instructorId || {};
+                      const isCancelled = b.status === 'CANCELLED';
+
+                      return (
+                        <div key={batchId} className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl space-y-4 shadow-xs">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 inline-block mb-1">
+                                {b.batchCode}
+                              </span>
+                              <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-slate-100">
+                                {b.batchName}
+                              </h3>
+                            </div>
+                            <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                              b.status === 'UPCOMING' ? 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20' :
+                              b.status === 'ONGOING' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
+                              b.status === 'CANCELLED' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' :
+                              'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                            }`}>
+                              {b.status}
+                            </span>
+                          </div>
+
+                          <div className="space-y-2 text-xs">
+                            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                              <span className="flex items-center gap-1.5 font-semibold">
+                                <Calendar size={14} className="text-indigo-500" /> Date Range:
+                              </span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {new Date(b.startDate).toLocaleDateString()} - {new Date(b.endDate).toLocaleDateString()}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                              <span className="flex items-center gap-1.5 font-semibold">
+                                <Clock size={14} className="text-indigo-500" /> Time & Days:
+                              </span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {b.startTime} - {b.endTime} ({(b.daysOfWeek || []).join(', ')})
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                              <span className="flex items-center gap-1.5 font-semibold">
+                                <Users size={14} className="text-indigo-500" /> Max Capacity:
+                              </span>
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                {b.capacity} Seats
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 pt-1">
+                              <span className="flex items-center gap-1.5 font-semibold">
+                                <User size={14} className="text-indigo-500" /> Instructor:
+                              </span>
+                              <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                                {instructor.name || 'Unassigned'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                            <button
+                              onClick={() => handleOpenEditBatchModal(b)}
+                              className="flex-1 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                            >
+                              <Edit size={12} /> Edit Batch
+                            </button>
+                            {!isCancelled && (
+                              <button
+                                onClick={() => handleCancelBatch(batchId)}
+                                className="px-3 py-2.5 bg-white dark:bg-rose-950/30 text-rose-500 border border-rose-200 dark:border-rose-900/50 rounded-xl text-[9px] font-black uppercase tracking-widest cursor-pointer"
+                                title="Cancel Batch"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
+        )}
 
-        </div>
+        {/* Tab 2: Curriculum & LMS Lessons */}
+        {activeTab === 'LMS_CONTENT' && (
+          <LmsContentManager
+            courseId={courseId}
+            syllabus={course.syllabus || []}
+            onContentUpdated={fetchCourseDetails}
+          />
+        )}
+
+        {/* Tab 3: Assignments & Grading */}
+        {activeTab === 'ASSIGNMENTS' && (
+          <AssignmentManager
+            courseId={courseId}
+            syllabus={course.syllabus || []}
+          />
+        )}
       </div>
 
       {/* Schedule / Edit Batch Modal */}
