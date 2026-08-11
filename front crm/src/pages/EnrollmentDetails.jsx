@@ -319,6 +319,53 @@ const EnrollmentDetails = () => {
 
         </div>
 
+        {/* 3. LMS Academic Performance Summary Card */}
+        {enrollment.lmsSummary && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-[2.5rem] shadow-sm space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <GraduationCap className="text-indigo-600 dark:text-indigo-400" size={24} />
+                <h2 className="text-xl font-bold uppercase tracking-tight text-slate-900 dark:text-slate-100">
+                  LMS Academic & Assignment Metrics
+                </h2>
+              </div>
+              <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
+                Module 4.4 LMS Integration
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl">
+                <p className="text-[9px] font-black uppercase text-slate-400">Completed Lessons</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">
+                  {enrollment.lmsSummary.completedLessonsCount || 0} / {enrollment.lmsSummary.totalPublishedLessons || 0}
+                </p>
+              </div>
+
+              <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl">
+                <p className="text-[9px] font-black uppercase text-slate-400">Course Assignments</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-slate-100 mt-1">
+                  {enrollment.lmsSummary.totalAssignments || 0} Total
+                </p>
+              </div>
+
+              <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl">
+                <p className="text-[9px] font-black uppercase text-slate-400">Submitted Assignments</p>
+                <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                  {enrollment.lmsSummary.submittedAssignmentsCount || 0} Submissions
+                </p>
+              </div>
+
+              <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl">
+                <p className="text-[9px] font-black uppercase text-slate-400">Average Grade</p>
+                <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+                  {enrollment.lmsSummary.averageGradePercentage || 0}%
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Detailed Attendance Records Table from Student Attendance Registry */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] p-8 shadow-sm space-y-6">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">

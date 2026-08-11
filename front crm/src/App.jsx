@@ -25,6 +25,8 @@ import BatchManagement from './pages/BatchManagement';
 import BatchDetails from './pages/BatchDetails';
 import EnrollmentTracking from './pages/EnrollmentTracking';
 import EnrollmentDetails from './pages/EnrollmentDetails';
+import StudentLmsPortal from './pages/StudentLmsPortal';
+import StudentCourseViewer from './pages/StudentCourseViewer';
 import DepartmentsPage from './modules/departments/DepartmentsPage';
 import DeveloperReportPage from './pages/DeveloperReportPage';
 import DeveloperDashboard from './pages/DeveloperDashboard';
@@ -190,6 +192,8 @@ function App() {
         <Route path="/academy/batches/:batchId" element={<ProtectedRoute><MainLayout><BatchDetails /></MainLayout></ProtectedRoute>} />
         <Route path="/academy/enrollments" element={<ProtectedRoute><MainLayout><EnrollmentTracking /></MainLayout></ProtectedRoute>} />
         <Route path="/academy/enrollments/:enrollmentId" element={<ProtectedRoute><MainLayout><EnrollmentDetails /></MainLayout></ProtectedRoute>} />
+        <Route path="/academy/learning" element={<ProtectedRoute><MainLayout><StudentLmsPortal /></MainLayout></ProtectedRoute>} />
+        <Route path="/academy/learning/:courseId" element={<ProtectedRoute><MainLayout><StudentCourseViewer /></MainLayout></ProtectedRoute>} />
         <Route path="/departments" element={<ProtectedRoute><MainLayout><RestrictedRoute><DepartmentsPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/developer-report" element={<ProtectedRoute><MainLayout><DeveloperReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/developer-dashboard" element={<ProtectedRoute><MainLayout><DeveloperDashboard /></MainLayout></ProtectedRoute>} />

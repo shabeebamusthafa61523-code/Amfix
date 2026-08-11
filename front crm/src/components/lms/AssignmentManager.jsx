@@ -1,0 +1,494 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Plus, Edit, Trash2, Award, Calendar, CheckCircle2, 
+  AlertCircle, Loader2, X, Users, Eye, FileText 
+} from 'lucide-react';
+import { useToast } from '../ToastProvider';
+import GradeSubmissionModal from './GradeSubmissionModal';
+
+const API_BASE = import.meta.env.VITE_API_URL;
+
+const initialAssignmentForm = {
+  title: '',
+  description: '',
+  instructions: '',
+  maxMarks: 100,
+  dueDate: '',
+  allowedSubmissionTypes: ['FILE', 'TEXT'],
+  isPublished: true,
+  moduleId: ''
+};
+
+const AssignmentManager = ({ courseId, syllabus = [] }) => {
+  const { showToast } = useToast();
+  const [modules, setModules] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Assignment Form State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState(null);
+  const [formData, setFormData] = useState(initialAssignmentForm);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Submissions Modal State
+  const [viewingSubmissionsAssignment, setViewingSubmissionsAssignment] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [gradingSubmission, setGradingSubmission] = useState(null);
+
+  const getHeaders = useCallback(() => {
+    const rawToken = localStorage.getItem('token');
+    const cleanToken = rawToken ? rawToken.replace(/"/g, '') : '';
+    return {
+      'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`,
+      'Content-Type': 'application/json'
+    };
+  }, []);
+
+  const fetchAssignments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/courses/${courseId}/lms-content`
+        : `${cleanBase}/v1/academy/courses/${courseId}/lms-content`;
+
+      const res = await fetch(endpoint, { headers: getHeaders() });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || 'Failed to fetch assignments.');
+      setModules(data.data?.modules || []);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [courseId, getHeaders, showToast]);
+
+  useEffect(() => {
+    if (courseId) fetchAssignments();
+  }, [courseId, fetchAssignments]);
+
+  const handleOpenAddModal = (targetModuleId) => {
+    setEditingAssignment(null);
+    setFormData({
+      ...initialAssignmentForm,
+      moduleId: targetModuleId || (syllabus[0]?.moduleId || 'mod_1')
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (assignment) => {
+    setEditingAssignment(assignment);
+    setFormData({
+      title: assignment.title || '',
+      description: assignment.description || '',
+      instructions: assignment.instructions || '',
+      maxMarks: assignment.maxMarks || 100,
+      dueDate: assignment.dueDate ? new Date(assignment.dueDate).toISOString().split('T')[0] : '',
+      allowedSubmissionTypes: assignment.allowedSubmissionTypes || ['FILE', 'TEXT'],
+      isPublished: assignment.isPublished !== undefined ? assignment.isPublished : true,
+      moduleId: assignment.moduleId || (syllabus[0]?.moduleId || 'mod_1')
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSubmitAssignment = async (e) => {
+    e.preventDefault();
+    if (!formData.title.trim()) {
+      showToast('Assignment title is required.', 'error');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      let endpoint = '';
+      let method = 'POST';
+
+      if (editingAssignment) {
+        method = 'PATCH';
+        endpoint = cleanBase.endsWith('/v1')
+          ? `${cleanBase}/academy/assignments/${editingAssignment._id}`
+          : `${cleanBase}/v1/academy/assignments/${editingAssignment._id}`;
+      } else {
+        method = 'POST';
+        endpoint = cleanBase.endsWith('/v1')
+          ? `${cleanBase}/academy/courses/${courseId}/assignments`
+          : `${cleanBase}/v1/academy/courses/${courseId}/assignments`;
+      }
+
+      const res = await fetch(endpoint, {
+        method,
+        headers: getHeaders(),
+        body: JSON.stringify(formData)
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to save assignment.');
+
+      showToast(`Assignment ${editingAssignment ? 'updated' : 'created'} successfully!`, 'success');
+      setIsModalOpen(false);
+      fetchAssignments();
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteAssignment = async (assignmentId) => {
+    if (!window.confirm('Are you sure you want to delete this assignment? Student submissions will also be deleted.')) return;
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/assignments/${assignmentId}`
+        : `${cleanBase}/v1/academy/assignments/${assignmentId}`;
+
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to delete assignment.');
+
+      showToast('Assignment deleted successfully.', 'success');
+      fetchAssignments();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const fetchSubmissions = async (assignment) => {
+    setViewingSubmissionsAssignment(assignment);
+    setLoadingSubmissions(true);
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/assignments/${assignment._id}/submissions`
+        : `${cleanBase}/v1/academy/assignments/${assignment._id}/submissions`;
+
+      const res = await fetch(endpoint, { headers: getHeaders() });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || 'Failed to fetch student submissions.');
+      setSubmissions(data.data?.submissions || []);
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setLoadingSubmissions(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-12 text-center flex flex-col items-center justify-center space-y-3">
+        <Loader2 className="animate-spin text-indigo-600" size={32} />
+        <p className="text-xs font-black uppercase tracking-widest text-slate-400">Loading Assignments & Submissions...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Top Header Card */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl">
+        <div>
+          <h2 className="text-xl font-extrabold uppercase tracking-tight text-slate-900 dark:text-slate-100">
+            Course Assignments & Grading Queue
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Create practical tasks, set submission deadlines, and evaluate student submissions with numeric grades and feedback.
+          </p>
+        </div>
+        <button
+          onClick={() => handleOpenAddModal()}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2"
+        >
+          <Plus size={16} /> Create Assignment
+        </button>
+      </div>
+
+      {/* Modules & Assignments View */}
+      <div className="space-y-6">
+        {modules.map((mod, modIdx) => {
+          const modAssignments = mod.assignments || [];
+          return (
+            <div key={mod.moduleId || modIdx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <div className="flex items-center gap-3">
+                  <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center">
+                    {modIdx + 1}
+                  </span>
+                  <h3 className="text-base font-extrabold uppercase text-slate-900 dark:text-slate-100">
+                    {mod.title}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => handleOpenAddModal(mod.moduleId)}
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1.5"
+                >
+                  <Plus size={14} /> Add Assignment
+                </button>
+              </div>
+
+              {modAssignments.length === 0 ? (
+                <p className="text-xs text-slate-400 font-medium py-2 text-center">No assignments added to this module yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {modAssignments.map(asg => (
+                    <div key={asg._id} className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl space-y-3 shadow-xs">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 inline-block mb-1">
+                            Max {asg.maxMarks} Marks
+                          </span>
+                          <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-slate-100">
+                            {asg.title}
+                          </h4>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
+                          asg.isPublished ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'
+                        }`}>
+                          {asg.isPublished ? 'PUBLISHED' : 'DRAFT'}
+                        </span>
+                      </div>
+
+                      {asg.description && <p className="text-xs text-slate-500 line-clamp-2">{asg.description}</p>}
+
+                      <div className="flex items-center justify-between text-xs text-slate-400 font-semibold pt-1">
+                        <span className="flex items-center gap-1">
+                          <Calendar size={13} className="text-indigo-500" />
+                          {asg.dueDate ? `Due: ${new Date(asg.dueDate).toLocaleDateString()}` : 'No due date'}
+                        </span>
+                        <span className="uppercase text-[10px] text-slate-500">
+                          {(asg.allowedSubmissionTypes || []).join(', ')}
+                        </span>
+                      </div>
+
+                      {/* Footer Actions */}
+                      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
+                        <button
+                          onClick={() => fetchSubmissions(asg)}
+                          className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <Users size={14} /> Submissions Queue
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditModal(asg)}
+                          className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-400 hover:text-indigo-600 cursor-pointer"
+                          title="Edit Assignment"
+                        >
+                          <Edit size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAssignment(asg._id)}
+                          className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-400 hover:text-rose-600 cursor-pointer"
+                          title="Delete Assignment"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Add / Edit Assignment Modal */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 md:p-10">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl">
+                    <Award size={22} />
+                  </div>
+                  <h2 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-slate-100">
+                    {editingAssignment ? 'Edit Assignment' : 'Create Assignment'}
+                  </h2>
+                </div>
+                <button onClick={() => setIsModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmitAssignment} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                    Assignment Title <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.title}
+                    onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="e.g. Build a RESTful API using Express & MongoDB"
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                      Max Marks <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={formData.maxMarks}
+                      onChange={(e) => setFormData(prev => ({ ...prev, maxMarks: parseInt(e.target.value, 10) || 100 }))}
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                      Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.dueDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
+                    Instructions & Guidelines
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={formData.instructions}
+                    onChange={(e) => setFormData(prev => ({ ...prev, instructions: e.target.value }))}
+                    placeholder="Provide clear submission guidelines, requirements, and evaluation criteria..."
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-100"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="px-5 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider cursor-pointer shadow-md shadow-indigo-600/20 flex items-center gap-2"
+                  >
+                    {submitting ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                    Save Assignment
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Submissions Queue Modal */}
+      <AnimatePresence>
+        {viewingSubmissionsAssignment && (
+          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 md:p-10">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
+                <div>
+                  <h2 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-slate-100">
+                    Submissions: {viewingSubmissionsAssignment.title}
+                  </h2>
+                  <p className="text-xs text-slate-500">Max Marks: {viewingSubmissionsAssignment.maxMarks}</p>
+                </div>
+                <button onClick={() => setViewingSubmissionsAssignment(null)} className="p-2 text-slate-400 hover:text-slate-600">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 max-h-[70vh] overflow-y-auto">
+                {loadingSubmissions ? (
+                  <div className="p-12 text-center">
+                    <Loader2 className="animate-spin mx-auto text-indigo-600" size={32} />
+                  </div>
+                ) : submissions.length === 0 ? (
+                  <div className="p-8 text-center text-slate-400 font-medium">
+                    No student submissions logged for this assignment yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {submissions.map(sub => {
+                      const student = sub.studentId || {};
+                      return (
+                        <div key={sub._id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl gap-4">
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase">
+                              {student.name || 'Student'}
+                            </h4>
+                            <p className="text-[10px] text-slate-400">
+                              ID: {student.studentId || student.email || 'N/A'} • Submitted: {new Date(sub.submittedAt).toLocaleString()}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-4">
+                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                              sub.status === 'GRADED' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
+                              sub.status === 'RETURNED' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
+                              'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20'
+                            }`}>
+                              {sub.status === 'GRADED' ? `${sub.grade} / ${sub.maxMarks}` : sub.status}
+                            </span>
+
+                            <button
+                              onClick={() => setGradingSubmission(sub)}
+                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer shadow-sm"
+                            >
+                              {sub.status === 'GRADED' ? 'Edit Grade' : 'Grade Submission'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Grade Modal Trigger */}
+      {gradingSubmission && (
+        <GradeSubmissionModal
+          submission={gradingSubmission}
+          assignment={viewingSubmissionsAssignment}
+          onClose={() => setGradingSubmission(null)}
+          onGraded={() => {
+            if (viewingSubmissionsAssignment) fetchSubmissions(viewingSubmissionsAssignment);
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default AssignmentManager;

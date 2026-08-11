@@ -246,6 +246,7 @@ const menuItems = [
   { icon: BookOpen, label: 'Course Management', path: '/academy/courses', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
   { icon: FolderKanban, label: 'Batches', path: '/academy/batches', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
   { icon: GraduationCap, label: 'Enrollment Tracking', path: '/academy/enrollments', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
+  { icon: GraduationCap, label: 'My LMS Learning', path: '/academy/learning', allowedRoles: ['10', 'student', '1', '2', 'admin', 'superadmin'] },
   { icon: Building, label: 'Departments', path: '/departments', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
   { icon: Users, label: 'Employee Reports', path: '/employee-reports', allowedRoles: [ 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
   { icon: Users, label: 'Team Reports', path: '/team-reports', isTeamLeadOnly: true },

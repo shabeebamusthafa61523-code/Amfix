@@ -159,6 +159,8 @@ export const enrollmentController = {
 
       // Query existing StudentAttendance data for student
       const stId = enrollment.studentId?._id || enrollment.studentId;
+      const cId = enrollment.courseId?._id || enrollment.courseId;
+
       const attRecords = await StudentAttendance.find({ user_id: String(stId) }).lean();
       const total = attRecords.length;
       const present = attRecords.filter(r => r.status?.toUpperCase() === 'PRESENT').length;
@@ -175,11 +177,54 @@ export const enrollmentController = {
         records: attRecords
       };
 
+      // Query LMS Metrics for student & course
+      let lmsSummary = {
+        totalPublishedLessons: 0,
+        completedLessonsCount: 0,
+        totalAssignments: 0,
+        submittedAssignmentsCount: 0,
+        gradedAssignmentsCount: 0,
+        averageGradePercentage: 0
+      };
+
+      try {
+        const Lesson = (await import('../models/lesson.model.js')).default;
+        const LessonProgress = (await import('../models/lessonProgress.model.js')).default;
+        const Assignment = (await import('../models/assignment.model.js')).default;
+        const AssignmentSubmission = (await import('../models/assignmentSubmission.model.js')).default;
+
+        if (Lesson && cId) {
+          const totalPublishedLessons = await Lesson.countDocuments({ courseId: cId, isPublished: true });
+          const completedLessonsCount = await LessonProgress.countDocuments({ studentId: stId, courseId: cId });
+          const totalAssignments = await Assignment.countDocuments({ courseId: cId, isPublished: true });
+          const submissions = await AssignmentSubmission.find({ studentId: stId, courseId: cId }).lean();
+          const gradedSubmissions = submissions.filter(s => s.status === 'GRADED');
+          
+          let avgGradePct = 0;
+          if (gradedSubmissions.length > 0) {
+            const sumPct = gradedSubmissions.reduce((acc, curr) => acc + ((curr.grade / curr.maxMarks) * 100), 0);
+            avgGradePct = Math.round(sumPct / gradedSubmissions.length);
+          }
+
+          lmsSummary = {
+            totalPublishedLessons,
+            completedLessonsCount,
+            totalAssignments,
+            submittedAssignmentsCount: submissions.length,
+            gradedAssignmentsCount: gradedSubmissions.length,
+            averageGradePercentage: avgGradePct
+          };
+        }
+      } catch (lmsErr) {
+        console.warn("LMS Summary lookup fallback:", lmsErr.message);
+      }
+
       return res.status(200).json({
         success: true,
         data: {
           ...enrollment,
-          attendanceSummary
+          attendanceSummary,
+          lmsSummary
         }
       });
     } catch (error) {
