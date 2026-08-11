@@ -23,6 +23,17 @@ const userSchema = new mongoose.Schema({
   passwordHash: { type: String },
   isActive: { type: Boolean, default: true },
   status: { type: String, enum: ['active', 'inactive', 'blocked'], default: 'active' },
+  studentId: { type: String, unique: true, sparse: true },
+  dateOfBirth: { type: String },
+  gender: { type: String, enum: ['male', 'female', 'other', ''] },
+  alternatePhone: { type: String },
+  city: { type: String },
+  state: { type: String },
+  pincode: { type: String },
+  qualification: { type: String },
+  institution: { type: String },
+  passingYear: { type: String },
+  coursePreference: { type: String },
   permissions: [{ type: String }],
   isSuperAdmin: { type: Boolean, default: false },
   googleId: { type: String },
@@ -31,7 +42,7 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Case-insensitive index searching support for the controller search features
-userSchema.index({ name: 'text', email: 'text', employeeId: 'text' });
+userSchema.index({ name: 'text', email: 'text', employeeId: 'text', studentId: 'text' });
 
 // Performance optimization indexes
 userSchema.index({ departmentId: 1, status: 1 });
