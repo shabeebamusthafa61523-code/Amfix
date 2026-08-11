@@ -154,7 +154,7 @@ const VisibleWorkPage = () => {
                     </td>
 
                     <td className="p-4 font-semibold text-slate-600 dark:text-slate-400">
-                      {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'N/A'}
+                      {task.dueDate ? new Date(task.dueDate).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'N/A'}
                     </td>
 
                     <td className="p-4 max-w-xs text-[11px] text-slate-500 line-clamp-2">

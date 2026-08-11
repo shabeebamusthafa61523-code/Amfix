@@ -564,8 +564,8 @@ const DeveloperReportPage = () => {
               activity: t.title,
               status: t.status || 'Pending',
               dueDate: t.dueDate || '',
-              startDate: t.startDate || t.startTime || '',
-              endDate: t.endDate || t.endTime || '',
+              startDate: t.startDate || t.startTime || t.startDateTimeLocal || '',
+              endDate: t.endDate || t.endTime || t.endDateTimeLocal || '',
               remarks: t.description || ''
             }));
             setDailyTaskSummary(mappedTasks);
@@ -586,8 +586,8 @@ const DeveloperReportPage = () => {
               activity: t.title,
               status: t.status || 'Pending',
               dueDate: t.dueDate || '',
-              startDate: t.startDate || t.startTime || '',
-              endDate: t.endDate || t.endTime || '',
+              startDate: t.startDate || t.startTime || t.startDateTimeLocal || '',
+              endDate: t.endDate || t.endTime || t.endDateTimeLocal || '',
               remarks: t.description || ''
             }));
             setDailyTaskSummary(mappedTasks);
@@ -1495,7 +1495,8 @@ const DeveloperReportPage = () => {
                         </td>
                         <td className="px-3 py-3 vertical-top">
                           <input
-                            type="date"
+                            type="text"
+                            placeholder="DD-MM-YYYY HH:mm"
                             value={row.startDate || ''}
                             onChange={(e) => {
                               const newArr = [...dailyTaskSummary];
@@ -1507,7 +1508,8 @@ const DeveloperReportPage = () => {
                         </td>
                         <td className="px-3 py-3 vertical-top">
                           <input
-                            type="date"
+                            type="text"
+                            placeholder="DD-MM-YYYY HH:mm"
                             value={row.endDate || ''}
                             onChange={(e) => {
                               const newArr = [...dailyTaskSummary];

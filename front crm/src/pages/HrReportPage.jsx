@@ -1708,7 +1708,7 @@ const HrReportPage = () => {
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status || 'Done', dueDate: t.dueDate || '', startDate: '', endDate: '', remarks: 'Auto-fetched' }));
+            const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status || 'Done', dueDate: t.dueDate || '', startDate: t.startDate || t.startTime || t.startDateTimeLocal || '', endDate: t.endDate || t.endTime || t.endDateTimeLocal || '', remarks: t.description || 'Auto-fetched' }));
             mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', startDate: '', endDate: '', remarks: '' });
             mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', startDate: '', endDate: '', remarks: '' });
             setDailyOperations(mappedTasks);
@@ -1726,7 +1726,7 @@ const HrReportPage = () => {
         try {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status || 'Done', dueDate: t.dueDate || '', startDate: '', endDate: '', remarks: 'Auto-fetched' }));
+            const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status || 'Done', dueDate: t.dueDate || '', startDate: t.startDate || t.startTime || t.startDateTimeLocal || '', endDate: t.endDate || t.endTime || t.endDateTimeLocal || '', remarks: t.description || 'Auto-fetched' }));
             mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', startDate: '', endDate: '', remarks: '' });
             mappedTasks.push({ activity: '', status: 'ongoing', dueDate: '', startDate: '', endDate: '', remarks: '' });
             setDailyOperations(mappedTasks);
@@ -2249,7 +2249,8 @@ const HrReportPage = () => {
                         </td>
                         <td className="px-4 py-2.5">
                           <input
-                            type="date"
+                            type="text"
+                            placeholder="DD-MM-YYYY HH:mm"
                             value={row.startDate || ''}
                             onChange={(e) => {
                               const newArr = [...dailyOperations];
@@ -2261,7 +2262,8 @@ const HrReportPage = () => {
                         </td>
                         <td className="px-4 py-2.5">
                           <input
-                            type="date"
+                            type="text"
+                            placeholder="DD-MM-YYYY HH:mm"
                             value={row.endDate || ''}
                             onChange={(e) => {
                               const newArr = [...dailyOperations];

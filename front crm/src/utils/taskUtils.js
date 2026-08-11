@@ -68,7 +68,6 @@ export const fetchCompletedTasks = async (userId, dateStr) => {
       };
       const statusText = statusMap[String(t.status).toLowerCase()] || 'Pending';
 
-      // Format start and end times dynamically from task timestamps (including both Date and Time)
       const formatTime = (dateObjOrStr) => {
         if (!dateObjOrStr) return '';
         try {
@@ -87,8 +86,28 @@ export const fetchCompletedTasks = async (userId, dateStr) => {
         }
       };
 
-      const startTime = formatTime(t.createdAt);
-      const endTime = String(t.status).toLowerCase() === 'done' ? formatTime(t.updatedAt) : '';
+      const startTime = formatTime(t.createdAt || t.startTime || t.startDate);
+      const endTime = formatTime(t.updatedAt || t.endTime || t.endDate) || (String(t.status).toLowerCase() === 'done' ? formatTime(t.updatedAt) : formatTime(t.createdAt));
+
+      // ISO/datetime-local formatted strings (YYYY-MM-DDTHH:mm) for datetime-local inputs
+      const formatDateTimeLocal = (dateObjOrStr) => {
+        if (!dateObjOrStr) return '';
+        try {
+          const d = new Date(dateObjOrStr);
+          if (isNaN(d.getTime())) return '';
+          const year = d.getFullYear();
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const hours = String(d.getHours()).padStart(2, '0');
+          const minutes = String(d.getMinutes()).padStart(2, '0');
+          return `${year}-${month}-${day}T${hours}:${minutes}`;
+        } catch (e) {
+          return '';
+        }
+      };
+
+      const startDateTimeLocal = formatDateTimeLocal(t.createdAt || t.startTime || t.startDate);
+      const endDateTimeLocal = formatDateTimeLocal(t.updatedAt || t.endTime || t.endDate) || startDateTimeLocal;
 
       // Format due date in UTC (DD-MM-YYYY) to prevent timezone shifts
       let dueDateText = '';
@@ -111,6 +130,8 @@ export const fetchCompletedTasks = async (userId, dateStr) => {
         endTime,
         startDate: startTime,
         endDate: endTime,
+        startDateTimeLocal,
+        endDateTimeLocal,
         dueDate: formattedDueDate,
         title: `${t.title} [${statusText.toUpperCase()}]`
       };

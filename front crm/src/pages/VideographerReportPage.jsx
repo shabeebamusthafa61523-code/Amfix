@@ -348,9 +348,9 @@ const VideographerReportPage = () => {
           if (completedTasks && completedTasks.length > 0) {
             const mappedTasks = completedTasks.map(t => ({
               taskProjectName: t.title,
-              descriptionDetails: t.description || '',
-              startTime: t.startTime || '',
-              endTime: t.endTime || '',
+              descriptionDetails: t.description || 'Auto-fetched',
+              startTime: t.startTime || t.startDate || t.startDateTimeLocal || '',
+              endTime: t.endTime || t.endDate || t.endDateTimeLocal || '',
               dueDate: t.dueDate || '',
               status: t.status === 'Done' ? 'Done' : 'Pending',
               fileLink: ''
@@ -369,9 +369,9 @@ const VideographerReportPage = () => {
           if (completedTasks && completedTasks.length > 0) {
             const mappedTasks = completedTasks.map(t => ({
               taskProjectName: t.title,
-              descriptionDetails: t.description || '',
-              startTime: t.startTime || '',
-              endTime: t.endTime || '',
+              descriptionDetails: t.description || 'Auto-fetched',
+              startTime: t.startTime || t.startDate || t.startDateTimeLocal || '',
+              endTime: t.endTime || t.endDate || t.endDateTimeLocal || '',
               dueDate: t.dueDate || '',
               status: t.status === 'Done' ? 'Done' : 'Pending',
               fileLink: ''
@@ -1406,7 +1406,7 @@ const VideographerReportPage = () => {
                               updated[index].startTime = e.target.value;
                               setTaskLog(updated);
                             }}
-                            placeholder="9:30 AM"
+                            placeholder="DD-MM-YYYY HH:mm"
                             className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-xs text-center focus:outline-none text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           />
                         </td>
@@ -1419,7 +1419,7 @@ const VideographerReportPage = () => {
                               updated[index].endTime = e.target.value;
                               setTaskLog(updated);
                             }}
-                            placeholder="11:00 AM"
+                            placeholder="DD-MM-YYYY HH:mm"
                             className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-xs text-center focus:outline-none text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           />
                         </td>

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, ChevronRight, Eye, EyeOff, X, Phone, Check, Key, Sun, Moon } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../components/ToastProvider';
+import { useUser } from '../contexts/UserContext';
 import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
@@ -11,6 +12,7 @@ const Login = () => {
   const navigate = useNavigate();
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const { showToast } = useToast();
+  const { setUser } = useUser();
   const [isForgotOpen, setIsForgotOpen] = useState(false);
 
   const handleGoogleSuccess = async (credentialResponse) => {
@@ -32,6 +34,9 @@ const Login = () => {
           localStorage.setItem('user_id', String(result.user.id || result.user._id));
         }
         localStorage.setItem('user', JSON.stringify(result.user));
+        if (typeof setUser === 'function' && result.user) {
+          setUser(result.user);
+        }
         showToast('Google Sign-In successful!', 'success');
 
         setTimeout(() => {
@@ -129,6 +134,9 @@ const Login = () => {
         // 3. Save full user object for profile/other uses
         const userObj = result.user || { id: userId };
         localStorage.setItem('user', JSON.stringify(userObj));
+        if (typeof setUser === 'function' && userObj) {
+          setUser(userObj);
+        }
         showToast('Login successful!', 'success');
 
         // Check if user is MD, HR, or Admin

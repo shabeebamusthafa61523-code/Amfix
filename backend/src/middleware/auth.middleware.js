@@ -30,7 +30,7 @@ export const verifyToken = (req, res, next) => {
     next();
   } catch (error) {
     console.error('JWT Verification Error:', error);
-    return sendError(res, error.message || 'Unauthorized access', 403);
+    return sendError(res, error.message || 'Unauthorized access', 401);
   }
 };
 
@@ -244,7 +244,7 @@ const protectRoute = async (req, res, next) => {
   } catch (error) {
     console.error("JWT ERROR:", error.message);
 
-    return res.status(403).json({
+    return res.status(401).json({
       detail: error.message || "Unauthorized access"
     });
   }

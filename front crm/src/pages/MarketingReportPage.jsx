@@ -1073,8 +1073,8 @@ const MarketingReportPage = () => {
             const mappedTasks = completedTasks.map(t => ({
               task: t.title,
               dueDate: t.dueDate || '',
-              startDate: t.startTime || '',
-              endDate: t.endTime || '',
+              startDate: t.startDate || t.startTime || t.startDateTimeLocal || '',
+              endDate: t.endDate || t.endTime || t.endDateTimeLocal || '',
               detailsNotes: t.description || 'Auto-fetched',
               status: t.status || 'Pending',
               remarks: ''
@@ -1095,8 +1095,8 @@ const MarketingReportPage = () => {
             const mappedTasks = completedTasks.map(t => ({
               task: t.title,
               dueDate: t.dueDate || '',
-              startDate: t.startTime || '',
-              endDate: t.endTime || '',
+              startDate: t.startDate || t.startTime || t.startDateTimeLocal || '',
+              endDate: t.endDate || t.endTime || t.endDateTimeLocal || '',
               detailsNotes: t.description || 'Auto-fetched',
               status: t.status || 'Pending',
               remarks: ''
@@ -1600,7 +1600,7 @@ const MarketingReportPage = () => {
                             value={item.startDate || ''}
                             onChange={(e) => handleTaskChange(idx, 'startDate', e.target.value)}
                             className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="Start date"
+                            placeholder="DD-MM-YYYY HH:mm"
                           />
                         </td>
                         <td className="px-4 py-2">
@@ -1609,7 +1609,7 @@ const MarketingReportPage = () => {
                             value={item.endDate || ''}
                             onChange={(e) => handleTaskChange(idx, 'endDate', e.target.value)}
                             className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="End date"
+                            placeholder="DD-MM-YYYY HH:mm"
                           />
                         </td>
                         <td className="px-4 py-2">

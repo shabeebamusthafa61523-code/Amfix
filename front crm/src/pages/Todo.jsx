@@ -40,6 +40,67 @@ const getTaskImageUrl = (path) => {
   return `${backendHost}/${cleanPath}`;
 };
 
+const formatDateTimeDisplay = (dVal) => {
+  if (!dVal) return '';
+  try {
+    const d = new Date(dVal);
+    if (isNaN(d.getTime())) return dVal;
+    const dateStr = d.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `${dateStr} ${timeStr}`;
+  } catch (e) {
+    return dVal;
+  }
+};
+
+const getDatetimeLocalValue = (dVal) => {
+  if (!dVal) return '';
+  try {
+    const d = new Date(dVal);
+    if (isNaN(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch (e) {
+    return '';
+  }
+};
+
+const getUserDisplayName = (userOrId, usersList = []) => {
+  if (!userOrId) return 'Unassigned';
+  if (typeof userOrId === 'object' && userOrId !== null) {
+    if (userOrId.name) return userOrId.name;
+    if (userOrId.email) return userOrId.email;
+    const idVal = String(userOrId._id || userOrId.id || '').replace(/"/g, '').trim();
+    if (idVal) {
+      const found = usersList.find(u => String(u._id || u.id || '').replace(/"/g, '').trim() === idVal);
+      if (found?.name) return found.name;
+      if (found?.email) return found.email;
+    }
+  }
+  const targetId = String(userOrId).replace(/"/g, '').trim();
+  const found = usersList.find(u => String(u._id || u.id || '').replace(/"/g, '').trim() === targetId);
+  if (found?.name) return found.name;
+  if (found?.email) return found.email;
+  return targetId.length === 24 ? 'Unassigned Staff' : targetId;
+};
+
+const getOwnerDisplayName = (taskObj, usersList = []) => {
+  if (!taskObj) return 'System';
+  const createdBy = taskObj.created_by;
+  if (createdBy && typeof createdBy === 'object' && createdBy.name) {
+    return createdBy.name;
+  }
+  const idVal = String(
+    (createdBy && typeof createdBy === 'object')
+      ? (createdBy._id || createdBy.id)
+      : (createdBy || taskObj?.user_id || '')
+  ).replace(/"/g, '').trim();
+
+  const found = usersList.find(u => String(u._id || u.id || '').replace(/"/g, '').trim() === idVal);
+  if (found?.name) return found.name;
+  return idVal.length === 24 ? 'System Admin' : idVal;
+};
+
 const COLUMN_META = {
   pending: { label: 'Pending', icon: Layout, color: 'bg-[#e26a6a]', glow: 'shadow-[#e26a6a]/20' },
   current: { label: 'Current', icon: Clock, color: 'bg-[#e5a23a]', glow: 'shadow-[#e5a23a]/20' },
@@ -141,16 +202,15 @@ const fetchData = useCallback(async () => {
       : (tData.data || []);
 
     const sortedTasks = [...rawTasks].reverse();
-    const cleanedTasks = sortedTasks.map(task=>({
+    const cleanedTasks = sortedTasks.map(task => ({
       ...task,
-      assigned_to:
-        (task.assigned_to && typeof task.assigned_to === "object")
-          ? (task.assigned_to.id || task.assigned_to._id || "")
-          : (task.assigned_to || "")
+      assigned_to: (task.assigned_to && typeof task.assigned_to === "object" && (task.assigned_to.name || task.assigned_to.email))
+        ? task.assigned_to
+        : (task.assigned_to || "")
     }));
 
     setTasks(cleanedTasks);
-    const fetchedUsers = Array.isArray(uData) ? uData : (uData.data || []);
+    const fetchedUsers = Array.isArray(uData) ? uData : (uData.data?.users || uData.data || uData.users || []);
     setUsers(fetchedUsers);
 
     if (Array.isArray(dData) && dData.length > 0) {
@@ -298,7 +358,7 @@ console.log("HEADERS:", getAuthHeaders());
                               {task.dueDate && (
                                 <div className={`text-[10px] font-bold mb-4 flex items-center gap-1.5 ${isUrgent ? 'text-rose-500' : 'text-slate-500'}`}>
                                   <Clock size={12} />
-                                  <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>
+                                  <span>Due: {formatDateTimeDisplay(task.dueDate)}</span>
                                 </div>
                               )}
 
@@ -309,15 +369,7 @@ console.log("HEADERS:", getAuthHeaders());
                                     <User size={12} />
                                   </div>
                                   <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 tracking-wide truncate max-w-[120px]">
-                                    {
-                                      (task.assigned_to && typeof task.assigned_to === "object")
-                                        ? task.assigned_to?.name
-                                        : users.find(
-                                            u => String(u.id || u._id) === String(task.assigned_to)
-                                          )?.name
-                                          || task.assigned_to
-                                          || "No Agent"
-                                    }
+                                    {getUserDisplayName(task.assigned_to, users)}
                                   </span>
                                 </div>
                                 {task.image && (
@@ -625,8 +677,8 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">Due Date</label>
-              <input type="date" min={new Date().toISOString().split('T')[0]} className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-slate-900 text-sm font-semibold outline-none focus:border-indigo-500/50" value={form.dueDate} onChange={e => setForm({...form, dueDate: e.target.value})} />
+              <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">Due Date & Time</label>
+              <input type="datetime-local" className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-xl text-slate-900 dark:text-slate-100 text-xs font-semibold outline-none focus:border-indigo-500/50" value={form.dueDate} onChange={e => setForm({...form, dueDate: e.target.value})} />
             </div>
           </div>
 
@@ -927,7 +979,8 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
       window.scrollTo({ top: 0, behavior: 'smooth' });
       const rawClient = (task.client && typeof task.client === 'object') ? (task.client._id || task.client.id) : (task.client || task.client_id || '');
       const rawProject = (task.project && typeof task.project === 'object') ? (task.project._id || task.project.id) : (task.project || task.project_id || '');
-      setEditForm({ ...task, status: task.status || "pending", client: rawClient, project: rawProject }); 
+      const rawAssignedTo = (task.assigned_to && typeof task.assigned_to === 'object') ? (task.assigned_to._id || task.assigned_to.id) : (task.assigned_to || '');
+      setEditForm({ ...task, assigned_to: rawAssignedTo, status: task.status || "pending", client: rawClient, project: rawProject }); 
       setIsEditing(false); 
       setNewFile(null);
     } 
@@ -1300,15 +1353,7 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
                     <User size={18} />
                   </div>
                   <span className="text-slate-900 dark:text-slate-100 font-bold tracking-tight uppercase text-sm">
-                    {
-                      (task.assigned_to && typeof task.assigned_to === "object")
-                        ? task.assigned_to?.name
-                        : users?.find(
-                            u => String(u.id || u._id) === String(task.assigned_to)
-                          )?.name
-                          || task.assigned_to
-                          || "No Staff"
-                    }
+                    {getUserDisplayName(task.assigned_to, users)}
                   </span>
                 </div>
               )}
@@ -1331,13 +1376,12 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
               )}
             </div>
             <div>
-              <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.3em] block mb-2">Due Date</span>
+              <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.3em] block mb-2">Due Date & Time</span>
               {isEditing ? (
                 <input 
-                  type="date"
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-gray-500 dark:text-gray-400 text-[11px] font-bold outline-none"
-                  value={editForm.dueDate ? new Date(editForm.dueDate).toISOString().split('T')[0] : ''}
+                  type="datetime-local"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-slate-900 dark:text-slate-100 text-[11px] font-bold outline-none"
+                  value={getDatetimeLocalValue(editForm.dueDate)}
                   onChange={e => setEditForm({...editForm, dueDate: e.target.value})} 
                 />
               ) : (
@@ -1346,7 +1390,7 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
                     <Clock size={18} />
                   </div>
                   <span className="text-slate-900 dark:text-slate-100 font-bold tracking-tight uppercase text-sm">
-                    {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No Due Date'}
+                    {task.dueDate ? formatDateTimeDisplay(task.dueDate) : 'No Due Date & Time'}
                   </span>
                 </div>
               )}
@@ -1393,16 +1437,9 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
                 </button>
               </>
             ) : (
-              <div className="w-full py-6 bg-slate-50 dark:bg-slate-950/20 rounded-3xl border border-slate-205 dark:border-slate-800 flex flex-col items-center justify-center gap-2 text-slate-500 dark:text-slate-400 italic font-medium">
-                <span className="text-[11px] uppercase tracking-widest font-black">Authorized Creator Access Only</span>
-                <span className="text-[8px] opacity-40 uppercase">Visitor: {currentUserId?.slice(0, 8)}... |Owner: {
-                  (
-                    task?.user_id ||
-                    task?.created_by?._id ||
-                    task?.created_by?.id ||
-                    task?.created_by
-                  )?.toString().slice(0,8)
-                }...</span>
+              <div className="w-full py-3 bg-slate-50 dark:bg-slate-950/20 rounded-2xl border border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 text-slate-500 dark:text-slate-400">
+                <span className="text-[10px] uppercase tracking-widest font-black">Creator</span>
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{getOwnerDisplayName(task, users)}</span>
               </div>
             )}
           </div>

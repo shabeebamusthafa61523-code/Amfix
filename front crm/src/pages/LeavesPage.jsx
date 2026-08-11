@@ -30,9 +30,10 @@ const rawApiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api')
 const API_BASE = rawApiBase.endsWith('/v1') ? rawApiBase : `${rawApiBase}/v1`;
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  const rawToken = localStorage.getItem('token');
+  const cleanToken = rawToken ? rawToken.replace(/"/g, '').trim() : '';
   return {
-    'Authorization': `Bearer ${token}`,
+    'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`,
     'Content-Type': 'application/json'
   };
 };
