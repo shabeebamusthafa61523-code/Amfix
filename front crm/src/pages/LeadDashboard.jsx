@@ -52,29 +52,8 @@ const LeadDashboard = () => {
   }, []);
 
   const hasAccess = useMemo(() => {
-    if (!user) return false;
-    const roleId = String(user.role_id || user.roleId || user.role || '').toLowerCase().trim();
-    if (['1', '2', '3', 'hr', 'admin'].includes(roleId)) return true;
-    let deptId = '';
-    if (user.departmentId) {
-      deptId = typeof user.departmentId === 'object' && user.departmentId._id
-        ? String(user.departmentId._id).trim()
-        : String(user.departmentId).trim();
-    }
-    let desigId = '';
-    if (user.designationId) {
-      desigId = typeof user.designationId === 'object' && user.designationId._id
-        ? String(user.designationId._id).trim()
-        : String(user.designationId).trim();
-    } else if (user.designation_id) {
-      desigId = String(user.designation_id).trim();
-    }
-
-    const allowedDepts = ['6a26a7d72a56a1f9c49da8a3', '6a211b6621f80bb8da167efb', '6a27f394558c220a47fff02e', '6a2f91472df21dc234018cab'];
-    const allowedDesigs = ['6a27939af292348deb7d0495'];
-
-    return allowedDepts.includes(deptId) || allowedDesigs.includes(desigId);
-  }, [user]);
+    return true;
+  }, []);
 
   const getAuthHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');

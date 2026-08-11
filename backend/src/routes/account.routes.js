@@ -8,9 +8,13 @@ import {
   createExpense,
   updateExpense,
   deleteExpense,
+  approveOrRejectExpense,
   getSalaryPayments,
   createSalaryPayment,
+  updateSalaryPayment,
   deleteSalaryPayment,
+  approveOrRejectSalaryPayment,
+  approveAllSalaryPayments,
   getCashBook,
   getDailyReport,
   getMonthlyReport,
@@ -34,12 +38,16 @@ router.delete('/categories/:id', deleteCategory);
 // ── Expenses Routes ──
 router.get('/expenses', getExpenses);
 router.post('/expenses', upload.single('attachment'), createExpense);
+router.put('/expenses/:id/action', approveOrRejectExpense);
 router.put('/expenses/:id', upload.single('attachment'), updateExpense);
 router.delete('/expenses/:id', deleteExpense);
 
 // ── Salary Payments Routes ──
 router.get('/salary-payments', getSalaryPayments);
 router.post('/salary-payments', createSalaryPayment);
+router.put('/salary-payments/approve-all', approveAllSalaryPayments);
+router.put('/salary-payments/:id/action', approveOrRejectSalaryPayment);
+router.put('/salary-payments/:id', updateSalaryPayment);
 router.delete('/salary-payments/:id', deleteSalaryPayment);
 
 // ── Cash Book Routes ──

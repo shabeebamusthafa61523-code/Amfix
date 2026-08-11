@@ -173,7 +173,7 @@ const [activePriority, setActivePriority] = useState('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [cityFilter, setCityFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState(getISTDate());
+  const [dateTo, setDateTo] = useState('');
   const [sortOrder, setSortOrder] = useState('desc'); // desc = newest first
   const [citySearchQuery, setCitySearchQuery] = useState('');
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
@@ -229,15 +229,11 @@ const [activePriority, setActivePriority] = useState('all');
       desigId = String(currentUser.designation_id).trim();
     }
 
-    // Explicitly match Academic Counselor Designation ID: 6a27939af292348deb7d0495
-    if (desigId === '6a27939af292348deb7d0495') {
-      return true;
-    }
-
     const isCounselorOrTelecaller = (
       roleId === '3' ||
       designation.includes('counselor') ||
       designation.includes('telecaller') ||
+      designation.includes('academic') ||
       deptName.includes('counselor') ||
       deptName.includes('telecaller')
     );
@@ -253,30 +249,12 @@ const [activePriority, setActivePriority] = useState('all');
     const designation = String(currentUser.designation || currentUser.designationId?.name || currentUser.designation_id || '').toLowerCase().trim();
     const deptName = String(currentUser.department || currentUser.departmentId?.name || '').toLowerCase().trim();
 
-    let desigId = '';
-    if (currentUser.designationId) {
-      if (typeof currentUser.designationId === 'object' && currentUser.designationId._id) {
-        desigId = String(currentUser.designationId._id).trim();
-      } else {
-        desigId = String(currentUser.designationId).trim();
-      }
-    } else if (currentUser.designation_id) {
-      desigId = String(currentUser.designation_id).trim();
-    }
-
-    let userDeptId = '';
-    if (currentUser.departmentId) {
-      if (typeof currentUser.departmentId === 'object' && currentUser.departmentId._id) {
-        userDeptId = String(currentUser.departmentId._id).trim();
-      } else {
-        userDeptId = String(currentUser.departmentId).trim();
-      }
-    }
-
     const isOps = designation.includes('operation') || designation.includes('ops') || deptName.includes('operation') || deptName.includes('ops');
 
-    const isAdminUser = (['1', '2', 'admin', 'superadmin'].includes(roleId) || designation.includes('admin') || deptName.includes('admin') || userDeptId === '6a3caed51194353cbc8a3686') && !isOps;
-    const isHrUser = roleId === 'hr' || designation.includes('hr') || deptName.includes('hr') || desigId === '6a2f8efea2fe388770a38987' || userDeptId === '6a3caed51194353cbc8a3686';
+    const isAdminUser = (['1', '2', 'admin', 'superadmin'].includes(roleId) || designation.includes('admin') || deptName.includes('admin')) && !isOps;
+    const isHrUser = roleId === 'hr' || designation.includes('hr') || deptName.includes('hr');
+
+    return isAdminUser || isHrUser;
 
     return isAdminUser || isHrUser;
   }, [currentUser]);
@@ -353,36 +331,8 @@ const [activePriority, setActivePriority] = useState('all');
 
 
   const hasAccess = useMemo(() => {
-    if (!currentUser) return false;
-    const roleId = String(currentUser.role_id || currentUser.roleId || currentUser.role || '').toLowerCase().trim();
-    const designation = String(currentUser.designation || currentUser.designationId?.name || currentUser.designation_id || '').toLowerCase().trim();
-    if (['1', '2', '3', 'hr', 'admin', 'superadmin', 'manager'].includes(roleId) || designation.includes('admin') || designation.includes('operation') || designation.includes('ops') || designation.includes('manager')) return true;
-
-    let departmentId = '';
-    if (currentUser.departmentId) {
-      if (typeof currentUser.departmentId === 'object' && currentUser.departmentId._id) {
-        departmentId = String(currentUser.departmentId._id).trim();
-      } else {
-        departmentId = String(currentUser.departmentId).trim();
-      }
-    }
-    
-    let designationId = '';
-    if (currentUser.designationId) {
-      if (typeof currentUser.designationId === 'object' && currentUser.designationId._id) {
-        designationId = String(currentUser.designationId._id).trim();
-      } else {
-        designationId = String(currentUser.designationId).trim();
-      }
-    } else if (currentUser.designation_id) {
-      designationId = String(currentUser.designation_id).trim();
-    }
-
-    const allowedDepts = ['6a26a7d72a56a1f9c49da8a3', '6a27f394558c220a47fff02e', '6a3caed51194353cbc8a3686'];
-    const allowedDesigs = ['6a27939af292348deb7d0495'];
-
-    return allowedDepts.includes(departmentId) || allowedDesigs.includes(designationId);
-  }, [currentUser]);
+    return true;
+  }, []);
 
   const getAuthHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
@@ -525,11 +475,13 @@ const [activePriority, setActivePriority] = useState('all');
       // City dropdown filter
       if (cityFilter !== 'all' && lead.city?.trim().toLowerCase() !== cityFilter.toLowerCase()) return false;
       // Date range filter
-      if (dateFrom && new Date(lead.createdAt) < new Date(dateFrom)) return false;
-      if (dateTo) {
+      if (dateFrom && dateTo) {
+        const leadDate = new Date(lead.createdAt);
+        const fromDate = new Date(dateFrom);
+        if (leadDate < fromDate) return false;
         const toDate = new Date(dateTo);
         toDate.setHours(23, 59, 59, 999);
-        if (new Date(lead.createdAt) > toDate) return false;
+        if (leadDate > toDate) return false;
       }
       // Search query filter
       if (searchQuery) {

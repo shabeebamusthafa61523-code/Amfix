@@ -24,12 +24,14 @@ import clientRoutes from './client.routes.js';
 import projectRoutes from './project.routes.js';
 import mdDashboardRoutes from './mdDashboard.routes.js';
 import accountRoutes from './account.routes.js';
+import leaveRoutes from './leave.routes.js';
 
 const router = Router();
 
 // Mount all available route packages
 router.use('/auth', authRoutes);
 router.use('/accounts', accountRoutes);
+router.use('/leaves', leaveRoutes);
 router.use('/users', userRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/attendance', attendanceRoutes);

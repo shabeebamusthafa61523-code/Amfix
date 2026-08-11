@@ -6,22 +6,28 @@ import {
   CheckSquare, Square, RefreshCw, User as UserIcon, Mail, Phone, Briefcase, Folder
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
+import { useUser } from '../contexts/UserContext';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
 const ALL_SIDEBAR_ITEMS = [
-  { label: 'Dashboard', path: '/dashboard', category: 'General', desc: 'Main CRM overview & key metrics' },
+  { label: 'Approvals', path: '/approvals', category: 'Management', desc: 'MD Executive approvals for leaves & salary payments' },
+  { label: 'Dashboard', path: '/dashboard', category: 'Dashboards', desc: 'Main CRM overview & key metrics' },
+  { label: 'Admin Dashboard', path: '/dashboard', category: 'Dashboards', desc: 'Admin panel with full CRM overview & controls' },
+  { label: 'MD Dashboard', path: '/md-dashboard', category: 'Dashboards', desc: 'Managing Director executive overview & analytics' },
   { label: 'Clients', path: '/clients', category: 'Management', desc: 'Client directory & profiles' },
   { label: 'Projects', path: '/projects', category: 'Management', desc: 'Project tracking & progress' },
   { label: 'Client Leads', path: '/client-leads', category: 'Leads', desc: 'Client lead pipeline' },
   { label: 'Telecaller Leads', path: '/leads-telecaller', category: 'Leads', desc: 'Telecaller leads & assignments' },
+  { label: 'Lead Counselor', path: '/lead-counselor', category: 'Leads', desc: 'Academic counselor lead management' },
+  { label: 'Leads Directory', path: '/leads', category: 'Leads', desc: 'Full leads directory & pipeline' },
   { label: 'Users', path: '/users', category: 'Management', desc: 'Employee & user account management' },
-  { label: 'Sidebar Permissions', path: '/users', category: 'Management', desc: 'Configure sidebar page access & Super Admin permissions' },
   { label: 'Departments', path: '/departments', category: 'Management', desc: 'Department hierarchy & managers' },
   { label: 'Task Assign', path: '/todo', category: 'Operations', desc: 'Task assignment & attachment view' },
   { label: 'KPI Analytics', path: '/performance-dashboard', category: 'Analytics', desc: 'Quantitative KPI score & performance' },
   { label: 'AI Reports', path: '/ai-report', category: 'Analytics', desc: 'Automated AI reports & summary' },
   { label: 'Attendance', path: '/attendance', category: 'HR', desc: 'Daily attendance clock-in/out' },
+  { label: 'Leave Requests', path: '/leaves', category: 'HR', desc: 'Leave request application & joint approvals' },
   { label: 'Student Attendance', path: '/student-attendance', category: 'HR', desc: 'Student batch attendance logs' },
   { label: 'Employee Reports', path: '/employee-reports', category: 'Reports', desc: 'Employee activity & performance logs' },
   { label: 'Daily Report', path: '/basic-report', category: 'Reports', desc: 'Common daily shift activity & report view' },
@@ -29,9 +35,13 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'HR Dashboard', path: '/hr-dashboard', category: 'Dashboards', desc: 'HR overview dashboard' },
   { label: 'Lead Dashboard', path: '/lead-dashboard', category: 'Dashboards', desc: 'Lead generation metrics' },
   { label: 'Marketing Dashboard', path: '/marketing-dashboard', category: 'Dashboards', desc: 'Marketing campaigns & leads' },
+  { label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Dashboards', desc: 'Academic counselor dashboard' },
   { label: 'Dev Dashboard', path: '/developer-dashboard', category: 'Dashboards', desc: 'Developer tasks & status' },
   { label: 'GD Dashboard', path: '/graphic-designer-dashboard', category: 'Dashboards', desc: 'Graphic design task dashboard' },
   { label: 'Video Dashboard', path: '/videographer-dashboard', category: 'Dashboards', desc: 'Videography project dashboard' },
+  { label: 'Accounts', path: '/accounts', category: 'Finance', desc: 'Expense management, salary & cash book' },
+  { label: 'Payslips', path: '/payslips', category: 'Finance', desc: 'Employee payslip generation & disbursal records' },
+  { label: 'Personal Payslip', path: '/my-payslip', category: 'Finance', desc: 'Personal salary slip portal for individual employees' },
   { label: 'Developer Report', path: '/developer-report', category: 'Reports', desc: 'Developer daily shift reports' },
   { label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports', desc: 'Graphic design shift reports' },
   { label: 'Videographer Report', path: '/videographer-report', category: 'Reports', desc: 'Videography shift reports' },
@@ -48,6 +58,7 @@ const UserPermissionsPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { refetchUser } = useUser() || {};
 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -93,7 +104,7 @@ const UserPermissionsPage = () => {
         const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
         const designation = String(userObj.designation || '').toLowerCase().trim();
         const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-        const isHr = role === 'hr' || designation.includes('hr') || designationId === '6a2f8efea2fe388770a38987';
+        const isHr = role === 'hr' || designation.includes('hr');
         if (isHr) {
           showToast("HR users cannot edit permissions.", "error");
           navigate('/users', { replace: true });
@@ -145,6 +156,8 @@ const UserPermissionsPage = () => {
       const data = await res.json();
       if (res.ok && data.success) {
         showToast("Sidebar permissions updated successfully!", "success");
+
+        if (refetchUser) refetchUser();
 
         // If updating currently logged in user, refresh localStorage and dispatch storage event
         const currentUser = JSON.parse(localStorage.getItem('user') || '{}');

@@ -1255,7 +1255,7 @@ const DeveloperReportPage = () => {
       </button>
 
       {/* RIGHT PANEL: Main Report Form */}
-      <div className="flex-1 w-full bg-white/70 dark:bg-slate-900/70 border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md rounded-3xl p-6 lg:p-8 shadow-sm">
+      <div className="flex-1 min-w-0 w-full bg-white/70 dark:bg-slate-900/70 border border-slate-200/50 dark:border-slate-800/50 backdrop-blur-md rounded-3xl p-6 lg:p-8 shadow-sm">
         
         {loading ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
@@ -1440,42 +1440,40 @@ const DeveloperReportPage = () => {
                   <Plus size={14} />
                   Add Activity
                 </button>
-              </div>
-
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+              </div>              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
-                      <th className="px-4 py-3">Due Date</th>
-                      <th className="px-4 py-3">Start Date</th>
-                      <th className="px-4 py-3">End Date</th>
-                      <th className="px-4 py-3 w-40">Status</th>
-                      <th className="px-4 py-3">Remarks</th>
-                      <th className="px-4 py-3 w-12 text-center">Action</th>
+                    <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                      <th className="px-4 py-3.5 w-[35%]">Activity / Task</th>
+                      <th className="px-3 py-3.5 w-[12%]">Due Date</th>
+                      <th className="px-3 py-3.5 w-[12%]">Start Date</th>
+                      <th className="px-3 py-3.5 w-[12%]">End Date</th>
+                      <th className="px-3 py-3.5 w-[12%] text-center">Status</th>
+                      <th className="px-4 py-3.5 w-[12%]">Remarks</th>
+                      <th className="px-2 py-3.5 w-[5%] text-center">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {dailyTaskSummary.map((row, i) => (
-                      <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/10">
-                        <td className="px-4 py-2.5 relative group">
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="text"
-                              value={row.activity}
+                      <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                        <td className="px-4 py-3 relative group">
+                          <div className="flex items-start gap-1.5">
+                            <textarea
+                              rows={2}
+                              value={row.activity || ''}
                               onChange={(e) => {
                                 const newArr = [...dailyTaskSummary];
                                 newArr[i].activity = e.target.value;
                                 setDailyTaskSummary(newArr);
                               }}
-                              className="w-full bg-transparent border-none focus:outline-none focus:ring-0 focus:border-none p-0 text-sm"
+                              className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                               placeholder="Enter activity name"
                             />
                             {row.activity && (
                               <button
                                 type="button"
                                 onClick={() => setSelectedActivityText(row.activity)}
-                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 mt-1"
                                 title="View full text"
                               >
                                 <Maximize2 size={13} />
@@ -1483,7 +1481,7 @@ const DeveloperReportPage = () => {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-3 vertical-top">
                           <input
                             type="date"
                             value={row.dueDate || ''}
@@ -1492,10 +1490,10 @@ const DeveloperReportPage = () => {
                               newArr[i].dueDate = e.target.value;
                               setDailyTaskSummary(newArr);
                             }}
-                            className="bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
+                            className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-300 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           />
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-3 vertical-top">
                           <input
                             type="date"
                             value={row.startDate || ''}
@@ -1504,10 +1502,10 @@ const DeveloperReportPage = () => {
                               newArr[i].startDate = e.target.value;
                               setDailyTaskSummary(newArr);
                             }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
+                            className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-300 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           />
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-3 vertical-top">
                           <input
                             type="date"
                             value={row.endDate || ''}
@@ -1516,10 +1514,10 @@ const DeveloperReportPage = () => {
                               newArr[i].endDate = e.target.value;
                               setDailyTaskSummary(newArr);
                             }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
+                            className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-300 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           />
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-3 text-center vertical-top">
                           <select
                             value={row.status}
                             onChange={(e) => {
@@ -1527,7 +1525,7 @@ const DeveloperReportPage = () => {
                               newArr[i].status = e.target.value;
                               setDailyTaskSummary(newArr);
                             }}
-                            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none"
+                            className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-700 dark:text-slate-200"
                           >
                             <option value="Done">Done</option>
                             <option value="In Progress">In Progress</option>
@@ -1535,24 +1533,24 @@ const DeveloperReportPage = () => {
                             <option value="NA">NA</option>
                           </select>
                         </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.remarks}
+                        <td className="px-4 py-3 vertical-top">
+                          <textarea
+                            rows={2}
+                            value={row.remarks || ''}
                             onChange={(e) => {
                               const newArr = [...dailyTaskSummary];
                               newArr[i].remarks = e.target.value;
                               setDailyTaskSummary(newArr);
                             }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                             placeholder="Add remarks"
                           />
                         </td>
-                        <td className="px-4 py-2.5 text-center">
+                        <td className="px-2 py-3 text-center vertical-top">
                           <button
                             type="button"
                             onClick={() => removeSummaryRow(i)}
-                            className="text-rose-500 hover:text-rose-600 transition-colors"
+                            className="text-rose-500 hover:text-rose-600 transition-colors p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
                           >
                             <Trash2 size={15} />
                           </button>
@@ -1584,85 +1582,86 @@ const DeveloperReportPage = () => {
               <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3 w-48">Project</th>
-                      <th className="px-4 py-3 w-[35%] min-w-[280px]">Development Activity</th>
-                      <th className="px-4 py-3 w-40">Status</th>
-                      <th className="px-4 py-3 w-48">Remark</th>
-                      <th className="px-4 py-3 w-12 text-center">Action</th>
+                    <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                      <th className="px-4 py-3.5 w-[20%]">Project</th>
+                      <th className="px-4 py-3.5 w-[40%]">Development Activity</th>
+                      <th className="px-3 py-3.5 w-[15%] text-center">Status</th>
+                      <th className="px-4 py-3.5 w-[20%]">Remark</th>
+                      <th className="px-2 py-3.5 w-[5%] text-center">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {developmentTaskReport.map((row, i) => (
-                      <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/10">
-                        <td className="px-4 py-2.5">
+                      <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                        <td className="px-4 py-3 vertical-top">
                           <input
                             type="text"
-                            value={row.project}
+                            value={row.project || ''}
                             onChange={(e) => {
                               const newArr = [...developmentTaskReport];
                               newArr[i].project = e.target.value;
                               setDevelopmentTaskReport(newArr);
                             }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold"
+                            className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                             placeholder="e.g. CRM"
                           />
                         </td>
-                        <td className="px-4 py-2.5">
-                          <textarea
-                            value={row.activity}
-                            onChange={(e) => {
-                              const newArr = [...developmentTaskReport];
-                              newArr[i].activity = e.target.value;
-                              setDevelopmentTaskReport(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm resize-y min-h-[36px]"
-                            placeholder="-Description of work done"
-                          />
+                        <td className="px-4 py-3 vertical-top relative group">
+                          <div className="flex items-start gap-1.5">
+                            <textarea
+                              rows={2}
+                              value={row.activity || ''}
+                              onChange={(e) => {
+                                const newArr = [...developmentTaskReport];
+                                newArr[i].activity = e.target.value;
+                                setDevelopmentTaskReport(newArr);
+                              }}
+                              className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
+                              placeholder="- Description of work done"
+                            />
+                            {row.activity && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(row.activity)}
+                                className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 mt-1"
+                                title="View full text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="date"
-                            value={row.dueDate || ''}
-                            onChange={(e) => {
-                              const newArr = [...dailyTaskSummary];
-                              newArr[i].dueDate = e.target.value;
-                              setDailyTaskSummary(newArr);
-                            }}
-                            className="bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-3 text-center vertical-top">
                           <input
                             type="text"
-                            value={row.status}
+                            value={row.status || ''}
                             onChange={(e) => {
                               const newArr = [...developmentTaskReport];
                               newArr[i].status = e.target.value;
                               setDevelopmentTaskReport(newArr);
                             }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-center"
                             placeholder="e.g. ongoing / done"
                           />
                         </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.remark}
+                        <td className="px-4 py-3 vertical-top">
+                          <textarea
+                            rows={2}
+                            value={row.remark || ''}
                             onChange={(e) => {
                               const newArr = [...developmentTaskReport];
                               newArr[i].remark = e.target.value;
                               setDevelopmentTaskReport(newArr);
                             }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                             placeholder="Add remark"
                           />
                         </td>
-                        <td className="px-4 py-2.5 text-center">
+                        <td className="px-2 py-3 text-center vertical-top">
                           <button
                             type="button"
                             onClick={() => removeDevRow(i)}
-                            className="text-rose-500 hover:text-rose-600 transition-colors"
+                            className="text-rose-500 hover:text-rose-600 transition-colors p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
                           >
                             <Trash2 size={15} />
                           </button>
@@ -1694,34 +1693,34 @@ const DeveloperReportPage = () => {
               <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3 w-72">Activity</th>
-                      <th className="px-4 py-3 w-72">Due Date</th>
-                      <th className="px-4 py-3">Details</th>
-                      <th className="px-4 py-3 w-12 text-center">Action</th>
+                    <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                      <th className="px-4 py-3.5 w-[30%]">Activity</th>
+                      <th className="px-3 py-3.5 w-[15%]">Due Date</th>
+                      <th className="px-4 py-3.5 w-[50%]">Details</th>
+                      <th className="px-2 py-3.5 w-[5%] text-center">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {researchLearning.map((row, i) => (
-                      <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/10">
-                        <td className="px-4 py-2.5 relative group">
-                          <div className="flex items-center gap-1.5">
+                      <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                        <td className="px-4 py-3 vertical-top relative group">
+                          <div className="flex items-start gap-1.5">
                             <input
                               type="text"
-                              value={row.activity}
+                              value={row.activity || ''}
                               onChange={(e) => {
                                 const newArr = [...researchLearning];
                                 newArr[i].activity = e.target.value;
                                 setResearchLearning(newArr);
                               }}
-                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold"
+                              className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                               placeholder="Activity name"
                             />
                             {row.activity && (
                               <button
                                 type="button"
                                 onClick={() => setSelectedActivityText(row.activity)}
-                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 mt-1"
                                 title="View full text"
                               >
                                 <Maximize2 size={13} />
@@ -1729,36 +1728,36 @@ const DeveloperReportPage = () => {
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-2.5">
+                        <td className="px-3 py-3 vertical-top">
                           <input
                             type="date"
                             value={row.dueDate || ''}
                             onChange={(e) => {
-                              const newArr = [...dailyTaskSummary];
+                              const newArr = [...researchLearning];
                               newArr[i].dueDate = e.target.value;
-                              setDailyTaskSummary(newArr);
+                              setResearchLearning(newArr);
                             }}
-                            className="bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
+                            className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-300 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                           />
                         </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.details}
+                        <td className="px-4 py-3 vertical-top">
+                          <textarea
+                            rows={2}
+                            value={row.details || ''}
                             onChange={(e) => {
                               const newArr = [...researchLearning];
                               newArr[i].details = e.target.value;
                               setResearchLearning(newArr);
                             }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                             placeholder="Enter details"
                           />
                         </td>
-                        <td className="px-4 py-2.5 text-center">
+                        <td className="px-2 py-3 text-center vertical-top">
                           <button
                             type="button"
                             onClick={() => removeResearchRow(i)}
-                            className="text-rose-500 hover:text-rose-600 transition-colors"
+                            className="text-rose-500 hover:text-rose-600 transition-colors p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
                           >
                             <Trash2 size={15} />
                           </button>
@@ -2328,85 +2327,86 @@ const DeveloperReportPage = () => {
                           <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
                             <table className="w-full text-left border-collapse text-sm">
                               <thead>
-                                <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                                  <th className="px-4 py-3 w-48">Project</th>
-                                  <th className="px-4 py-3 w-[35%] min-w-[280px]">Development Activity</th>
-                                  <th className="px-4 py-3 w-40">Status</th>
-                                  <th className="px-4 py-3 w-48">Remark</th>
-                                  <th className="px-4 py-3 w-12 text-center">Action</th>
+                                <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                                  <th className="px-4 py-3.5 w-[20%]">Project</th>
+                                  <th className="px-4 py-3.5 w-[40%]">Development Activity</th>
+                                  <th className="px-3 py-3.5 w-[15%] text-center">Status</th>
+                                  <th className="px-4 py-3.5 w-[20%]">Remark</th>
+                                  <th className="px-2 py-3.5 w-[5%] text-center">Action</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {monthlyDevelopmentTaskReport.map((row, i) => (
-                                  <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/10">
-                                    <td className="px-4 py-2.5">
+                                  <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                                    <td className="px-4 py-3 vertical-top">
                                       <input
                                         type="text"
-                                        value={row.project}
+                                        value={row.project || ''}
                                         onChange={(e) => {
                                           const newArr = [...monthlyDevelopmentTaskReport];
                                           newArr[i].project = e.target.value;
                                           setMonthlyDevelopmentTaskReport(newArr);
                                         }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold"
+                                        className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                         placeholder="Project"
                                       />
                                     </td>
-                                    <td className="px-4 py-2.5">
-                                      <textarea
-                                        value={row.activity}
-                                        onChange={(e) => {
-                                          const newArr = [...monthlyDevelopmentTaskReport];
-                                          newArr[i].activity = e.target.value;
-                                          setMonthlyDevelopmentTaskReport(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm resize-y min-h-[36px]"
-                                        placeholder="Activity details"
-                                      />
+                                    <td className="px-4 py-3 vertical-top relative group">
+                                      <div className="flex items-start gap-1.5">
+                                        <textarea
+                                          rows={2}
+                                          value={row.activity || ''}
+                                          onChange={(e) => {
+                                            const newArr = [...monthlyDevelopmentTaskReport];
+                                            newArr[i].activity = e.target.value;
+                                            setMonthlyDevelopmentTaskReport(newArr);
+                                          }}
+                                          className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
+                                          placeholder="Activity details"
+                                        />
+                                        {row.activity && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedActivityText(row.activity)}
+                                            className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 mt-1"
+                                            title="View full text"
+                                          >
+                                            <Maximize2 size={13} />
+                                          </button>
+                                        )}
+                                      </div>
                                     </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="date"
-                            value={row.dueDate || ''}
-                            onChange={(e) => {
-                              const newArr = [...dailyTaskSummary];
-                              newArr[i].dueDate = e.target.value;
-                              setDailyTaskSummary(newArr);
-                            }}
-                            className="bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
-                          />
-                        </td>
-                                    <td className="px-4 py-2.5">
+                                    <td className="px-3 py-3 text-center vertical-top">
                                       <input
                                         type="text"
-                                        value={row.status}
+                                        value={row.status || ''}
                                         onChange={(e) => {
                                           const newArr = [...monthlyDevelopmentTaskReport];
                                           newArr[i].status = e.target.value;
                                           setMonthlyDevelopmentTaskReport(newArr);
                                         }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                                        className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-center"
                                         placeholder="Status"
                                       />
                                     </td>
-                                    <td className="px-4 py-2.5">
-                                      <input
-                                        type="text"
-                                        value={row.remark}
+                                    <td className="px-4 py-3 vertical-top">
+                                      <textarea
+                                        rows={2}
+                                        value={row.remark || ''}
                                         onChange={(e) => {
                                           const newArr = [...monthlyDevelopmentTaskReport];
                                           newArr[i].remark = e.target.value;
                                           setMonthlyDevelopmentTaskReport(newArr);
                                         }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                                        className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                                         placeholder="Remark"
                                       />
                                     </td>
-                                    <td className="px-4 py-2.5 text-center">
+                                    <td className="px-2 py-3 text-center vertical-top">
                                       <button
                                         type="button"
                                         onClick={() => setMonthlyDevelopmentTaskReport(monthlyDevelopmentTaskReport.filter((_, idx) => idx !== i))}
-                                        className="text-rose-500 hover:text-rose-600"
+                                        className="text-rose-500 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
                                       >
                                         <Trash2 size={15} />
                                       </button>
@@ -2427,7 +2427,7 @@ const DeveloperReportPage = () => {
                             <button
                               type="button"
                               onClick={() => setMonthlyResearchLearning([...monthlyResearchLearning, { activity: '', details: '' }])}
-                              className="flex items-center gap-1 text-[11px] font-bold text-indigo-650 dark:text-lime-400 hover:opacity-80"
+                              className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 dark:text-lime-400 hover:opacity-80"
                             >
                               <Plus size={14} /> Add Row
                             </button>
@@ -2435,34 +2435,34 @@ const DeveloperReportPage = () => {
                           <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
                             <table className="w-full text-left border-collapse text-sm">
                               <thead>
-                                <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                                  <th className="px-4 py-3 w-72">Activity</th>
-                      <th className="px-4 py-3 w-72">Due Date</th>
-                                  <th className="px-4 py-3">Details</th>
-                                  <th className="px-4 py-3 w-12 text-center">Action</th>
+                                <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                                  <th className="px-4 py-3.5 w-[30%]">Activity</th>
+                                  <th className="px-3 py-3.5 w-[15%]">Due Date</th>
+                                  <th className="px-4 py-3.5 w-[50%]">Details</th>
+                                  <th className="px-2 py-3.5 w-[5%] text-center">Action</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {monthlyResearchLearning.map((row, i) => (
-                                  <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/10">
-                                    <td className="px-4 py-2.5 relative group">
-                                      <div className="flex items-center gap-1.5">
+                                  <tr key={i} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                                    <td className="px-4 py-3 vertical-top relative group">
+                                      <div className="flex items-start gap-1.5">
                                         <input
                                           type="text"
-                                          value={row.activity}
+                                          value={row.activity || ''}
                                           onChange={(e) => {
                                             const newArr = [...monthlyResearchLearning];
                                             newArr[i].activity = e.target.value;
                                             setMonthlyResearchLearning(newArr);
                                           }}
-                                          className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold"
+                                          className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                                           placeholder="Activity"
                                         />
                                         {row.activity && (
                                           <button
                                             type="button"
                                             onClick={() => setSelectedActivityText(row.activity)}
-                                            className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                            className="text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 mt-1"
                                             title="View full text"
                                           >
                                             <Maximize2 size={13} />
@@ -2470,36 +2470,36 @@ const DeveloperReportPage = () => {
                                         )}
                                       </div>
                                     </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="date"
-                            value={row.dueDate || ''}
-                            onChange={(e) => {
-                              const newArr = [...dailyTaskSummary];
-                              newArr[i].dueDate = e.target.value;
-                              setDailyTaskSummary(newArr);
-                            }}
-                            className="bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-300 w-full"
-                          />
-                        </td>
-                                    <td className="px-4 py-2.5">
+                                    <td className="px-3 py-3 vertical-top">
                                       <input
-                                        type="text"
-                                        value={row.details}
+                                        type="date"
+                                        value={row.dueDate || ''}
+                                        onChange={(e) => {
+                                          const newArr = [...monthlyResearchLearning];
+                                          newArr[i].dueDate = e.target.value;
+                                          setMonthlyResearchLearning(newArr);
+                                        }}
+                                        className="bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs text-slate-700 dark:text-slate-300 w-full focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                                      />
+                                    </td>
+                                    <td className="px-4 py-3 vertical-top">
+                                      <textarea
+                                        rows={2}
+                                        value={row.details || ''}
                                         onChange={(e) => {
                                           const newArr = [...monthlyResearchLearning];
                                           newArr[i].details = e.target.value;
                                           setMonthlyResearchLearning(newArr);
                                         }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                                        className="w-full bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all resize-y min-h-[44px]"
                                         placeholder="Details"
                                       />
                                     </td>
-                                    <td className="px-4 py-2.5 text-center">
+                                    <td className="px-2 py-3 text-center vertical-top">
                                       <button
                                         type="button"
                                         onClick={() => setMonthlyResearchLearning(monthlyResearchLearning.filter((_, idx) => idx !== i))}
-                                        className="text-rose-500 hover:text-rose-600"
+                                        className="text-rose-500 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
                                       >
                                         <Trash2 size={15} />
                                       </button>

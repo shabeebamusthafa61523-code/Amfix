@@ -133,6 +133,11 @@ export const deleteExpense = async (id) => {
   return response.data;
 };
 
+export const approveOrRejectExpense = async (id, data) => {
+  const response = await safePut(`/expenses/${id}/action`, data);
+  return response.data;
+};
+
 // ── Salary Payments Service ──
 export const getSalaryPayments = async (params = {}) => {
   const response = await safeGet('/salary-payments', params);
@@ -141,6 +146,21 @@ export const getSalaryPayments = async (params = {}) => {
 
 export const createSalaryPayment = async (data) => {
   const response = await safePost('/salary-payments', data);
+  return response.data;
+};
+
+export const updateSalaryPayment = async (id, data) => {
+  const response = await safePut(`/salary-payments/${id}`, data);
+  return response.data;
+};
+
+export const approveOrRejectSalaryPayment = async (id, data) => {
+  const response = await safePut(`/salary-payments/${id}/action`, data);
+  return response.data;
+};
+
+export const approveAllSalaryPayments = async () => {
+  const response = await safePut('/salary-payments/approve-all', {});
   return response.data;
 };
 

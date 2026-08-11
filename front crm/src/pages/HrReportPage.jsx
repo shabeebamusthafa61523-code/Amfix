@@ -10,6 +10,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
+import PayslipModal from '../components/accounts/PayslipModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -79,6 +80,9 @@ const HrReportPage = () => {
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
   const [isPrivileged, setIsPrivileged] = useState(false);
+
+  // Payslip State
+  const [isPayslipOpen, setIsPayslipOpen] = useState(false);
 
   // Selection states
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -1030,30 +1034,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("3. EMPLOYEE MANAGEMENT REPORT (CONSOLIDATED)");
-      const empHeaders = [["Employee Name", "Department", "Attendance", "Task Status", "Remarks"]];
-      const empRows = monthlyEmployeeManagement.map(e => [e.employeeName || '', e.department || '', e.attendance || '', e.taskStatus || '', e.remarks || '']);
-
-      autoTable(doc, {
-        head: empHeaders,
-        body: empRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 40 },
-          1: { width: 35 },
-          2: { width: 35, halign: 'center' },
-          3: { width: 35, halign: 'center' },
-          4: { width: 37 }
-        },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("4. RECRUITMENT REPORT (CONSOLIDATED)");
+      drawSectionHeader("3. RECRUITMENT REPORT (CONSOLIDATED)");
       const recruitHeaders = [["Recruitment Activity", "Count / Status"]];
       const recruitRows = monthlyRecruitmentReport.map(r => [r.activity || '', r.countStatus || '']);
 
@@ -1077,7 +1058,7 @@ const HrReportPage = () => {
       drawHeader();
       currentY = 27;
 
-      drawSectionHeader("5. ATTENDANCE & LEAVE REPORT (CONSOLIDATED)");
+      drawSectionHeader("4. ATTENDANCE & LEAVE REPORT (CONSOLIDATED)");
       const leaveHeaders = [["Category", "Count"]];
       const leaveRows = monthlyAttendanceLeave.map(l => [l.category || '', l.count || '']);
 
@@ -1097,7 +1078,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("6. ADMIN OPERATIONS REPORT (CONSOLIDATED)");
+      drawSectionHeader("5. ADMIN OPERATIONS REPORT (CONSOLIDATED)");
       const adminOpsHeaders = [["Activity", "Status", "Remarks"]];
       const adminOpsRows = monthlyAdminOperations.map(a => [a.activity || '', a.status || '', a.remarks || '']);
 
@@ -1118,7 +1099,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("7. DOCUMENTATION & COMPLIANCE (CONSOLIDATED)");
+      drawSectionHeader("6. DOCUMENTATION & COMPLIANCE (CONSOLIDATED)");
       const complianceHeaders = [["Activity", "Status"]];
       const complianceRows = monthlyDocumentationCompliance.map(d => [d.activity || '', d.status || '']);
 
@@ -1138,7 +1119,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("8. KPI TRACKING (CONSOLIDATED)");
+      drawSectionHeader("7. KPI TRACKING (CONSOLIDATED)");
       const kpiHeaders = [["KPI", "Status"]];
       const kpiRows = monthlyKpiTracking.map(k => [k.kpi || '', k.status || '']);
 
@@ -1158,7 +1139,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("9. ISSUES / ESCALATIONS (CONSOLIDATED)");
+      drawSectionHeader("8. ISSUES / ESCALATIONS (CONSOLIDATED)");
       const issueHeaders = [["Issue", "Priority", "Action Taken"]];
       const issueRows = monthlyIssuesEscalations.map(i => [i.issue || '', i.priority || '', i.actionTaken || '']);
 
@@ -1179,7 +1160,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("10. NEXT DAY ACTION PLAN (CONSOLIDATED)");
+      drawSectionHeader("9. NEXT DAY ACTION PLAN (CONSOLIDATED)");
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(0, 0, 0);
@@ -1195,7 +1176,7 @@ const HrReportPage = () => {
       drawHeader();
       currentY = 27;
 
-      drawSectionHeader("11. FINAL SHIFT HANDOVER (CONSOLIDATED)");
+      drawSectionHeader("10. FINAL SHIFT HANDOVER (CONSOLIDATED)");
       const handoverHeaders = [["Handover Item", "Status"]];
       const handoverRows = monthlyFinalShiftHandover.map(h => [h.item || '', h.status || '']);
 
@@ -1215,7 +1196,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("12. HR / ADMIN COMMENTS (CONSOLIDATED)");
+      drawSectionHeader("11. HR / ADMIN COMMENTS (CONSOLIDATED)");
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(0, 0, 0);
@@ -1347,33 +1328,9 @@ const HrReportPage = () => {
         },
         margin: { left: 14, right: 14 }
       });
-
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("3. EMPLOYEE MANAGEMENT REPORT (CONSOLIDATED)");
-      const empHeaders = [["Employee Name", "Department", "Attendance", "Task Status", "Remarks"]];
-      const empRows = weeklyEmployeeManagement.map(e => [e.employeeName || '', e.department || '', e.attendance || '', e.taskStatus || '', e.remarks || '']);
-
-      autoTable(doc, {
-        head: empHeaders,
-        body: empRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 40 },
-          1: { width: 35 },
-          2: { width: 35, halign: 'center' },
-          3: { width: 35, halign: 'center' },
-          4: { width: 37 }
-        },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("4. RECRUITMENT REPORT (CONSOLIDATED)");
+      drawSectionHeader("3. RECRUITMENT REPORT (CONSOLIDATED)");
       const recruitHeaders = [["Recruitment Activity", "Count / Status"]];
       const recruitRows = weeklyRecruitmentReport.map(r => [r.activity || '', r.countStatus || '']);
 
@@ -1397,7 +1354,7 @@ const HrReportPage = () => {
       drawHeader();
       currentY = 27;
 
-      drawSectionHeader("5. ATTENDANCE & LEAVE REPORT (CONSOLIDATED)");
+      drawSectionHeader("4. ATTENDANCE & LEAVE REPORT (CONSOLIDATED)");
       const leaveHeaders = [["Category", "Count"]];
       const leaveRows = weeklyAttendanceLeave.map(l => [l.category || '', l.count || '']);
 
@@ -1417,7 +1374,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("6. ADMIN OPERATIONS REPORT (CONSOLIDATED)");
+      drawSectionHeader("5. ADMIN OPERATIONS REPORT (CONSOLIDATED)");
       const adminOpsHeaders = [["Activity", "Status", "Remarks"]];
       const adminOpsRows = weeklyAdminOperations.map(a => [a.activity || '', a.status || '', a.remarks || '']);
 
@@ -1438,7 +1395,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("7. DOCUMENTATION & COMPLIANCE (CONSOLIDATED)");
+      drawSectionHeader("6. DOCUMENTATION & COMPLIANCE (CONSOLIDATED)");
       const complianceHeaders = [["Activity", "Status"]];
       const complianceRows = weeklyDocumentationCompliance.map(d => [d.activity || '', d.status || '']);
 
@@ -1458,7 +1415,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("8. KPI TRACKING (CONSOLIDATED)");
+      drawSectionHeader("7. KPI TRACKING (CONSOLIDATED)");
       const kpiHeaders = [["KPI", "Status"]];
       const kpiRows = weeklyKpiTracking.map(k => [k.kpi || '', k.status || '']);
 
@@ -1478,7 +1435,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("9. ISSUES / ESCALATIONS (CONSOLIDATED)");
+      drawSectionHeader("8. ISSUES / ESCALATIONS (CONSOLIDATED)");
       const issueHeaders = [["Issue", "Priority", "Action Taken"]];
       const issueRows = weeklyIssuesEscalations.map(i => [i.issue || '', i.priority || '', i.actionTaken || '']);
 
@@ -1499,7 +1456,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("10. NEXT DAY ACTION PLAN (CONSOLIDATED)");
+      drawSectionHeader("9. NEXT DAY ACTION PLAN (CONSOLIDATED)");
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(0, 0, 0);
@@ -1515,7 +1472,7 @@ const HrReportPage = () => {
       drawHeader();
       currentY = 27;
 
-      drawSectionHeader("11. FINAL SHIFT HANDOVER (CONSOLIDATED)");
+      drawSectionHeader("10. FINAL SHIFT HANDOVER (CONSOLIDATED)");
       const handoverHeaders = [["Handover Item", "Status"]];
       const handoverRows = weeklyFinalShiftHandover.map(h => [h.item || '', h.status || '']);
 
@@ -1535,7 +1492,7 @@ const HrReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("12. HR / ADMIN COMMENTS (CONSOLIDATED)");
+      drawSectionHeader("11. HR / ADMIN COMMENTS (CONSOLIDATED)");
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(0, 0, 0);
@@ -1554,7 +1511,7 @@ const HrReportPage = () => {
         currentY = 27;
       }
 
-      drawSectionHeader("13. ACHIEVEMENTS");
+      drawSectionHeader("12. ACHIEVEMENTS");
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(0, 0, 0);
@@ -1573,7 +1530,7 @@ const HrReportPage = () => {
         currentY = 27;
       }
 
-      drawSectionHeader("14. IMPROVEMENTS");
+      drawSectionHeader("13. IMPROVEMENTS");
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(0, 0, 0);
@@ -1592,7 +1549,7 @@ const HrReportPage = () => {
         currentY = 27;
       }
 
-      drawSectionHeader("15. NEXT WEEK PLANNING");
+      drawSectionHeader("14. NEXT WEEK PLANNING");
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(0, 0, 0);
@@ -1630,8 +1587,8 @@ const HrReportPage = () => {
         const privileged = ['1', '2', 'hr', 'admin'].includes(role);
         setIsPrivileged(privileged);
         
-        if (!privileged) {
-          const uId = userObj.id || userObj._id;
+        const uId = userObj.id || userObj._id;
+        if (!selectedUserId && uId) {
           setSelectedUserId(uId);
         }
       }
@@ -2069,13 +2026,22 @@ const HrReportPage = () => {
                   <Calendar size={16} />
                   Weekly Report
                 </button>
-              <button
+                <button
                   type="button"
                   onClick={() => setIsMonthlyModalOpen(true)}
                   className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-semibold text-sm transition-all"
                 >
                   <Calendar size={16} />
                   Monthly Report
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsPayslipOpen(true)}
+                  className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-200 font-semibold text-sm transition-all cursor-pointer"
+                >
+                  <FileText size={16} />
+                  Generate Payslip
                 </button>
 
                 
@@ -2353,98 +2319,10 @@ const HrReportPage = () => {
               </div>
             </div>
 
-            {/* 3. EMPLOYEE MANAGEMENT REPORT */}
+            {/* 3. RECRUITMENT REPORT */}
             <div className="space-y-4">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
                 <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">3</span>
-                Employee Management Report
-              </h2>
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3">Employee Name</th>
-                      <th className="px-4 py-3">Department</th>
-                      <th className="px-4 py-3 w-44">Attendance</th>
-                      <th className="px-4 py-3 w-48">Task Status</th>
-                      <th className="px-4 py-3">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {employeeManagement.map((row, i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.employeeName}
-                            onChange={(e) => {
-                              const newArr = [...employeeManagement];
-                              newArr[i].employeeName = e.target.value;
-                              setEmployeeManagement(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.department}
-                            onChange={(e) => {
-                              const newArr = [...employeeManagement];
-                              newArr[i].department = e.target.value;
-                              setEmployeeManagement(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                            placeholder="e.g. Sales"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.attendance}
-                            onChange={(e) => {
-                              const newArr = [...employeeManagement];
-                              newArr[i].attendance = e.target.value;
-                              setEmployeeManagement(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.taskStatus}
-                            onChange={(e) => {
-                              const newArr = [...employeeManagement];
-                              newArr[i].taskStatus = e.target.value;
-                              setEmployeeManagement(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.remarks}
-                            onChange={(e) => {
-                              const newArr = [...employeeManagement];
-                              newArr[i].remarks = e.target.value;
-                              setEmployeeManagement(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* 4. RECRUITMENT REPORT */}
-            <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">4</span>
                 Recruitment Report
               </h2>
               <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
@@ -2455,7 +2333,7 @@ const HrReportPage = () => {
                       <th className="px-4 py-3 w-48">Count / Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-855">
                     {recruitmentReport.map((row, i) => (
                       <tr key={i}>
                         <td className="px-4 py-2.5 font-semibold text-xs text-slate-500 cursor-pointer hover:text-indigo-600 dark:hover:text-lime-400 transition-colors" onClick={() => setSelectedActivityText(row.activity)}>{row.activity}</td>
@@ -2478,10 +2356,10 @@ const HrReportPage = () => {
               </div>
             </div>
 
-            {/* 5. ATTENDANCE & LEAVE REPORT */}
+            {/* 4. ATTENDANCE & LEAVE REPORT */}
             <div className="space-y-4">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">5</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">4</span>
                 Attendance & Leave Report
               </h2>
               <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
@@ -2515,10 +2393,10 @@ const HrReportPage = () => {
               </div>
             </div>
 
-            {/* 6. ADMIN OPERATIONS REPORT */}
+            {/* 5. ADMIN OPERATIONS REPORT */}
             <div className="space-y-4">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">6</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">5</span>
                 Admin Operations Report
               </h2>
               <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
@@ -2566,10 +2444,10 @@ const HrReportPage = () => {
               </div>
             </div>
 
-            {/* 7. DOCUMENTATION & COMPLIANCE */}
+            {/* 6. DOCUMENTATION & COMPLIANCE */}
             <div className="space-y-4">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">7</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">6</span>
                 Documentation & Compliance
               </h2>
               <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
@@ -2604,10 +2482,10 @@ const HrReportPage = () => {
               </div>
             </div>
 
-            {/* 8. KPI TRACKING */}
+            {/* 7. KPI TRACKING */}
             <div className="space-y-4">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">8</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">7</span>
                 KPI Tracking
               </h2>
               <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
@@ -2641,10 +2519,10 @@ const HrReportPage = () => {
               </div>
             </div>
 
-            {/* 9. ISSUES / ESCALATIONS */}
+            {/* 8. ISSUES / ESCALATIONS */}
             <div className="space-y-4">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">9</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">8</span>
                 Issues / Escalations
               </h2>
               <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
@@ -2706,10 +2584,10 @@ const HrReportPage = () => {
               </div>
             </div>
 
-            {/* 10. NEXT DAY ACTION PLAN */}
+            {/* 9. NEXT DAY ACTION PLAN */}
             <div className="space-y-3">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">10</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">9</span>
                 Next Day Action Plan
               </h2>
               <textarea
@@ -2720,10 +2598,10 @@ const HrReportPage = () => {
               />
             </div>
 
-            {/* 11. FINAL SHIFT HANDOVER */}
+            {/* 10. FINAL SHIFT HANDOVER */}
             <div className="space-y-4">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">11</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">10</span>
                 Final Shift Handover
               </h2>
               <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
@@ -2757,10 +2635,10 @@ const HrReportPage = () => {
               </div>
             </div>
 
-            {/* 12. HR / ADMIN COMMENTS */}
+            {/* 11. HR / ADMIN COMMENTS */}
             <div className="space-y-3">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">12</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">11</span>
                 HR / Admin Comments
               </h2>
               <textarea
@@ -2771,10 +2649,10 @@ const HrReportPage = () => {
               />
             </div>
 
-            {/* 13. APPROVAL */}
+            {/* 12. APPROVAL */}
             <div className="space-y-4">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">13</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">12</span>
                 Approval Details
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 dark:bg-slate-950/20 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
@@ -2960,7 +2838,6 @@ const HrReportPage = () => {
                         { id: 'recruitment', label: 'Recruitment' },
                         { id: 'attendance', label: 'Attendance & Leave' },
                         { id: 'operations', label: 'Daily & Admin Ops' },
-                        { id: 'employees', label: 'Employee Mgmt' },
                         { id: 'compliance', label: 'Compliance & KPIs' },
                         { id: 'issues', label: 'Issues & Plans' },
                       ].map((tab) => (
@@ -3198,113 +3075,6 @@ const HrReportPage = () => {
                                 </tbody>
                               </table>
                             </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 4. EMPLOYEE MGMT */}
-                      {monthlyActiveTab === 'employees' && (
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                              Employee Management Report
-                            </h4>
-                            <button
-                              type="button"
-                              onClick={() => setMonthlyEmployeeManagement([...monthlyEmployeeManagement, { employeeName: '', department: '', attendance: '', taskStatus: '', remarks: '' }])}
-                              className="flex items-center gap-1 text-xs text-indigo-600 dark:text-lime-400 font-bold hover:underline"
-                            >
-                              <Plus size={14} /> Add Row
-                            </button>
-                          </div>
-                          <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                            <table className="w-full text-left border-collapse text-sm">
-                              <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-950/20 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                                  <th className="px-4 py-3">Employee Name</th>
-                                  <th className="px-4 py-3">Department</th>
-                                  <th className="px-4 py-3 w-40">Attendance</th>
-                                  <th className="px-4 py-3 w-44">Task Status</th>
-                                  <th className="px-4 py-3">Remarks</th>
-                                  <th className="px-4 py-3 w-10"></th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                                {monthlyEmployeeManagement.map((row, i) => (
-                                  <tr key={i}>
-                                    <td className="px-4 py-2">
-                                      <input
-                                        type="text"
-                                        value={row.employeeName}
-                                        onChange={(e) => {
-                                          const newArr = [...monthlyEmployeeManagement];
-                                          newArr[i].employeeName = e.target.value;
-                                          setMonthlyEmployeeManagement(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-200"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <input
-                                        type="text"
-                                        value={row.department}
-                                        onChange={(e) => {
-                                          const newArr = [...monthlyEmployeeManagement];
-                                          newArr[i].department = e.target.value;
-                                          setMonthlyEmployeeManagement(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <input
-                                        type="text"
-                                        value={row.attendance}
-                                        onChange={(e) => {
-                                          const newArr = [...monthlyEmployeeManagement];
-                                          newArr[i].attendance = e.target.value;
-                                          setMonthlyEmployeeManagement(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <input
-                                        type="text"
-                                        value={row.taskStatus}
-                                        onChange={(e) => {
-                                          const newArr = [...monthlyEmployeeManagement];
-                                          newArr[i].taskStatus = e.target.value;
-                                          setMonthlyEmployeeManagement(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <input
-                                        type="text"
-                                        value={row.remarks}
-                                        onChange={(e) => {
-                                          const newArr = [...monthlyEmployeeManagement];
-                                          newArr[i].remarks = e.target.value;
-                                          setMonthlyEmployeeManagement(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => setMonthlyEmployeeManagement(monthlyEmployeeManagement.filter((_, idx) => idx !== i))}
-                                        className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
                           </div>
                         </div>
                       )}
@@ -3634,12 +3404,11 @@ const HrReportPage = () => {
                 {weeklyBasicDetails.dateRange ? (
                   <div className="space-y-6">
                     {/* Interactive Section Tabs */}
-                    <div className="flex flex-wrap gap-1 border-b border-slate-100 dark:border-slate-850 pb-px">
+                    <div className="flex flex-wrap gap-1 border-b border-slate-100 dark:border-slate-855 pb-px">
                       {[
                         { id: 'recruitment', label: 'Recruitment' },
                         { id: 'attendance', label: 'Attendance & Leave' },
                         { id: 'operations', label: 'Daily & Admin Ops' },
-                        { id: 'employees', label: 'Employee Mgmt' },
                         { id: 'compliance', label: 'Compliance & KPIs' },
                         { id: 'issues', label: 'Issues & Plans' },
                       ].map((tab) => (
@@ -3877,113 +3646,6 @@ const HrReportPage = () => {
                                 </tbody>
                               </table>
                             </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 4. EMPLOYEE MGMT */}
-                      {weeklyActiveTab === 'employees' && (
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                              Employee Management Report
-                            </h4>
-                            <button
-                              type="button"
-                              onClick={() => setWeeklyEmployeeManagement([...weeklyEmployeeManagement, { employeeName: '', department: '', attendance: '', taskStatus: '', remarks: '' }])}
-                              className="flex items-center gap-1 text-xs text-indigo-600 dark:text-lime-400 font-bold hover:underline"
-                            >
-                              <Plus size={14} /> Add Row
-                            </button>
-                          </div>
-                          <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                            <table className="w-full text-left border-collapse text-sm">
-                              <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-950/20 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                                  <th className="px-4 py-3">Employee Name</th>
-                                  <th className="px-4 py-3">Department</th>
-                                  <th className="px-4 py-3 w-40">Attendance</th>
-                                  <th className="px-4 py-3 w-44">Task Status</th>
-                                  <th className="px-4 py-3">Remarks</th>
-                                  <th className="px-4 py-3 w-10"></th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                                {weeklyEmployeeManagement.map((row, i) => (
-                                  <tr key={i}>
-                                    <td className="px-4 py-2">
-                                      <input
-                                        type="text"
-                                        value={row.employeeName}
-                                        onChange={(e) => {
-                                          const newArr = [...weeklyEmployeeManagement];
-                                          newArr[i].employeeName = e.target.value;
-                                          setWeeklyEmployeeManagement(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-200"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <input
-                                        type="text"
-                                        value={row.department}
-                                        onChange={(e) => {
-                                          const newArr = [...weeklyEmployeeManagement];
-                                          newArr[i].department = e.target.value;
-                                          setWeeklyEmployeeManagement(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <input
-                                        type="text"
-                                        value={row.attendance}
-                                        onChange={(e) => {
-                                          const newArr = [...weeklyEmployeeManagement];
-                                          newArr[i].attendance = e.target.value;
-                                          setWeeklyEmployeeManagement(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <input
-                                        type="text"
-                                        value={row.taskStatus}
-                                        onChange={(e) => {
-                                          const newArr = [...weeklyEmployeeManagement];
-                                          newArr[i].taskStatus = e.target.value;
-                                          setWeeklyEmployeeManagement(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <input
-                                        type="text"
-                                        value={row.remarks}
-                                        onChange={(e) => {
-                                          const newArr = [...weeklyEmployeeManagement];
-                                          newArr[i].remarks = e.target.value;
-                                          setWeeklyEmployeeManagement(newArr);
-                                        }}
-                                        className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
-                                      />
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => setWeeklyEmployeeManagement(weeklyEmployeeManagement.filter((_, idx) => idx !== i))}
-                                        className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg"
-                                      >
-                                        <Trash2 size={14} />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
                           </div>
                         </div>
                       )}
@@ -4304,6 +3966,22 @@ const HrReportPage = () => {
           </div>
         </div>
       )}
+
+      {/* OFFICIAL PAYSLIP MODAL */}
+      <PayslipModal
+        isOpen={isPayslipOpen}
+        onClose={() => setIsPayslipOpen(false)}
+        salaryRecord={{
+          employeeName: basicDetails.employeeName || currentUser?.name || 'HR Staff Member',
+          designation: basicDetails.designation || 'HR Executive / Manager',
+          department: basicDetails.department || 'Human Resources',
+          month: basicDetails.date ? `Disbursal — ${basicDetails.date}` : 'Current Pay Period',
+          basicSalary: 40000,
+          paidAmount: 40000,
+          paymentMode: 'Bank Transfer',
+          status: 'APPROVED'
+        }}
+      />
     </div>
   );
 };

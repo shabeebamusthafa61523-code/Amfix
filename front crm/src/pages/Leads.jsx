@@ -202,15 +202,8 @@ const Leads = () => {
 
   const isMarketingDept = useMemo(() => {
     if (!currentUser) return false;
-    let departmentId = '';
-    if (currentUser.departmentId) {
-      if (typeof currentUser.departmentId === 'object' && currentUser.departmentId._id) {
-        departmentId = String(currentUser.departmentId._id).trim();
-      } else {
-        departmentId = String(currentUser.departmentId).trim();
-      }
-    }
-    return departmentId === '6a211b6621f80bb8da167efb';
+    const deptName = String(currentUser.department || currentUser.departmentId?.name || '').toLowerCase().trim();
+    return deptName.includes('marketing') || deptName.includes('digital');
   }, [currentUser]);
 
   const getAuthHeaders = useCallback(() => {

@@ -4,6 +4,7 @@ import {
   getEmployeePerformance,
   saveHRRemark,
   saveTeamLeadRemark,
+  saveAdminRemark,
   triggerAIReport,
   getPerformanceAnalytics,
   getPerformanceReports,
@@ -23,6 +24,9 @@ router.post('/employee/:employeeId/hr-remark', requireRole(['hr', 'admin']), sav
 
 // Team Lead Remark (Assigned Team Lead, Manager, HR, Admin)
 router.post('/employee/:employeeId/tl-remark', requireRole(['manager', 'hr', 'admin', 'employee']), saveTeamLeadRemark);
+
+// Admin Remark (Admin only)
+router.post('/employee/:employeeId/admin-remark', requireRole(['admin', 'superadmin', '0', '2']), saveAdminRemark);
 
 // AI Report Generation
 router.post('/employee/:employeeId/ai-report', requireRole(['hr', 'manager', 'admin']), triggerAIReport);

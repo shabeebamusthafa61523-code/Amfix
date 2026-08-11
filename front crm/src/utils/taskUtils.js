@@ -1,11 +1,17 @@
 export const fetchCompletedTasks = async (userId, dateStr) => {
   if (!userId || !dateStr) return [];
-  const API_BASE = import.meta.env.VITE_API_URL;
+  const API_BASE = import.meta.env.VITE_API_URL || '/api';
   try {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API_BASE}/tasks/all`, {
+    const rawToken = localStorage.getItem('token') || '';
+    const cleanToken = rawToken.replace(/^"(.*)"$/, '$1').replace(/"/g, '').trim();
+    const authHeader = cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`;
+    const cleanBase = API_BASE.replace(/\/+$/, '');
+    const url = cleanBase.endsWith('/v1') ? `${cleanBase}/tasks/all` : `${cleanBase}/v1/tasks/all`;
+
+    const res = await fetch(url, {
       headers: {
-        'Authorization': `Bearer ${token}`
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
       }
     });
     if (!res.ok) return [];
