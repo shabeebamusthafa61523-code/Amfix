@@ -415,8 +415,8 @@ const OpsReportPage = () => {
             const mappedTasks = completedTasks.map(t => ({
               activity: t.title,
               dueDate: t.dueDate || '',
-              startDate: t.startTime || '',
-              endDate: t.endTime || '',
+              startDate: t.startDate || t.startTime || t.startDateTimeLocal || '',
+              endDate: t.endDate || t.endTime || t.endDateTimeLocal || '',
               status: t.status || 'Done',
               remarks: t.description || '',
               isTodoTask: true
@@ -446,8 +446,8 @@ const OpsReportPage = () => {
             const mappedTasks = completedTasks.map(t => ({
               activity: t.title,
               dueDate: t.dueDate || '',
-              startDate: t.startTime || '',
-              endDate: t.endTime || '',
+              startDate: t.startDate || t.startTime || t.startDateTimeLocal || '',
+              endDate: t.endDate || t.endTime || t.endDateTimeLocal || '',
               status: t.status || 'Done',
               remarks: t.description || '',
               isTodoTask: true
@@ -1997,7 +1997,7 @@ const OpsReportPage = () => {
                                   setDailyOperations(newArr);
                                 }}
                                 className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                                placeholder="Start date"
+                                placeholder="DD-MM-YYYY HH:mm"
                               />
                             ) : (
                               <span className="text-slate-400 text-xs font-medium text-center block">-</span>
@@ -2014,7 +2014,7 @@ const OpsReportPage = () => {
                                   setDailyOperations(newArr);
                                 }}
                                 className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                                placeholder="End date"
+                                placeholder="DD-MM-YYYY HH:mm"
                               />
                             ) : (
                               <span className="text-slate-400 text-xs font-medium text-center block">-</span>

@@ -4,6 +4,8 @@ import Navbar from '../components/Navbar';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import AiChatWidget from '../components/AiChatWidget';
+import DailyReportReminderModal from '../components/DailyReportReminderModal';
+import TaskDueReminderModal from '../components/TaskDueReminderModal';
 
 const MainLayout = ({ children }) => {
   const location = useLocation();
@@ -283,6 +285,8 @@ const MainLayout = ({ children }) => {
       </div>
 
       {location.pathname !== '/ai-report' && <AiChatWidget />}
+      <DailyReportReminderModal />
+      <TaskDueReminderModal />
     </div>
   );
 };

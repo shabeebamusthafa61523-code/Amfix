@@ -133,17 +133,33 @@ const BasicReportPage = () => {
           });
 
           // Map to report task summary format
-          const formattedTasks = myTasks.map(t => ({
-            task: t.title || '',
-            detailsNotes: '',
-            status: t.status || 'pending',
-            startDate: t.startDate ? new Date(t.startDate).toISOString().split('T')[0] : '',
-            endDate: t.endDate ? new Date(t.endDate).toISOString().split('T')[0] : '',
-            dueDate: t.dueDate ? new Date(t.dueDate).toISOString().split('T')[0] : '',
-            remarks: t.remarks || '',
-            isBackendTask: true,
-            backendTaskId: t._id
-          }));
+          const formattedTasks = myTasks.map(t => {
+            const formatDisplayDateTime = (dVal) => {
+              if (!dVal) return '';
+              try {
+                const d = new Date(dVal);
+                if (isNaN(d.getTime())) return '';
+                const day = String(d.getDate()).padStart(2, '0');
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const year = d.getFullYear();
+                const timePart = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                return `${day}-${month}-${year} ${timePart}`;
+              } catch (e) {
+                return '';
+              }
+            };
+            return {
+              task: t.title || '',
+              detailsNotes: t.description || 'Auto-fetched',
+              status: t.status || 'pending',
+              startDate: formatDisplayDateTime(t.createdAt || t.startDate || t.startTime),
+              endDate: formatDisplayDateTime(t.updatedAt || t.endDate || t.endTime),
+              dueDate: t.dueDate ? new Date(t.dueDate).toISOString().split('T')[0] : '',
+              remarks: t.remarks || '',
+              isBackendTask: true,
+              backendTaskId: t._id
+            };
+          });
 
           // Fallback if no tasks
           if (formattedTasks.length === 0) {
@@ -590,16 +606,18 @@ const BasicReportPage = () => {
                       </td>
                       <td className="py-1.5 px-1.5">
                         <input
-                          type="date"
-                          value={row.startDate}
+                          type="text"
+                          placeholder="DD-MM-YYYY HH:mm"
+                          value={row.startDate || ''}
                           onChange={(e) => handleUpdateCell(idx, 'startDate', e.target.value)}
                           className="bg-transparent text-[10px] font-medium text-slate-600 dark:text-slate-400 focus:outline-none"
                         />
                       </td>
                       <td className="py-1.5 px-1.5">
                         <input
-                          type="date"
-                          value={row.endDate}
+                          type="text"
+                          placeholder="DD-MM-YYYY HH:mm"
+                          value={row.endDate || ''}
                           onChange={(e) => handleUpdateCell(idx, 'endDate', e.target.value)}
                           className="bg-transparent text-[10px] font-medium text-slate-600 dark:text-slate-400 focus:outline-none"
                         />
