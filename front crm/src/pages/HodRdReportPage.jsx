@@ -349,9 +349,9 @@ const HodRdReportPage = () => {
               activity: t.title,
               status: t.status === 'In Progress' ? 'ongoing' : (t.status || 'Done'),
               dueDate: t.dueDate || '',
-              startDate: t.startDate || t.startTime || '',
-              endDate: t.endDate || t.endTime || '',
-              remarks: 'Auto-fetched'
+              startDate: t.startDate || t.startTime || t.startDateTimeLocal || '',
+              endDate: t.endDate || t.endTime || t.endDateTimeLocal || '',
+              remarks: t.description || 'Auto-fetched'
             }));
             setDailyTaskSummary(mappedTasks);
           }
@@ -380,9 +380,9 @@ const HodRdReportPage = () => {
               activity: t.title,
               status: t.status === 'In Progress' ? 'ongoing' : (t.status || 'Done'),
               dueDate: t.dueDate || '',
-              startDate: t.startDate || t.startTime || '',
-              endDate: t.endDate || t.endTime || '',
-              remarks: 'Auto-fetched'
+              startDate: t.startDate || t.startTime || t.startDateTimeLocal || '',
+              endDate: t.endDate || t.endTime || t.endDateTimeLocal || '',
+              remarks: t.description || 'Auto-fetched'
             }));
             setDailyTaskSummary(mappedTasks);
           }
@@ -2227,7 +2227,8 @@ const HodRdReportPage = () => {
                         </td>
                         <td className="px-3 py-3 vertical-top">
                           <input
-                            type="date"
+                            type="text"
+                            placeholder="DD-MM-YYYY HH:mm"
                             value={item.startDate || ''}
                             onChange={(e) => {
                               const updated = [...dailyTaskSummary];
@@ -2239,7 +2240,8 @@ const HodRdReportPage = () => {
                         </td>
                         <td className="px-3 py-3 vertical-top">
                           <input
-                            type="date"
+                            type="text"
+                            placeholder="DD-MM-YYYY HH:mm"
                             value={item.endDate || ''}
                             onChange={(e) => {
                               const updated = [...dailyTaskSummary];

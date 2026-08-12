@@ -1,9 +1,10 @@
 import cron from 'node-cron';
 import prisma from '../config/db.js';
 // import redis from '../config/redis.js';
-import { notificationService } from './notification.service.js';
+import { notificationService, sendNotification } from './notification.service.js';
 import { kpiService } from './kpi.service.js';
 import { payrollService } from './payroll.service.js';
+import Task from '../models/task.model.js';
 import logger from '../utils/logger.util.js';
 
 const TIMEZONE = 'Asia/Kolkata'; // Operational IST Timezone
@@ -152,7 +153,36 @@ export const schedulerService = {
     }, { scheduled: true, timezone: TIMEZONE });
     activeJobs.push(weeklySummaryJob);
 
-    // 5. 1st of every month: Auto-generate payroll drafts + KPI scoring
+    // 5. Every 5 minutes: Check tasks due in 10 minutes and send notifications to assigned employees
+    const taskDueReminderJob = cron.schedule('*/5 * * * *', async () => {
+      try {
+        const now = new Date();
+        const tenMinsLater = new Date(now.getTime() + 10 * 60 * 1000);
+
+        const upcomingTasks = await Task.find({
+          status: { $ne: 'done' },
+          dueDate: { $gte: now, $lte: tenMinsLater }
+        });
+
+        for (const t of upcomingTasks) {
+          if (t.assigned_to) {
+            const userId = t.assigned_to._id || t.assigned_to.id || t.assigned_to;
+            const dueTimeStr = new Date(t.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            await sendNotification(
+              userId,
+              `Your assigned task "${t.title}" is due in less than 10 minutes at ${dueTimeStr}.`,
+              'warning',
+              '⏰ Task Due Soon'
+            );
+          }
+        }
+      } catch (err) {
+        logger.error(`❌ Cron Job: Task Due Reminder failed: ${err.message}`);
+      }
+    }, { scheduled: true, timezone: TIMEZONE });
+    activeJobs.push(taskDueReminderJob);
+
+    // 6. 1st of every month: Auto-generate payroll drafts + KPI scoring
     const monthlyJob = cron.schedule('0 0 1 * *', async () => {
       logger.info('⏰ CRON TRIGGERED: Monthly Payroll & KPI Compile (1st of month 12:00 AM)');
       try {

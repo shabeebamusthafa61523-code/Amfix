@@ -107,10 +107,14 @@ export default function HrDashboard() {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
-  const getAuthHeaders = () => ({
-    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-    'Content-Type': 'application/json'
-  });
+  const getAuthHeaders = () => {
+    const rawToken = localStorage.getItem('token');
+    const cleanToken = rawToken ? rawToken.replace(/"/g, '').trim() : '';
+    return {
+      'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`,
+      'Content-Type': 'application/json'
+    };
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -812,7 +816,7 @@ export default function HrDashboard() {
 
                                     {task.dueDate && (
                                       <p className={`text-[10px] font-bold mt-1 ${(new Date(task.dueDate) - new Date()) <= 24 * 60 * 60 * 1000 && task.status !== 'done' ? 'text-rose-500' : 'text-slate-500'}`}>
-                                        Due: {new Date(task.dueDate).toLocaleDateString()}
+                                        Due: {new Date(task.dueDate).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                                       </p>
                                     )}
 

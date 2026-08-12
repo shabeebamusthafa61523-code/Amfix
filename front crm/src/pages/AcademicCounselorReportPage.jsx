@@ -336,8 +336,8 @@ const AcademicCounselorReportPage = () => {
             const mappedTasks = completedTasks.map(t => ({
               activity: t.title,
               dueDate: t.dueDate || '',
-              startDate: t.startTime || '',
-              endDate: t.endTime || '',
+              startDate: t.startDate || t.startTime || t.startDateTimeLocal || '',
+              endDate: t.endDate || t.endTime || t.endDateTimeLocal || '',
               status: t.status || 'Done',
               remarks: t.description || ''
             }));
@@ -357,8 +357,8 @@ const AcademicCounselorReportPage = () => {
             const mappedTasks = completedTasks.map(t => ({
               activity: t.title,
               dueDate: t.dueDate || '',
-              startDate: t.startTime || '',
-              endDate: t.endTime || '',
+              startDate: t.startDate || t.startTime || t.startDateTimeLocal || '',
+              endDate: t.endDate || t.endTime || t.endDateTimeLocal || '',
               status: t.status || 'Done',
               remarks: t.description || ''
             }));
@@ -1762,7 +1762,7 @@ const AcademicCounselorReportPage = () => {
                               setDailyOperations(updated);
                             }}
                             className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
-                            placeholder="Start date"
+                            placeholder="DD-MM-YYYY HH:mm"
                           />
                         </td>
                         <td className="px-5 py-3">
@@ -1775,7 +1775,7 @@ const AcademicCounselorReportPage = () => {
                               setDailyOperations(updated);
                             }}
                             className="w-full bg-transparent border-none focus:outline-none p-0 text-sm text-slate-700 dark:text-slate-200"
-                            placeholder="End date"
+                            placeholder="DD-MM-YYYY HH:mm"
                           />
                         </td>
                         <td className="px-5 py-3 text-center">
