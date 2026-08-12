@@ -198,11 +198,12 @@ export const login = async (req, res) => {
     }
 
     // 4. Sign Auth JWT Token safely with fallback secret
-    const secret = process.env.JWT_SECRET || 'fallback_secret_key';
+    const secret = process.env.JWT_SECRET || 'supersecretjwtkey_12345';
     const isSuperAdminUser = Boolean(user.isSuperAdmin || user.role === 'superadmin' || String(user.role_id) === '0');
     const token = jwt.sign(
       {
         id: user._id,
+        _id: user._id,
         role_id: user.role_id,
         role: user.role || (isSuperAdminUser ? 'superadmin' : 'staff'),
         isSuperAdmin: isSuperAdminUser,
