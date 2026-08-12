@@ -203,6 +203,7 @@ export const login = async (req, res) => {
     const token = jwt.sign(
       {
         id: user._id,
+        _id: user._id,
         role_id: user.role_id,
         role: user.role || (isSuperAdminUser ? 'superadmin' : 'staff'),
         isSuperAdmin: isSuperAdminUser,

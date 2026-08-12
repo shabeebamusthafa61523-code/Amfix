@@ -719,30 +719,57 @@ const lmsController = {
   /**
    * GET /api/v1/academy/student/enrolled-courses
    * Retrieve student's enrolled courses with LMS progress stats
+   * Supports req.query.studentId / req.query.userId / req.query.user_id
+   * Allows staff/admin overview of active course enrollments when no query param is supplied
    */
   getStudentEnrolledCourses: async (req, res, next) => {
     try {
-      const studentId = req.user?.id || req.user?._id;
+      const queryStudentId = req.query.studentId || req.query.userId || req.query.user_id;
+      const requesterId = req.user?.id || req.user?._id;
+      const requesterRole = String(req.user?.role || '').toLowerCase();
+      const requesterRoleId = String(req.user?.role_id || '');
 
-      const enrollments = await Enrollment.find({
-        studentId,
-        status: { $in: ['active', 'completed', 'paused'] }
-      })
-      .populate('courseId', 'courseName courseCode category shortDescription description durationValue durationUnit syllabus')
-      .populate('batchId', 'batchName batchCode startDate endDate startTime endTime')
-      .sort({ updatedAt: -1 })
-      .lean();
+      const isStudentRole = requesterRole === 'student' || requesterRoleId === '10';
+
+      const queryFilter = {
+        status: { $in: ['active', 'completed', 'paused', 'ACTIVE', 'COMPLETED', 'PAUSED'] }
+      };
+
+      if (queryStudentId && mongoose.Types.ObjectId.isValid(String(queryStudentId))) {
+        queryFilter.studentId = queryStudentId;
+      } else if (isStudentRole && requesterId && mongoose.Types.ObjectId.isValid(String(requesterId))) {
+        queryFilter.studentId = requesterId;
+      }
+
+      const enrollments = await Enrollment.find(queryFilter)
+        .populate('courseId', 'courseName courseCode category shortDescription description durationValue durationUnit syllabus status')
+        .populate('batchId', 'batchName batchCode startDate endDate startTime endTime status')
+        .sort({ updatedAt: -1 })
+        .lean();
+
+      // Deduplicate courses if staff overview returns multiple student enrollments for same course
+      const seenCourseIds = new Set();
 
       const coursesWithStats = await Promise.all(
         enrollments.map(async (en) => {
-          const courseId = en.courseId?._id || en.courseId;
-          
+          const courseObj = en.courseId || {};
+          const courseId = courseObj._id || courseObj.id || en.courseId;
+          const stId = en.studentId?._id || en.studentId || requesterId;
+
           if (!courseId) return null;
 
+          const courseKey = String(courseId);
+
+          // If no specific student filter was passed by staff, show unique enrolled courses in LMS catalog
+          if (!queryStudentId && !isStudentRole) {
+            if (seenCourseIds.has(courseKey)) return null;
+            seenCourseIds.add(courseKey);
+          }
+
           const totalPublishedLessons = await Lesson.countDocuments({ courseId, isPublished: true });
-          const completedCount = await LessonProgress.countDocuments({ studentId, courseId });
+          const completedCount = await LessonProgress.countDocuments({ studentId: stId, courseId });
           const assignmentsCount = await Assignment.countDocuments({ courseId, isPublished: true });
-          const submissions = await AssignmentSubmission.find({ studentId, courseId }).lean();
+          const submissions = await AssignmentSubmission.find({ studentId: stId, courseId }).lean();
           const gradedSubmissions = submissions.filter(s => s.status === 'GRADED');
           
           let avgGradePercent = 0;
@@ -753,9 +780,9 @@ const lmsController = {
 
           return {
             enrollmentId: en._id,
-            status: en.status,
-            enrolledAt: en.enrolledAt,
-            progressPercentage: en.progressPercentage,
+            status: (en.status || 'ACTIVE').toUpperCase(),
+            enrolledAt: en.enrolledAt || en.createdAt,
+            progressPercentage: en.progressPercentage || 0,
             course: en.courseId,
             batch: en.batchId,
             lmsStats: {
@@ -770,9 +797,11 @@ const lmsController = {
         })
       );
 
+      const validList = coursesWithStats.filter(Boolean);
+
       return res.status(200).json({
         success: true,
-        data: coursesWithStats.filter(Boolean)
+        data: validList
       });
     } catch (error) {
       next(error);

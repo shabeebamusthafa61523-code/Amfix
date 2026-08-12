@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import protectRoute from '../middleware/auth.middleware.js';
+import protectRoute, { requireAdminOrStaff } from '../middleware/auth.middleware.js';
 import upload from '../middleware/upload.middleware.js';
 import courseController from '../controllers/course.controller.js';
 import batchController from '../controllers/batch.controller.js';
@@ -16,30 +16,30 @@ router.get('/instructors', courseController.getEligibleInstructors);
 
 // Course Management Routes (Module 4.2)
 router.get('/courses', courseController.getCourses);
-router.post('/courses', courseController.createCourse);
+router.post('/courses', requireAdminOrStaff, courseController.createCourse);
 router.get('/courses/:id', courseController.getCourseById);
-router.put('/courses/:id', courseController.updateCourse);
-router.patch('/courses/:id', courseController.updateCourse);
-router.post('/courses/:id/archive', courseController.archiveCourse);
-router.post('/courses/:id/activate', courseController.activateCourse);
-router.put('/courses/:id/syllabus', courseController.updateSyllabus);
+router.put('/courses/:id', requireAdminOrStaff, courseController.updateCourse);
+router.patch('/courses/:id', requireAdminOrStaff, courseController.updateCourse);
+router.post('/courses/:id/archive', requireAdminOrStaff, courseController.archiveCourse);
+router.post('/courses/:id/activate', requireAdminOrStaff, courseController.activateCourse);
+router.put('/courses/:id/syllabus', requireAdminOrStaff, courseController.updateSyllabus);
 
 // Batch Management Routes (Module 4.2)
 router.get('/batches', batchController.getBatches);
-router.post('/batches', batchController.createBatch);
+router.post('/batches', requireAdminOrStaff, batchController.createBatch);
 router.get('/batches/:id', batchController.getBatchById);
-router.put('/batches/:id', batchController.updateBatch);
-router.patch('/batches/:id', batchController.updateBatch);
-router.patch('/batches/:id/students', batchController.addStudentsToBatch);
-router.delete('/batches/:id/students/:studentId', batchController.removeStudentFromBatch);
-router.post('/batches/:id/cancel', batchController.cancelBatch);
+router.put('/batches/:id', requireAdminOrStaff, batchController.updateBatch);
+router.patch('/batches/:id', requireAdminOrStaff, batchController.updateBatch);
+router.patch('/batches/:id/students', requireAdminOrStaff, batchController.addStudentsToBatch);
+router.delete('/batches/:id/students/:studentId', requireAdminOrStaff, batchController.removeStudentFromBatch);
+router.post('/batches/:id/cancel', requireAdminOrStaff, batchController.cancelBatch);
 
 // Enrollment & Progress Tracking Routes (Module 4.3)
 router.get('/enrollments', enrollmentController.getEnrollments);
-router.post('/enrollments', enrollmentController.createEnrollment);
+router.post('/enrollments', requireAdminOrStaff, enrollmentController.createEnrollment);
 router.get('/enrollments/:id', enrollmentController.getEnrollmentById);
-router.patch('/enrollments/:id/progress', enrollmentController.updateProgress);
-router.patch('/enrollments/:id/status', enrollmentController.updateStatus);
+router.patch('/enrollments/:id/progress', requireAdminOrStaff, enrollmentController.updateProgress);
+router.patch('/enrollments/:id/status', requireAdminOrStaff, enrollmentController.updateStatus);
 
 // ============================================================
 // LMS LEARNING MANAGEMENT SYSTEM ROUTES (Module 4.4)
@@ -52,20 +52,20 @@ router.get('/student/enrolled-courses', lmsController.getStudentEnrolledCourses)
 router.get('/courses/:courseId/lms-content', lmsController.getCourseLmsContent);
 
 // Lesson Management
-router.post('/courses/:courseId/lessons', lmsController.createLesson);
-router.patch('/lessons/:lessonId', lmsController.updateLesson);
-router.delete('/lessons/:lessonId', lmsController.deleteLesson);
+router.post('/courses/:courseId/lessons', requireAdminOrStaff, lmsController.createLesson);
+router.patch('/lessons/:lessonId', requireAdminOrStaff, lmsController.updateLesson);
+router.delete('/lessons/:lessonId', requireAdminOrStaff, lmsController.deleteLesson);
 router.post('/lessons/:lessonId/complete', lmsController.completeLesson);
 
 // Assignment Management
-router.post('/courses/:courseId/assignments', lmsController.createAssignment);
-router.patch('/assignments/:assignmentId', lmsController.updateAssignment);
-router.delete('/assignments/:assignmentId', lmsController.deleteAssignment);
-router.get('/assignments/:assignmentId/submissions', lmsController.getAssignmentSubmissions);
+router.post('/courses/:courseId/assignments', requireAdminOrStaff, lmsController.createAssignment);
+router.patch('/assignments/:assignmentId', requireAdminOrStaff, lmsController.updateAssignment);
+router.delete('/assignments/:assignmentId', requireAdminOrStaff, lmsController.deleteAssignment);
+router.get('/assignments/:assignmentId/submissions', requireAdminOrStaff, lmsController.getAssignmentSubmissions);
 router.post('/assignments/:assignmentId/submit', lmsController.submitAssignment);
-router.patch('/submissions/:submissionId/grade', lmsController.gradeSubmission);
+router.patch('/submissions/:submissionId/grade', requireAdminOrStaff, lmsController.gradeSubmission);
 
 // LMS Upload Service Endpoint
-router.post('/lms/upload', upload.single('file'), lmsController.uploadLmsFile);
+router.post('/lms/upload', requireAdminOrStaff, upload.single('file'), lmsController.uploadLmsFile);
 
 export default router;
