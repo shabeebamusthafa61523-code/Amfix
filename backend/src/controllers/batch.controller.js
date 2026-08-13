@@ -91,6 +91,7 @@ export const batchController = {
       const [batches, total] = await Promise.all([
         Batch.find(query)
           .populate('courseId', 'courseName courseCode category durationValue durationUnit')
+          .populate('instructorId', 'name email phone role profile_image avatar')
           .populate('students', 'name email phone studentId profile_image coursePreference status')
           .sort({ createdAt: -1 })
           .skip(skip)
@@ -132,6 +133,7 @@ export const batchController = {
 
       const batch = await Batch.findById(id)
         .populate('courseId')
+        .populate('instructorId', 'name email phone role profile_image avatar')
         .populate('students', 'name email phone studentId profile_image coursePreference status qualification institution')
         .lean();
 
@@ -164,7 +166,15 @@ export const batchController = {
         course,
         students = [],
         studentIds = [],
-        status
+        status,
+        instructorId,
+        startDate,
+        endDate,
+        daysOfWeek,
+        startTime,
+        endTime,
+        timezone,
+        capacity
       } = req.body;
 
       const finalBatchName = (batchName || name || '').trim();
@@ -207,6 +217,14 @@ export const batchController = {
         batchCode: finalBatchCode,
         batchName: finalBatchName,
         courseId: finalCourseId,
+        instructorId: instructorId && mongoose.Types.ObjectId.isValid(instructorId) ? instructorId : undefined,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        daysOfWeek: Array.isArray(daysOfWeek) ? daysOfWeek : [],
+        startTime: startTime || '',
+        endTime: endTime || '',
+        timezone: timezone || 'IST (UTC+5:30)',
+        capacity: capacity ? parseInt(capacity, 10) : 30,
         students: validatedStudentIds,
         status: status || 'UPCOMING',
         createdBy: req.user?.id || req.user?._id
@@ -221,6 +239,7 @@ export const batchController = {
 
       const populatedBatch = await Batch.findById(newBatch._id)
         .populate('courseId', 'courseName courseCode')
+        .populate('instructorId', 'name email phone role profile_image avatar')
         .populate('students', 'name email phone studentId profile_image')
         .lean();
 
@@ -257,7 +276,15 @@ export const batchController = {
         course,
         students,
         studentIds,
-        status
+        status,
+        instructorId,
+        startDate,
+        endDate,
+        daysOfWeek,
+        startTime,
+        endTime,
+        timezone,
+        capacity
       } = req.body;
 
       const finalBatchName = batchName !== undefined ? batchName : name;
@@ -283,6 +310,16 @@ export const batchController = {
         existingBatch.courseId = finalCourseId;
       }
       if (status !== undefined) existingBatch.status = status;
+      if (instructorId !== undefined) {
+        existingBatch.instructorId = (instructorId && mongoose.Types.ObjectId.isValid(instructorId)) ? instructorId : null;
+      }
+      if (startDate !== undefined) existingBatch.startDate = startDate ? new Date(startDate) : undefined;
+      if (endDate !== undefined) existingBatch.endDate = endDate ? new Date(endDate) : undefined;
+      if (Array.isArray(daysOfWeek)) existingBatch.daysOfWeek = daysOfWeek;
+      if (startTime !== undefined) existingBatch.startTime = startTime;
+      if (endTime !== undefined) existingBatch.endTime = endTime;
+      if (timezone !== undefined) existingBatch.timezone = timezone;
+      if (capacity !== undefined) existingBatch.capacity = parseInt(capacity, 10) || existingBatch.capacity;
 
       if (Array.isArray(rawStudents)) {
         existingBatch.students = await validateRegisteredStudents(rawStudents);
@@ -301,6 +338,7 @@ export const batchController = {
 
       const updatedBatch = await Batch.findById(id)
         .populate('courseId', 'courseName courseCode')
+        .populate('instructorId', 'name email phone role profile_image avatar')
         .populate('students', 'name email phone studentId profile_image')
         .lean();
 

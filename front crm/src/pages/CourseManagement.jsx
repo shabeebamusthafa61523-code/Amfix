@@ -65,6 +65,15 @@ const CourseManagement = () => {
   const [formData, setFormData] = useState(initialCourseForm);
   const [activeTab, setActiveTab] = useState('basic');
 
+  const handleNavigateToCourse = (courseObj) => {
+    const targetId = courseObj?._id || courseObj?.id || courseObj?.courseId;
+    if (!targetId || targetId === 'undefined' || targetId === 'null') {
+      showToast("Selected course has an invalid or missing identifier.", "warning");
+      return;
+    }
+    navigate(`/academy/courses/${targetId}`);
+  };
+
   const getHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
     const cleanToken = rawToken ? rawToken.replace(/"/g, '') : '';
@@ -419,7 +428,7 @@ const CourseManagement = () => {
                       </div>
 
                       {/* Title & Category */}
-                      <div className="mb-6 cursor-pointer" onClick={() => navigate(`/academy/courses/${courseId}`)}>
+                      <div className="mb-6 cursor-pointer" onClick={() => handleNavigateToCourse(course)}>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">
                           {course.category}
                         </span>
@@ -453,7 +462,7 @@ const CourseManagement = () => {
                     {/* Card Action Controls */}
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                       <button
-                        onClick={() => navigate(`/academy/courses/${courseId}`)}
+                        onClick={() => handleNavigateToCourse(course)}
                         className="flex-1 py-3 bg-indigo-700 hover:bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-indigo-600/10"
                       >
                         <Eye size={13} /> View Course
@@ -495,7 +504,7 @@ const CourseManagement = () => {
                       const courseId = course._id || course.id;
                       return (
                         <tr key={courseId} className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/50 dark:hover:bg-slate-950/20 transition-colors">
-                          <td className="px-6 py-5 cursor-pointer" onClick={() => navigate(`/academy/courses/${courseId}`)}>
+                          <td className="px-6 py-5 cursor-pointer" onClick={() => handleNavigateToCourse(course)}>
                             <span className="text-[9px] font-black uppercase text-indigo-600 dark:text-indigo-400 block mb-0.5">
                               {course.courseCode}
                             </span>
@@ -521,7 +530,7 @@ const CourseManagement = () => {
                           <td className="px-6 py-5">
                             <div className="flex items-center justify-end gap-2.5">
                               <button
-                                onClick={() => navigate(`/academy/courses/${courseId}`)}
+                                onClick={() => handleNavigateToCourse(course)}
                                 className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-indigo-50 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl transition-all cursor-pointer"
                                 title="View Details"
                               >

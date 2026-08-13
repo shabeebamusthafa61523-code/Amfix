@@ -171,7 +171,13 @@ const StudentLmsPortal = () => {
                   </div>
 
                   <button
-                    onClick={() => navigate(`/academy/learning/${courseId}`)}
+                    onClick={() => {
+                      if (!courseId || courseId === 'undefined' || courseId === 'null') {
+                        showToast("Course identifier is missing for this enrollment.", "warning");
+                        return;
+                      }
+                      navigate(`/academy/learning/${courseId}`);
+                    }}
                     className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2 group-hover:translate-x-0.5"
                   >
                     <PlayCircle size={16} /> Continue Learning <ArrowRight size={14} />

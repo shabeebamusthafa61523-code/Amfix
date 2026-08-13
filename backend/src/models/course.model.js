@@ -98,6 +98,15 @@ const courseSchema = new mongoose.Schema({
     index: true
   },
   syllabus: [moduleSchema],
+  instructorId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
+  },
+  instructor: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
@@ -112,6 +121,10 @@ const courseSchema = new mongoose.Schema({
 
 courseSchema.index({ category: 1, status: 1 });
 
-const Course = mongoose.models.Course || mongoose.model('Course', courseSchema);
+if (mongoose.models.Course) {
+  delete mongoose.models.Course;
+}
+
+const Course = mongoose.model('Course', courseSchema);
 
 export default Course;

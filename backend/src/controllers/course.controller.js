@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Course from '../models/course.model.js';
 import Batch from '../models/batch.model.js';
 import User from '../models/user.model.js';
@@ -116,16 +117,42 @@ export const courseController = {
   getCourseById: async (req, res, next) => {
     try {
       const { id } = req.params;
-      const course = await Course.findById(id).lean();
+      const targetIdStr = (id || '').trim();
 
-      if (!course) {
-        throw new AppError('Course not found.', 404);
+      if (!targetIdStr || targetIdStr === 'undefined' || targetIdStr === 'null') {
+        throw new AppError('Invalid or missing course identifier.', 400);
       }
 
-      const batches = await Batch.find({ courseId: id })
-        .populate('instructorId', 'name email phone role profile_image avatar')
-        .sort({ startDate: -1 })
-        .lean();
+      let course = null;
+      if (mongoose.Types.ObjectId.isValid(targetIdStr)) {
+        course = await Course.findById(targetIdStr).lean();
+      }
+
+      if (!course) {
+        course = await Course.findOne({
+          $or: [
+            { courseCode: targetIdStr },
+            { slug: targetIdStr.toLowerCase() }
+          ]
+        }).lean();
+      }
+
+      if (!course) {
+        console.warn(`[COURSE_NOT_FOUND] Requested ID: ${targetIdStr}, Authenticated User: ${req.user?.id || req.user?._id || 'anonymous'}`);
+        throw new AppError('Course record not found.', 404);
+      }
+
+      console.log(`[COURSE_LOOKUP_SUCCESS] Requested ID: ${targetIdStr}, Found Course: ${course.courseCode} (${course._id}), User: ${req.user?.id || req.user?._id || 'anonymous'}`);
+
+      let batches = [];
+      try {
+        batches = await Batch.find({ courseId: course._id })
+          .populate('instructorId', 'name email phone role profile_image avatar')
+          .sort({ startDate: -1 })
+          .lean();
+      } catch (batchErr) {
+        console.error(`[COURSE_BATCH_POPULATE_ERROR] Failed fetching batches for course ${course._id}:`, batchErr.message);
+      }
 
       return res.status(200).json({
         success: true,

@@ -20,6 +20,36 @@ const batchSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  instructorId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
+  },
+  startDate: {
+    type: Date
+  },
+  endDate: {
+    type: Date
+  },
+  daysOfWeek: [{
+    type: String
+  }],
+  startTime: {
+    type: String,
+    default: ''
+  },
+  endTime: {
+    type: String,
+    default: ''
+  },
+  timezone: {
+    type: String,
+    default: 'IST (UTC+5:30)'
+  },
+  capacity: {
+    type: Number,
+    default: 30
+  },
   students: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
@@ -44,6 +74,10 @@ const batchSchema = new mongoose.Schema({
 
 batchSchema.index({ courseId: 1, status: 1 });
 
-const Batch = mongoose.models.Batch || mongoose.model('Batch', batchSchema);
+if (mongoose.models.Batch) {
+  delete mongoose.models.Batch;
+}
+
+const Batch = mongoose.model('Batch', batchSchema);
 
 export default Batch;
