@@ -94,6 +94,7 @@ export const saveReport = async (req, res, next) => {
       dateString,
       basicDetails: req.body.basicDetails,
       dailyAccountingSummary: req.body.dailyAccountingSummary || [],
+      dailyTasks: req.body.dailyTasks || [],
       transactionReport: req.body.transactionReport || [],
       invoiceBillingReport: req.body.invoiceBillingReport || [],
       payrollPaymentStatus: req.body.payrollPaymentStatus || [],

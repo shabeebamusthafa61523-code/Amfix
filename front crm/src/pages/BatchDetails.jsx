@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -29,6 +30,10 @@ const BatchDetails = () => {
   const [studentToRemove, setStudentToRemove] = useState(null);
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
+
+  // Delete Batch Confirmation State
+  const [isDeleteBatchModalOpen, setIsDeleteBatchModalOpen] = useState(false);
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
   const getHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
@@ -138,7 +143,7 @@ const BatchDetails = () => {
     setIsRemoveModalOpen(true);
   };
 
-  const handleExecuteRemoveStudent = async () => {
+  const confirmRemoveStudent = async () => {
     if (!studentToRemove) return;
     setIsRemoving(true);
     try {
@@ -154,17 +159,49 @@ const BatchDetails = () => {
       });
 
       if (res.ok) {
+        showToast("Student removed from batch successfully.", "success");
         setIsRemoveModalOpen(false);
         setStudentToRemove(null);
         fetchBatchDetails();
-        showToast("Student removed from batch relation successfully.", "success");
       } else {
         showToast("Failed to remove student from batch.", "error");
       }
     } catch (err) {
-      showToast("Network error.", "error");
+      showToast("Network error while removing student.", "error");
     } finally {
       setIsRemoving(false);
+    }
+  };
+
+  const handleDeleteBatch = () => {
+    setIsDeleteBatchModalOpen(true);
+  };
+
+  const confirmDeleteBatch = async () => {
+    setIsDeletingBatch(true);
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/batches/${batchId}`
+        : `${cleanBase}/v1/academy/batches/${batchId}`;
+
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        showToast(data.message || 'Batch deleted successfully!', 'success');
+        navigate('/academy/batches');
+      } else {
+        showToast(data.message || 'Failed to delete batch.', 'error');
+      }
+    } catch (err) {
+      showToast('Network error while deleting batch.', 'error');
+    } finally {
+      setIsDeletingBatch(false);
     }
   };
 
@@ -215,12 +252,21 @@ const BatchDetails = () => {
         
         {/* Top Overview Bar */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 md:p-10 rounded-[2.5rem] shadow-sm space-y-6">
-          <button
-            onClick={() => navigate('/academy/batches')}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600 rounded-2xl transition-all text-xs font-black uppercase tracking-widest cursor-pointer"
-          >
-            <ArrowLeft size={16} /> Back to Batches
-          </button>
+          <div className="flex items-center justify-between gap-4">
+            <button
+              onClick={() => navigate('/academy/batches')}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600 rounded-2xl transition-all text-xs font-black uppercase tracking-widest cursor-pointer"
+            >
+              <ArrowLeft size={16} /> Back to Batches
+            </button>
+            <button
+              onClick={handleDeleteBatch}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white border border-rose-500/20 rounded-2xl transition-all text-xs font-black uppercase tracking-widest cursor-pointer"
+              title="Delete Batch"
+            >
+              <Trash2 size={16} /> Delete Batch
+            </button>
+          </div>
 
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="space-y-3">
@@ -353,14 +399,15 @@ const BatchDetails = () => {
       </div>
 
       {/* Add Registered Students Modal */}
-      <AnimatePresence>
-        {isAddStudentsModalOpen && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 md:p-10">
+      {createPortal(
+        <AnimatePresence>
+          {isAddStudentsModalOpen && (
+            <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[3rem] shadow-2xl overflow-hidden my-auto"
+              className="relative w-full max-w-2xl max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col"
             >
               <header className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-950">
                 <div>
@@ -457,17 +504,20 @@ const BatchDetails = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
 
       {/* Remove Student Confirmation Modal */}
-      <AnimatePresence>
-        {isRemoveModalOpen && studentToRemove && (
-          <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
+      {createPortal(
+        <AnimatePresence>
+          {isRemoveModalOpen && studentToRemove && (
+            <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-[2.5rem] max-w-md w-full text-center space-y-5"
+              className="relative w-full max-w-md max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-[2.5rem] text-center space-y-5 overflow-y-auto"
             >
               <div className="w-16 h-16 bg-rose-50 dark:bg-rose-950/40 text-rose-500 rounded-2xl flex items-center justify-center mx-auto border border-rose-200 dark:border-rose-900/50">
                 <UserMinus size={28} />
@@ -502,7 +552,52 @@ const BatchDetails = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
+
+      {/* Delete Batch Confirmation Modal */}
+      {createPortal(
+        <AnimatePresence>
+          {isDeleteBatchModalOpen && batch && (
+            <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-y-auto"
+            >
+              <div className="w-12 h-12 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center mb-4">
+                <Trash2 size={24} />
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight mb-2">
+                Delete Batch?
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-6">
+                Are you sure you want to permanently delete batch <strong className="text-slate-800 dark:text-slate-200">{batch.batchName}</strong> ({batch.batchCode})? This action cannot be undone.
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setIsDeleteBatchModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteBatch}
+                  disabled={isDeletingBatch}
+                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-rose-600/20 flex items-center gap-2 cursor-pointer"
+                >
+                  {isDeletingBatch ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  <span>{isDeletingBatch ? 'Deleting...' : 'Delete Batch'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>,
+      document.body
+    )}
     </div>
   );
 };

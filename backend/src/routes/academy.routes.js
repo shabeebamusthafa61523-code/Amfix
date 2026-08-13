@@ -23,6 +23,7 @@ router.patch('/courses/:id', courseController.updateCourse);
 router.post('/courses/:id/archive', courseController.archiveCourse);
 router.post('/courses/:id/activate', courseController.activateCourse);
 router.put('/courses/:id/syllabus', courseController.updateSyllabus);
+router.delete('/courses/:id', courseController.deleteCourse);
 
 // Batch Management Routes (Module 4.2)
 router.get('/batches', batchController.getBatches);
@@ -33,6 +34,7 @@ router.patch('/batches/:id', batchController.updateBatch);
 router.patch('/batches/:id/students', batchController.addStudentsToBatch);
 router.delete('/batches/:id/students/:studentId', batchController.removeStudentFromBatch);
 router.post('/batches/:id/cancel', batchController.cancelBatch);
+router.delete('/batches/:id', batchController.deleteBatch);
 
 // Enrollment & Progress Tracking Routes (Module 4.3)
 router.get('/enrollments', enrollmentController.getEnrollments);

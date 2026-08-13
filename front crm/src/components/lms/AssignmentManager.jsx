@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, Edit, Trash2, Award, Calendar, CheckCircle2, 
@@ -301,14 +302,15 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
       </div>
 
       {/* Add / Edit Assignment Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 md:p-10">
+      {createPortal(
+        <AnimatePresence>
+          {isModalOpen && (
+            <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+              className="relative my-auto w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
               <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
                 <div className="flex items-center gap-3">
@@ -324,7 +326,7 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
                 </button>
               </div>
 
-              <form onSubmit={handleSubmitAssignment} className="p-6 space-y-4">
+              <form onSubmit={handleSubmitAssignment} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
                 <div>
                   <label className="block text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
                     Assignment Title <span className="text-rose-500">*</span>
@@ -401,17 +403,20 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
 
       {/* Submissions Queue Modal */}
-      <AnimatePresence>
-        {viewingSubmissionsAssignment && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 md:p-10">
+      {createPortal(
+        <AnimatePresence>
+          {viewingSubmissionsAssignment && (
+            <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+              className="relative my-auto w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
               <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
                 <div>
@@ -474,7 +479,9 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
 
       {/* Grade Modal Trigger */}
       {gradingSubmission && (

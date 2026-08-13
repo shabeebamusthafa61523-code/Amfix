@@ -24,6 +24,34 @@ const batchSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  instructorId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
+  },
+  startDate: {
+    type: Date
+  },
+  endDate: {
+    type: Date
+  },
+  daysOfWeek: [{
+    type: String
+  }],
+  startTime: {
+    type: String
+  },
+  endTime: {
+    type: String
+  },
+  timezone: {
+    type: String,
+    default: 'IST (UTC+5:30)'
+  },
+  capacity: {
+    type: Number,
+    default: 30
+  },
   status: {
     type: String,
     enum: ['UPCOMING', 'ONGOING', 'COMPLETED', 'CANCELLED', 'INACTIVE'],

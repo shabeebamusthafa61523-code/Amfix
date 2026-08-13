@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx'; 
 import { 
@@ -593,10 +594,15 @@ const StudentAttendance = () => {
                         </div>
 
                         <div className="mb-8 cursor-pointer" onClick={() => handleOpenProfile(studentId)}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/40">
+                              {s.studentId || s.student_id || s.employeeId || 'STD'}
+                            </span>
+                          </div>
                           <h3 className="text-slate-900 dark:text-slate-100 font-bold text-lg leading-tight truncate uppercase tracking-tight hover:text-indigo-600 transition-colors">
                             {s.name}
                           </h3>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1 truncate lowercase opacity-60 tracking-wider">
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold mt-1 truncate lowercase opacity-70 tracking-wider">
                             {s.email}
                           </p>
                         </div>
@@ -673,8 +679,13 @@ const StudentAttendance = () => {
                                   )}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="text-slate-900 dark:text-slate-100 font-bold text-sm uppercase tracking-tight truncate hover:text-indigo-600">{s.name}</p>
-                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase truncate">{s.email}</p>
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/40">
+                                      {s.studentId || s.student_id || s.employeeId || 'STD'}
+                                    </span>
+                                    <p className="text-slate-900 dark:text-slate-100 font-bold text-sm uppercase tracking-tight truncate hover:text-indigo-600">{s.name}</p>
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase truncate mt-0.5">{s.email}</p>
                                 </div>
                               </div>
                             </td>
@@ -769,10 +780,10 @@ const StudentAttendance = () => {
       />
 
       {/* Student Registration / Edit Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl">
-            <div className="flex min-h-full items-start justify-center p-4 sm:p-8 md:p-12">
+      {createPortal(
+        <AnimatePresence>
+          {isModalOpen && (
+            <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
               <motion.div 
                 initial={{ opacity: 0 }} 
                 animate={{ opacity: 1 }} 
@@ -785,7 +796,7 @@ const StudentAttendance = () => {
                 initial={{ y: -20, opacity: 0 }} 
                 animate={{ y: 0, opacity: 1 }} 
                 exit={{ y: -20, opacity: 0 }} 
-                className="relative z-10 w-full max-w-5xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-12 rounded-[3rem] shadow-2xl mb-10"
+                className="relative z-10 w-full max-w-5xl max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-10 rounded-[3rem] shadow-2xl overflow-y-auto flex flex-col my-auto"
               >
                 <header className="mb-10 flex justify-between items-start">
                   <div>
@@ -969,9 +980,10 @@ const StudentAttendance = () => {
                 </form>
               </motion.div>
             </div>
-          </div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };

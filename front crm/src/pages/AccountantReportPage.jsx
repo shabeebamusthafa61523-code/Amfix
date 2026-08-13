@@ -15,27 +15,27 @@ const API_BASE = import.meta.env.VITE_API_URL;
 
 // Defaults from mockup
 const DEFAULT_ACCOUNTING_SUMMARY = [
-  { activity: 'Daily Entries Updated', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' },
-  { activity: 'Cash Book Updated', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' },
-  { activity: 'Bank Transactions Verified', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' },
-  { activity: 'Invoices Generated', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' },
-  { activity: 'Payment Follow-up Completed', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' },
-  { activity: 'Expense Records Updated', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' }
+  { activity: 'Daily Entries Updated', status: '', remarks: '' },
+  { activity: 'Cash Book Updated', status: '', remarks: '' },
+  { activity: 'Bank Transactions Verified', status: '', remarks: '' },
+  { activity: 'Invoices Generated', status: '', remarks: '' },
+  { activity: 'Payment Follow-up Completed', status: '', remarks: '' },
+  { activity: 'Expense Records Updated', status: '', remarks: '' }
 ];
 
 const DEFAULT_TRANSACTIONS = [
-  { transactionType: 'Cash', count: '', amount: '' },
-  { transactionType: 'UPI', count: '', amount: '' },
-  { transactionType: 'Bank Transfer', count: '', amount: '' },
-  { transactionType: 'Client Payments', count: '', amount: '' },
-  { transactionType: 'Vendor Payments', count: '', amount: '' }
+  { transactionType: 'Cash', amount: '', incomes: '', expense: '' },
+  { transactionType: 'UPI', amount: '', incomes: '', expense: '' },
+  { transactionType: 'Bank Transfer', amount: '', incomes: '', expense: '' },
+  { transactionType: 'Client Payments', amount: '', incomes: '', expense: '' },
+  { transactionType: 'Vendor Payments', amount: '', incomes: '', expense: '' }
 ];
 
 const DEFAULT_PAYROLL_STATUS = [
-  { activity: 'Salary Processing', status: '', dueDate: '', remarks: '' },
-  { activity: 'Freelancer Payments', status: '', dueDate: '', remarks: '' },
-  { activity: 'Incentives', status: '', dueDate: '', remarks: '' },
-  { activity: 'Reimbursements', status: '', dueDate: '', remarks: '' }
+  { activity: 'Salary Processing', amount: '', status: '', remarks: '' },
+  { activity: 'Freelancer Payments', amount: '', status: '', remarks: '' },
+  { activity: 'Incentives', amount: '', status: '', remarks: '' },
+  { activity: 'Reimbursements', amount: '', status: '', remarks: '' }
 ];
 
 const DEFAULT_EXPENSES = [
@@ -47,11 +47,11 @@ const DEFAULT_EXPENSES = [
 ];
 
 const DEFAULT_COMPLIANCE = [
-  { activity: 'Receipts Uploaded', dueDate: '', status: '' },
-  { activity: 'Ledger Updated', dueDate: '', status: '' },
-  { activity: 'Bank Statements Filed', dueDate: '', status: '' },
-  { activity: 'Tax Docs Updated', dueDate: '', status: '' },
-  { activity: 'Backup Completed', dueDate: '', status: '' }
+  { activity: 'Receipts Uploaded', status: '' },
+  { activity: 'Ledger Updated', status: '' },
+  { activity: 'Bank Statements Filed', status: '' },
+  { activity: 'Tax Docs Updated', status: '' },
+  { activity: 'Backup Completed', status: '' }
 ];
 
 const DEFAULT_KPI = [
@@ -186,6 +186,7 @@ const AccountantReportPage = () => {
   });
 
   const [dailyAccountingSummary, setDailyAccountingSummary] = useState(DEFAULT_ACCOUNTING_SUMMARY);
+  const [dailyTasks, setDailyTasks] = useState([]);
   const [transactionReport, setTransactionReport] = useState(DEFAULT_TRANSACTIONS);
   const [invoiceBillingReport, setInvoiceBillingReport] = useState([]);
   const [payrollPaymentStatus, setPayrollPaymentStatus] = useState(DEFAULT_PAYROLL_STATUS);
@@ -355,7 +356,8 @@ const AccountantReportPage = () => {
           department: userDetail.department || apiBasicDetails.department || ''
         });
 
-        setDailyAccountingSummary(report.dailyAccountingSummary || []);
+        setDailyAccountingSummary(report.dailyAccountingSummary || DEFAULT_ACCOUNTING_SUMMARY);
+        setDailyTasks(report.dailyTasks || []);
         setTransactionReport(report.transactionReport || []);
         setInvoiceBillingReport(report.invoiceBillingReport || []);
         setPayrollPaymentStatus(report.payrollPaymentStatus || []);
@@ -378,7 +380,7 @@ const AccountantReportPage = () => {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
             const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status || 'Done', dueDate: t.dueDate || '', startDate: t.startDate || t.startTime || t.startDateTimeLocal || '', endDate: t.endDate || t.endTime || t.endDateTimeLocal || '', remarks: t.description || 'Auto-fetched' }));
-            setDailyAccountingSummary(mappedTasks);
+            setDailyTasks(mappedTasks);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
@@ -392,7 +394,7 @@ const AccountantReportPage = () => {
           const completedTasks = await fetchCompletedTasks(userId, dateStr);
           if (completedTasks && completedTasks.length > 0) {
             const mappedTasks = completedTasks.map(t => ({ activity: t.title, status: t.status || 'Done', dueDate: t.dueDate || '', startDate: t.startDate || t.startTime || t.startDateTimeLocal || '', endDate: t.endDate || t.endTime || t.endDateTimeLocal || '', remarks: t.description || 'Auto-fetched' }));
-            setDailyAccountingSummary(mappedTasks);
+            setDailyTasks(mappedTasks);
           }
         } catch(e) {
           console.error("Error auto-fetching tasks:", e);
@@ -462,6 +464,7 @@ const AccountantReportPage = () => {
     });
 
     setDailyAccountingSummary(DEFAULT_ACCOUNTING_SUMMARY);
+    setDailyTasks([]);
     setTransactionReport(DEFAULT_TRANSACTIONS);
     setInvoiceBillingReport([]);
     setPayrollPaymentStatus(DEFAULT_PAYROLL_STATUS);
@@ -487,20 +490,22 @@ const AccountantReportPage = () => {
       setSaving(true);
 
       const cleanDailyAccountingSummary = dailyAccountingSummary.filter(t => (t.activity || '').trim() !== '');
-      const cleanTransactionReport = transactionReport.filter(t => (t.particulars || '').trim() !== '' || (t.amount || '').trim() !== '');
-      const cleanInvoiceBillingReport = invoiceBillingReport.filter(t => (t.clientName || '').trim() !== '' || (t.invoiceNumber || '').trim() !== '');
-      const cleanPayrollPaymentStatus = payrollPaymentStatus.filter(t => (t.employeeName || '').trim() !== '');
-      const cleanExpenseTracking = expenseTracking.filter(t => (t.expenseParticulars || '').trim() !== '' || (t.amount || '').trim() !== '');
-      const cleanDocumentationCompliance = documentationCompliance.filter(t => (t.particulars || '').trim() !== '');
+      const cleanDailyTasks = dailyTasks.filter(t => (t.activity || '').trim() !== '');
+      const cleanTransactionReport = transactionReport.filter(t => (t.transactionType || '').trim() !== '' || (t.amount || '').trim() !== '' || (t.incomes || '').trim() !== '' || (t.expense || '').trim() !== '');
+      const cleanInvoiceBillingReport = invoiceBillingReport.filter(t => (t.clientVendor || t.clientName || '').trim() !== '' || (t.amount || '').trim() !== '');
+      const cleanPayrollPaymentStatus = payrollPaymentStatus.filter(t => (t.activity || t.employeeName || '').trim() !== '');
+      const cleanExpenseTracking = expenseTracking.filter(t => (t.category || t.expenseParticulars || '').trim() !== '' || (t.amount || '').trim() !== '');
+      const cleanDocumentationCompliance = documentationCompliance.filter(t => (t.activity || t.particulars || '').trim() !== '');
       const cleanKpiTracking = kpiTracking.filter(t => (t.kpi || '').trim() !== '');
       const cleanIssuesSupportRequired = issuesSupportRequired.filter(t => (t.issue || '').trim() !== '');
-      const cleanFinalShiftHandover = finalShiftHandover.filter(t => (t.particulars || '').trim() !== '');
+      const cleanFinalShiftHandover = finalShiftHandover.filter(t => (t.item || t.particulars || '').trim() !== '');
 
       const payload = {
         userId: selectedUserId,
         dateString: selectedDate,
         basicDetails,
         dailyAccountingSummary: cleanDailyAccountingSummary,
+        dailyTasks: cleanDailyTasks,
         transactionReport: cleanTransactionReport,
         invoiceBillingReport: cleanInvoiceBillingReport,
         payrollPaymentStatus: cleanPayrollPaymentStatus,
@@ -711,21 +716,23 @@ const AccountantReportPage = () => {
       
       const payrollMap = {};
       DEFAULT_PAYROLL_STATUS.forEach(item => {
-        payrollMap[item.activity] = { statuses: [], remarks: [] };
+        payrollMap[item.activity] = { amounts: [], statuses: [], remarks: [] };
       });
       validReports.forEach(report => {
         const list = report.payrollPaymentStatus || [];
         list.forEach(row => {
           const act = row.activity || 'Unknown';
           if (!payrollMap[act]) {
-            payrollMap[act] = { statuses: [], remarks: [] };
+            payrollMap[act] = { amounts: [], statuses: [], remarks: [] };
           }
+          if (row.amount && String(row.amount).trim()) payrollMap[act].amounts.push(String(row.amount).trim());
           if (row.status && row.status.trim()) payrollMap[act].statuses.push(row.status.trim());
           if (row.remarks && row.remarks.trim()) payrollMap[act].remarks.push(row.remarks.trim());
         });
       });
       const consolidatedPayroll = Object.keys(payrollMap).map(act => ({
         activity: act,
+        amount: Array.from(new Set(payrollMap[act].amounts)).join('; '),
         status: Array.from(new Set(payrollMap[act].statuses)).join('; '),
         dueDate: '', remarks: Array.from(new Set(payrollMap[act].remarks)).join('; ')
       }));
@@ -1068,21 +1075,23 @@ const AccountantReportPage = () => {
       
       const payrollMap = {};
       DEFAULT_PAYROLL_STATUS.forEach(item => {
-        payrollMap[item.activity] = { statuses: [], remarks: [] };
+        payrollMap[item.activity] = { amounts: [], statuses: [], remarks: [] };
       });
       validReports.forEach(report => {
         const list = report.payrollPaymentStatus || [];
         list.forEach(row => {
           const act = row.activity || 'Unknown';
           if (!payrollMap[act]) {
-            payrollMap[act] = { statuses: [], remarks: [] };
+            payrollMap[act] = { amounts: [], statuses: [], remarks: [] };
           }
+          if (row.amount && String(row.amount).trim()) payrollMap[act].amounts.push(String(row.amount).trim());
           if (row.status && row.status.trim()) payrollMap[act].statuses.push(row.status.trim());
           if (row.remarks && row.remarks.trim()) payrollMap[act].remarks.push(row.remarks.trim());
         });
       });
       const consolidatedPayroll = Object.keys(payrollMap).map(act => ({
         activity: act,
+        amount: Array.from(new Set(payrollMap[act].amounts)).join('; '),
         status: Array.from(new Set(payrollMap[act].statuses)).join('; '),
         dueDate: '', remarks: Array.from(new Set(payrollMap[act].remarks)).join('; ')
       }));
@@ -1332,14 +1341,11 @@ const AccountantReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      // 2. DAILY ACCOUNTING SUMMARY
+      // 2. MONTHLY ACCOUNTING SUMMARY
       drawSectionHeader("2. MONTHLY ACCOUNTING SUMMARY");
-      const summaryHeaders = [["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"]];
+      const summaryHeaders = [["Activity", "Status", "Remarks"]];
       const summaryRows = monthlyDailyAccountingSummary.map(o => [
         o.activity || '', 
-        o.dueDate || '', 
-        o.startDate || '', 
-        o.endDate || '', 
         o.status || '', 
         o.remarks || ''
       ]);
@@ -1352,12 +1358,9 @@ const AccountantReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 52 },
-          1: { width: 25 },
-          2: { width: 25 },
-          3: { width: 25 },
-          4: { width: 25, halign: 'center' },
-          5: { width: 30 }
+          0: { width: 90 },
+          1: { width: 40, halign: 'center' },
+          2: { width: 52 }
         },
         margin: { left: 14, right: 14 }
       });
@@ -1366,8 +1369,8 @@ const AccountantReportPage = () => {
 
       // 3. TRANSACTION REPORT
       drawSectionHeader("3. CONSOLIDATED TRANSACTION REPORT");
-      const transactionHeaders = [["Transaction Type", "Total Count", "Total Amount"]];
-      const transactionRows = monthlyTransactionReport.map(t => [t.transactionType || '', t.count || '', t.amount || '']);
+      const transactionHeaders = [["Transaction Type", "Total Amount", "Incomes", "Expense"]];
+      const transactionRows = monthlyTransactionReport.map(t => [t.transactionType || '', t.amount || '', t.incomes || '', t.expense || '']);
 
       autoTable(doc, {
         head: transactionHeaders,
@@ -1377,11 +1380,11 @@ const AccountantReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 80 },
-          1: { width: 42, halign: 'center' },
-          2: { width: 60, halign: 'right' }
+          0: { width: 60 },
+          1: { width: 40, halign: 'right' },
+          2: { width: 41, halign: 'right' },
+          3: { width: 41, halign: 'right' }
         },
-        margin: { left: 14, right: 14 }
       });
 
       // ================= PAGE 2 =================
@@ -1418,8 +1421,8 @@ const AccountantReportPage = () => {
 
       // 5. PAYROLL & PAYMENT STATUS
       drawSectionHeader("5. CONSOLIDATED PAYROLL & PAYMENT STATUS");
-      const payrollHeaders = [["Activity", "Status Summary", "Remarks"]];
-      const payrollRows = monthlyPayrollPaymentStatus.map(p => [p.activity || '', p.status || '', p.remarks || '']);
+      const payrollHeaders = [["Activity", "Amount", "Status Summary", "Remarks"]];
+      const payrollRows = monthlyPayrollPaymentStatus.map(p => [p.activity || '', p.amount || '', p.status || '', p.remarks || '']);
 
       autoTable(doc, {
         head: payrollHeaders,
@@ -1429,9 +1432,10 @@ const AccountantReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 70 },
-          1: { width: 45, halign: 'center' },
-          2: { width: 67 }
+          0: { width: 55 },
+          1: { width: 35, halign: 'right' },
+          2: { width: 45, halign: 'center' },
+          3: { width: 47 }
         },
         margin: { left: 14, right: 14 }
       });
@@ -1702,14 +1706,11 @@ const AccountantReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      // 2. DAILY ACCOUNTING SUMMARY
-      drawSectionHeader("2. MONTHLY ACCOUNTING SUMMARY");
-      const summaryHeaders = [["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"]];
+      // 2. WEEKLY ACCOUNTING SUMMARY
+      drawSectionHeader("2. WEEKLY ACCOUNTING SUMMARY");
+      const summaryHeaders = [["Activity", "Status", "Remarks"]];
       const summaryRows = weeklyDailyAccountingSummary.map(o => [
         o.activity || '', 
-        o.dueDate || '', 
-        o.startDate || '', 
-        o.endDate || '', 
         o.status || '', 
         o.remarks || ''
       ]);
@@ -1722,12 +1723,9 @@ const AccountantReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 52 },
-          1: { width: 25 },
-          2: { width: 25 },
-          3: { width: 25 },
-          4: { width: 25, halign: 'center' },
-          5: { width: 30 }
+          0: { width: 90 },
+          1: { width: 40, halign: 'center' },
+          2: { width: 52 }
         },
         margin: { left: 14, right: 14 }
       });
@@ -1736,8 +1734,8 @@ const AccountantReportPage = () => {
 
       // 3. TRANSACTION REPORT
       drawSectionHeader("3. CONSOLIDATED TRANSACTION REPORT");
-      const transactionHeaders = [["Transaction Type", "Total Count", "Total Amount"]];
-      const transactionRows = weeklyTransactionReport.map(t => [t.transactionType || '', t.count || '', t.amount || '']);
+      const transactionHeaders = [["Transaction Type", "Total Amount", "Incomes", "Expense"]];
+      const transactionRows = weeklyTransactionReport.map(t => [t.transactionType || '', t.amount || '', t.incomes || '', t.expense || '']);
 
       autoTable(doc, {
         head: transactionHeaders,
@@ -1747,9 +1745,10 @@ const AccountantReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 80 },
-          1: { width: 42, halign: 'center' },
-          2: { width: 60, halign: 'right' }
+          0: { width: 60 },
+          1: { width: 40, halign: 'right' },
+          2: { width: 41, halign: 'right' },
+          3: { width: 41, halign: 'right' }
         },
         margin: { left: 14, right: 14 }
       });
@@ -1788,8 +1787,8 @@ const AccountantReportPage = () => {
 
       // 5. PAYROLL & PAYMENT STATUS
       drawSectionHeader("5. CONSOLIDATED PAYROLL & PAYMENT STATUS");
-      const payrollHeaders = [["Activity", "Status Summary", "Remarks"]];
-      const payrollRows = weeklyPayrollPaymentStatus.map(p => [p.activity || '', p.status || '', p.remarks || '']);
+      const payrollHeaders = [["Activity", "Amount", "Status Summary", "Remarks"]];
+      const payrollRows = weeklyPayrollPaymentStatus.map(p => [p.activity || '', p.amount || '', p.status || '', p.remarks || '']);
 
       autoTable(doc, {
         head: payrollHeaders,
@@ -1799,9 +1798,10 @@ const AccountantReportPage = () => {
         headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
         styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
         columnStyles: {
-          0: { width: 70 },
-          1: { width: 45, halign: 'center' },
-          2: { width: 67 }
+          0: { width: 55 },
+          1: { width: 35, halign: 'right' },
+          2: { width: 45, halign: 'center' },
+          3: { width: 47 }
         },
         margin: { left: 14, right: 14 }
       });
@@ -2351,7 +2351,7 @@ const AccountantReportPage = () => {
                 </h2>
                 <button
                   type="button"
-                  onClick={() => setDailyAccountingSummary([...dailyAccountingSummary, { activity: '', status: '', dueDate: '', startDate: '', endDate: '', remarks: '' }])}
+                  onClick={() => setDailyAccountingSummary([...dailyAccountingSummary, { activity: '', status: '', remarks: '' }])}
                   className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
                 >
                   <Plus size={14} /> Add Row
@@ -2361,11 +2361,8 @@ const AccountantReportPage = () => {
                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-950">
                     <tr>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[35%] min-w-[280px]">Activity</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Due Date</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Start Date</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">End Date</th>
-                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-32">Status</th>
+                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[40%] min-w-[280px]">Activity</th>
+                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Status</th>
                       <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
                       <th className="px-3 py-3 text-center w-12"></th>
                     </tr>
@@ -2384,45 +2381,6 @@ const AccountantReportPage = () => {
                             }}
                             className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
                             placeholder="Activity name"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.dueDate || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyAccountingSummary];
-                              updated[idx].dueDate = e.target.value;
-                              setDailyAccountingSummary(updated);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="e.g. 2026-07-15"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.startDate || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyAccountingSummary];
-                              updated[idx].startDate = e.target.value;
-                              setDailyAccountingSummary(updated);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="DD-MM-YYYY HH:mm"
-                          />
-                        </td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.endDate || ''}
-                            onChange={(e) => {
-                              const updated = [...dailyAccountingSummary];
-                              updated[idx].endDate = e.target.value;
-                              setDailyAccountingSummary(updated);
-                            }}
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
-                            placeholder="DD-MM-YYYY HH:mm"
                           />
                         </td>
                         <td className="px-6 py-3">
@@ -2448,6 +2406,7 @@ const AccountantReportPage = () => {
                               setDailyAccountingSummary(updated);
                             }}
                             className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
+                            placeholder="Add remarks..."
                           />
                         </td>
                         <td className="px-3 py-2 text-center">
@@ -2470,10 +2429,138 @@ const AccountantReportPage = () => {
               </div>
             </div>
 
-            {/* 3. TRANSACTION REPORT */}
+            {/* 3. DAILY TASKS */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">3</span>
+                  Daily Tasks
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setDailyTasks([...dailyTasks, { activity: '', dueDate: '', startDate: '', endDate: '', status: '', remarks: '' }])}
+                  className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
+                >
+                  <Plus size={14} /> Add Task
+                </button>
+              </div>
+              <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+                <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+                  <thead className="bg-slate-50 dark:bg-slate-950">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[30%] min-w-[240px]">Activity</th>
+                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Due Date</th>
+                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Start Date</th>
+                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">End Date</th>
+                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-32">Status</th>
+                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
+                      <th className="px-3 py-3 text-center w-12"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                    {dailyTasks.map((item, idx) => (
+                      <tr key={idx}>
+                        <td className="px-6 py-4">
+                          <input
+                            type="text"
+                            value={item.activity || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyTasks];
+                              updated[idx].activity = e.target.value;
+                              setDailyTasks(updated);
+                            }}
+                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
+                            placeholder="Task title"
+                          />
+                        </td>
+                        <td className="px-6 py-3">
+                          <input
+                            type="date"
+                            value={item.dueDate || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyTasks];
+                              updated[idx].dueDate = e.target.value;
+                              setDailyTasks(updated);
+                            }}
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                          />
+                        </td>
+                        <td className="px-6 py-3">
+                          <input
+                            type="text"
+                            value={item.startDate || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyTasks];
+                              updated[idx].startDate = e.target.value;
+                              setDailyTasks(updated);
+                            }}
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                            placeholder="DD-MM-YYYY HH:mm"
+                          />
+                        </td>
+                        <td className="px-6 py-3">
+                          <input
+                            type="text"
+                            value={item.endDate || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyTasks];
+                              updated[idx].endDate = e.target.value;
+                              setDailyTasks(updated);
+                            }}
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-sm focus:outline-none"
+                            placeholder="DD-MM-YYYY HH:mm"
+                          />
+                        </td>
+                        <td className="px-6 py-3">
+                          <input
+                            type="text"
+                            value={item.status || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyTasks];
+                              updated[idx].status = e.target.value;
+                              setDailyTasks(updated);
+                            }}
+                            className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
+                            placeholder="Done / Pending"
+                          />
+                        </td>
+                        <td className="px-6 py-3">
+                          <input
+                            type="text"
+                            value={item.remarks || ''}
+                            onChange={(e) => {
+                              const updated = [...dailyTasks];
+                              updated[idx].remarks = e.target.value;
+                              setDailyTasks(updated);
+                            }}
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
+                            placeholder="Task remarks..."
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = [...dailyTasks];
+                              updated.splice(idx, 1);
+                              setDailyTasks(updated);
+                            }}
+                            className="text-rose-500 hover:text-rose-600 transition"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 4. TRANSACTION REPORT */}
             <div className="space-y-4">
               <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">3</span>
+                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">4</span>
                 Transaction Report
               </h2>
               <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
@@ -2481,26 +2568,15 @@ const AccountantReportPage = () => {
                   <thead className="bg-slate-50 dark:bg-slate-950">
                     <tr>
                       <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Transaction Type</th>
-                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/4">Count</th>
-                      <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Amount</th>
+                      <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Count</th>
+                      <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Incomes</th>
+                      <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Expense</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                     {transactionReport.map((item, idx) => (
                       <tr key={idx}>
                         <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-300">{item.transactionType}</td>
-                        <td className="px-6 py-3">
-                          <input
-                            type="text"
-                            value={item.count || ''}
-                            onChange={(e) => {
-                              const updated = [...transactionReport];
-                              updated[idx].count = e.target.value;
-                              setTransactionReport(updated);
-                            }}
-                            className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
-                          />
-                        </td>
                         <td className="px-6 py-3">
                           <input
                             type="text"
@@ -2511,6 +2587,32 @@ const AccountantReportPage = () => {
                               setTransactionReport(updated);
                             }}
                             className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
+                          />
+                        </td>
+                        <td className="px-6 py-3">
+                          <input
+                            type="text"
+                            value={item.incomes || ''}
+                            onChange={(e) => {
+                              const updated = [...transactionReport];
+                              updated[idx].incomes = e.target.value;
+                              setTransactionReport(updated);
+                            }}
+                            className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
+                            placeholder="Income amount"
+                          />
+                        </td>
+                        <td className="px-6 py-3">
+                          <input
+                            type="text"
+                            value={item.expense || ''}
+                            onChange={(e) => {
+                              const updated = [...transactionReport];
+                              updated[idx].expense = e.target.value;
+                              setTransactionReport(updated);
+                            }}
+                            className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
+                            placeholder="Expense amount"
                           />
                         </td>
                       </tr>
@@ -2625,9 +2727,9 @@ const AccountantReportPage = () => {
                 <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800 text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-950">
                     <tr>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[35%] min-w-[280px]">Activity</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/3">Due Date</th>
-                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-1/4">Status</th>
+                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-[35%] min-w-[240px]">Activity</th>
+                      <th className="px-6 py-3 text-right text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-36">Amount</th>
+                      <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-32">Status</th>
                       <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Remarks</th>
                     </tr>
                   </thead>
@@ -2638,6 +2740,19 @@ const AccountantReportPage = () => {
                         <td className="px-6 py-3">
                           <input
                             type="text"
+                            value={item.amount || ''}
+                            onChange={(e) => {
+                              const updated = [...payrollPaymentStatus];
+                              updated[idx].amount = e.target.value;
+                              setPayrollPaymentStatus(updated);
+                            }}
+                            className="w-full text-right bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none font-mono"
+                            placeholder="Amount"
+                          />
+                        </td>
+                        <td className="px-6 py-3">
+                          <input
+                            type="text"
                             value={item.status || ''}
                             onChange={(e) => {
                               const updated = [...payrollPaymentStatus];
@@ -2645,6 +2760,7 @@ const AccountantReportPage = () => {
                               setPayrollPaymentStatus(updated);
                             }}
                             className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
+                            placeholder="Status"
                           />
                         </td>
                         <td className="px-6 py-3">
@@ -2657,6 +2773,7 @@ const AccountantReportPage = () => {
                               setPayrollPaymentStatus(updated);
                             }}
                             className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
+                            placeholder="Remarks"
                           />
                         </td>
                       </tr>
@@ -2727,7 +2844,6 @@ const AccountantReportPage = () => {
                   <thead className="bg-slate-50 dark:bg-slate-950">
                     <tr>
                       <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-2/3">Activity</th>
-                      <th className="px-6 py-3 text-left text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider w-2/3">Due Date</th>
                       <th className="px-6 py-3 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Status</th>
                     </tr>
                   </thead>
@@ -2745,6 +2861,7 @@ const AccountantReportPage = () => {
                               setDocumentationCompliance(updated);
                             }}
                             className="w-full text-center bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1.5 text-sm focus:outline-none"
+                            placeholder="Done / Pending"
                           />
                         </td>
                       </tr>
