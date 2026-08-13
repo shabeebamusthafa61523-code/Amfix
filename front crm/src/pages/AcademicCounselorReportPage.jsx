@@ -10,6 +10,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
+import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -192,6 +193,10 @@ const AcademicCounselorReportPage = () => {
       console.error("Failed to parse user session details:", err);
     }
   }, []);
+
+  // AI Analysis Modal State
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiModalContext, setAiModalContext] = useState(null);
 
   // Fetch counselors list (for selection dropdown)
   useEffect(() => {
@@ -1490,6 +1495,19 @@ const AcademicCounselorReportPage = () => {
 
                 
 
+                <AiAnalyzeButton
+                  onClick={() => {
+                    setAiModalContext({
+                      employeeName: basicDetails.employeeName,
+                      department: 'Academic Counseling & Sales',
+                      designation: basicDetails.designation,
+                      date: selectedDate,
+                      actualReportContentText: JSON.stringify({ basicDetails, salesActivity, leadConversion, admissionMetrics, counselorComments: comments })
+                    });
+                    setIsAiModalOpen(true);
+                  }}
+                />
+
                 <button
                   type="button"
                   onClick={handleDownloadPDF}
@@ -1505,6 +1523,13 @@ const AcademicCounselorReportPage = () => {
                 </button>
               </div>
             </div>
+
+            <AiAnalyzeModal
+              isOpen={isAiModalOpen}
+              onClose={() => setIsAiModalOpen(false)}
+              contextData={aiModalContext}
+              title="Academic Counselor Report AI Analysis"
+            />
 
             {/* 1. BASIC DETAILS */}
             <div className="space-y-4">

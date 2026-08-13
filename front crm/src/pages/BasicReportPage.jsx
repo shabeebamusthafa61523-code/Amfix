@@ -11,6 +11,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import SignatureUpload from '../components/SignatureUpload';
 import { useNavigate } from 'react-router-dom';
+import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
 const RAW_API_BASE = import.meta.env.VITE_API_URL || '/api';
 const API_BASE = RAW_API_BASE.replace(/\/v1\/?$/, '').replace(/\/+$/, '');
@@ -46,6 +47,10 @@ const BasicReportPage = () => {
   const [taskSummary, setTaskSummary] = useState([]);
   const [blockersTomorrowPlan, setBlockersTomorrowPlan] = useState(DEFAULT_BLOCKERS_PLAN);
   const [staffSignature, setStaffSignature] = useState('');
+
+  // AI Analysis Modal State
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiModalContext, setAiModalContext] = useState(null);
 
   const getAuthHeaders = useCallback(() => {
     const raw = localStorage.getItem('token');

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import LeaveRequest from '../models/leaveRequest.model.js';
 import User from '../models/user.model.js';
 import { sendNotification } from '../services/notification.service.js';
@@ -198,15 +199,19 @@ export const createLeaveRequest = async (req, res) => {
 
     // 2. Target CC Users
     for (const ccUser of resolvedCcUsers) {
-      if (ccUser.userId.toString() !== userId.toString()) {
-        await sendNotification(
-          ccUser.userId,
-          `📋 CC Notice: ${userObj.name} (${userObj.department || 'General'}) submitted a Leave Request (${leaveType}, ${totalDays} day(s)).`,
-          'info',
-          'Leave Request CC Notice',
-          userId,
-          userObj.name
-        );
+      if (ccUser.userId && ccUser.userId.toString() !== userId.toString()) {
+        try {
+          await sendNotification(
+            ccUser.userId,
+            `📋 CC Notice: ${userObj.name} (${userObj.department || 'General'}) submitted a Leave Request (${leaveType}, ${totalDays} day(s)).`,
+            'info',
+            'Leave Request CC Notice',
+            userId,
+            userObj.name
+          );
+        } catch (ccNotifErr) {
+          console.error("CC notification error:", ccNotifErr);
+        }
       }
     }
 
@@ -362,6 +367,7 @@ export const getTeamLeaveRequests = async (req, res) => {
       leaveOrConditions.push({ department: { $in: regexDeptList } });
     }
     leaveOrConditions.push({ teamLeadActionBy: userId });
+    leaveOrConditions.push({ 'ccUsers.userId': userId });
 
     const query = {
       user: { $ne: userId },

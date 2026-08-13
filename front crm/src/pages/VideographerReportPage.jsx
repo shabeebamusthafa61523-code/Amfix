@@ -10,6 +10,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
+import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -210,6 +211,10 @@ const VideographerReportPage = () => {
     };
     fetchVideographers();
   }, [getAuthHeaders, selectedUserId]);
+
+  // AI Analysis Modal State
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiModalContext, setAiModalContext] = useState(null);
 
   // Fetch submitted report dates list for highlighting
   const fetchSubmittedDates = useCallback(async (userId) => {
@@ -1190,6 +1195,19 @@ const VideographerReportPage = () => {
 
                 
 
+                <AiAnalyzeButton
+                  onClick={() => {
+                    setAiModalContext({
+                      employeeName: basicDetails.employeeName,
+                      department: 'Videography & Media Production',
+                      designation: basicDetails.designation,
+                      date: selectedDate,
+                      actualReportContentText: JSON.stringify({ basicDetails, taskLog, videoProductionDetails, videographerComments: comments })
+                    });
+                    setIsAiModalOpen(true);
+                  }}
+                />
+
                 <button
                   type="button"
                   onClick={handleDownloadPDF}
@@ -1205,6 +1223,13 @@ const VideographerReportPage = () => {
                 </button>
               </div>
             </div>
+
+            <AiAnalyzeModal
+              isOpen={isAiModalOpen}
+              onClose={() => setIsAiModalOpen(false)}
+              contextData={aiModalContext}
+              title="Videographer Report AI Analysis"
+            />
 
             {/* 1. BASIC DETAILS */}
             <div className="space-y-4">

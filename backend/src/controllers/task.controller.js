@@ -668,27 +668,32 @@ export const updateTaskStatus = async (req, res, next) => {
       .populate('project', 'projectName projectCode status')
       .lean();
 
-    // Send status update notification & email to the TASK CREATOR
+    // Send status update notification & email/SMS to both ASSIGNEE and TASK CREATOR
     try {
       const creatorUser = populatedTask.created_by;
-      const creatorEmail = creatorUser?.email;
-      const updaterName = req.user?.name || populatedTask.assigned_to?.name || 'Assigned Staff';
+      const assigneeUser = populatedTask.assigned_to;
+      const updaterName = req.user?.name || assigneeUser?.name || 'Staff Member';
+      const statusText = (status || task.status || '').toUpperCase();
 
-      if (creatorEmail) {
-        sendTaskStatusUpdateEmail({
-          recipientEmail: creatorEmail,
-          recipientName: creatorUser?.name || 'Task Creator',
-          taskTitle: task.title,
-          oldStatus: 'previous',
-          newStatus: status || task.status,
-          updatedByName: updaterName
-        });
+      const recipientsToNotify = [creatorUser, assigneeUser].filter(u => u && (u._id || u.id));
+      const uniqueRecipients = Array.from(new Map(recipientsToNotify.map(u => [(u._id || u.id).toString(), u])).values());
 
-        const creatorId = creatorUser._id || creatorUser.id;
-        if (creatorId) {
+      for (const recipient of uniqueRecipients) {
+        if (recipient.email) {
+          sendTaskStatusUpdateEmail({
+            recipientEmail: recipient.email,
+            recipientName: recipient.name || 'Team Member',
+            taskTitle: task.title,
+            oldStatus: 'previous',
+            newStatus: statusText,
+            updatedByName: updaterName
+          });
+        }
+        const recipientId = recipient._id || recipient.id;
+        if (recipientId) {
           await sendNotification(
-            creatorId,
-            `Task status updated to "${(status || task.status).toUpperCase()}" for "${task.title}" by ${updaterName}.`,
+            recipientId,
+            `Task status updated to "${statusText}" for "${task.title}" by ${updaterName}.`,
             'task_status_changed',
             `Task Status Updated: ${task.title}`,
             req.user?.id || req.user?._id,
@@ -697,7 +702,7 @@ export const updateTaskStatus = async (req, res, next) => {
         }
       }
     } catch (statusMailErr) {
-      console.error("Task creator status email error:", statusMailErr);
+      console.error("Task creator/assignee status email error:", statusMailErr);
     }
 
     const formattedTask = formatLeanTask(populatedTask);
@@ -824,29 +829,24 @@ export const updateTask = async (req, res, next) => {
       .populate('project', 'projectName projectCode status')
       .lean();
 
-    // Trigger notification & email to task creator on status update
+    // Trigger notification & email/SMS to both assignee and task creator on task updates
     try {
       const creatorUser = populatedTask.created_by;
-      const creatorEmail = creatorUser?.email;
-      const updaterName = req.user?.name || populatedTask.assigned_to?.name || 'Assigned Staff';
+      const assigneeUser = populatedTask.assigned_to;
+      const updaterName = req.user?.name || 'Manager';
 
-      if (req.body.status !== undefined && creatorEmail) {
-        sendTaskStatusUpdateEmail({
-          recipientEmail: creatorEmail,
-          recipientName: creatorUser?.name || 'Task Creator',
-          taskTitle: task.title,
-          oldStatus: 'previous',
-          newStatus: req.body.status,
-          updatedByName: updaterName
-        });
+      const recipientsToNotify = [creatorUser, assigneeUser].filter(u => u && (u._id || u.id));
+      const uniqueRecipients = Array.from(new Map(recipientsToNotify.map(u => [(u._id || u.id).toString(), u])).values());
 
-        const creatorId = creatorUser._id || creatorUser.id;
-        if (creatorId) {
+      for (const recipient of uniqueRecipients) {
+        const recipientId = recipient._id || recipient.id;
+        const updateDetail = req.body.status ? `Status: ${String(req.body.status).toUpperCase()}` : 'Task details modified';
+        if (recipientId) {
           await sendNotification(
-            creatorId,
-            `Task status updated to "${String(req.body.status).toUpperCase()}" for "${task.title}" by ${updaterName}.`,
-            'task_status_changed',
-            `Task Status Updated: ${task.title}`,
+            recipientId,
+            `Task "${task.title}" was updated by ${updaterName}. (${updateDetail})`,
+            'task_updated',
+            `Task Updated: ${task.title}`,
             req.user?.id || req.user?._id,
             updaterName
           );
