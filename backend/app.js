@@ -25,6 +25,8 @@ import apiRoutes from './src/routes/api.js';
 import aiRoutes from './src/routes/ai.routes.js';
 import mdDashboardRoutes from './src/routes/mdDashboard.routes.js';
 import accountRoutes from './src/routes/account.routes.js';
+import academyRoutes from './src/routes/academy.routes.js';
+import notificationRoutes from './src/routes/notification.routes.js';
 import leaveRoutes from './src/routes/leave.routes.js';
 import Designation from './src/models/designation.model.js';
 import Department from './src/modules/departments/department.model.js';
@@ -40,40 +42,23 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-
-    // Support wildcard '*' in ALLOWED_ORIGINS env
-    if (allowedOrigins.includes('*')) {
-      return callback(null, true);
+    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(null, true);
     }
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    // Dynamically allow common hosting platforms (Vercel, Netlify, Render) and localhost variants
-    const isAllowedDynamic =
-      /\.vercel\.app$/.test(origin) ||
-      /\.netlify\.app$/.test(origin) ||
-      /\.onrender\.com$/.test(origin) ||
-      /^http:\/\/localhost(:\d+)?$/.test(origin) ||
-      /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin);
-
-    if (isAllowedDynamic) {
-      return callback(null, true);
-    }
-
-    console.log(`❌ Blocked CORS request from: ${origin}`);
-    return callback(new Error('Not allowed by CORS'));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
 app.options('*', cors());
 
 // 2. Parsers Middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -89,8 +74,13 @@ app.use('/api/v1/md-dashboard', mdDashboardRoutes);
 app.use('/api/md-dashboard', mdDashboardRoutes);
 app.use('/api/v1/accounts', accountRoutes);
 app.use('/api/accounts', accountRoutes);
+app.use('/api/v1/academy', academyRoutes);
+app.use('/api/academy', academyRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 4. Broad, Versioned, & Catch-all Fallbacks (Broadest matching paths go lower)
+app.use('/api/v1', studentRoutes);
 app.use('/api/v1', crmRoutes);
 app.use('/api', studentRoutes); 
 app.use('/api', apiRoutes);      // Legacy base fallback route handler

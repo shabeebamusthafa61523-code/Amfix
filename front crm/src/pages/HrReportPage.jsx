@@ -11,6 +11,7 @@ import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
 import PayslipModal from '../components/accounts/PayslipModal';
+import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -196,6 +197,10 @@ const HrReportPage = () => {
   const [isWeeklyModalOpen, setIsWeeklyModalOpen] = useState(false);
 
   // Auto-open weekly modal from URL parameters
+  // AI Analysis Modal State
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiModalContext, setAiModalContext] = useState(null);
+
   useEffect(() => {
     if (selectedUserId) {
       const queryParams = new URLSearchParams(window.location.search);
@@ -924,296 +929,205 @@ const HrReportPage = () => {
     }
   };
 
+  // --- UNIFIED MULTI-PAGE AUTO-PAGINATED PDF ENGINE ---
+  const downloadFormattedHrPDF = ({ title, subtitle, basicRows, sections, filename }) => {
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    
+    const drawPageHeader = () => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.setTextColor(60, 35, 117);
+      doc.text("KOD.", 14, 16);
+      doc.setTextColor(132, 204, 22);
+      doc.text("brand", 31, 16);
+
+      doc.setFontSize(11);
+      doc.setTextColor(60, 35, 117);
+      doc.text(title.toUpperCase(), 196, 15, { align: 'right' });
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 100, 100);
+      doc.text(subtitle.toUpperCase(), 196, 20, { align: 'right' });
+      doc.setDrawColor(220, 220, 225);
+      doc.setLineWidth(0.5);
+      doc.line(14, 23, 196, 23);
+    };
+
+    drawPageHeader();
+    let currentY = 27;
+
+    const checkHeightAndAddPage = (neededHeight) => {
+      if (currentY + neededHeight > 270) {
+        doc.addPage();
+        drawPageHeader();
+        currentY = 27;
+      }
+    };
+
+    const drawSectionHeader = (secTitle) => {
+      checkHeightAndAddPage(12);
+      doc.setFillColor(60, 35, 117);
+      doc.rect(14, currentY, 182, 6.5, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text(secTitle.toUpperCase(), 17, currentY + 4.5);
+      currentY += 7.5;
+    };
+
+    // 1. Basic Details Table
+    drawSectionHeader("1. BASIC DETAILS");
+    autoTable(doc, {
+      body: basicRows,
+      startY: currentY,
+      theme: 'grid',
+      margin: { top: 27, bottom: 20, left: 14, right: 14 },
+      styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [200, 200, 200], lineWidth: 0.1 },
+      columnStyles: { 0: { fontStyle: 'bold', fillColor: [245, 245, 248], width: 45 }, 1: { width: 137 } },
+      didDrawPage: () => drawPageHeader()
+    });
+    currentY = doc.lastAutoTable.finalY + 5;
+
+    // Render all other dynamic sections
+    sections.forEach((sec) => {
+      if (sec.type === 'table' && sec.rows && sec.rows.length > 0) {
+        drawSectionHeader(sec.title);
+        autoTable(doc, {
+          head: [sec.headers],
+          body: sec.rows,
+          startY: currentY,
+          theme: 'grid',
+          margin: { top: 27, bottom: 20, left: 14, right: 14 },
+          headStyles: { fillColor: [240, 240, 245], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [200, 200, 200], lineWidth: 0.1 },
+          styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [200, 200, 200], lineWidth: 0.1 },
+          columnStyles: sec.columnStyles || {},
+          didDrawPage: () => drawPageHeader()
+        });
+        currentY = doc.lastAutoTable.finalY + 5;
+      } else if (sec.type === 'text' && sec.content && sec.content.trim()) {
+        drawSectionHeader(sec.title);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(0, 0, 0);
+        const lines = doc.splitTextToSize(sec.content, 178);
+        const boxH = Math.max(14, lines.length * 4.2 + 6);
+        checkHeightAndAddPage(boxH + 4);
+        doc.text(lines, 16, currentY + 5);
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(14, currentY, 182, boxH);
+        currentY += boxH + 5;
+      }
+    });
+
+    // Footer page numbering across all pages
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(120, 120, 120);
+      doc.text(`Page ${i} of ${totalPages}  |  KOD.brand Operations Command Center © ${new Date().getFullYear()}`, 105, 287, { align: 'center' });
+    }
+
+    doc.save(filename);
+  };
+
   const handleDownloadMonthlyPDF = async () => {
     try {
-      const logoImg = new Image();
-      logoImg.src = '/logo3.png';
-      await new Promise((resolve) => {
-        logoImg.onload = resolve;
-        logoImg.onerror = resolve;
-      });
-
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-        compress: true
-      });
-
-      let currentY = 15;
-
-      const drawSectionHeader = (title) => {
-        doc.setFillColor(60, 35, 117);
-        doc.rect(14, currentY, 182, 7, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9.5);
-        doc.setTextColor(255, 255, 255);
-        doc.text(title.toUpperCase(), 17, currentY + 5);
-        currentY += 7;
-      };
-
-      const drawHeader = () => {
-        if (logoImg.complete && logoImg.naturalWidth > 0) {
-          doc.addImage(logoImg, 'PNG', 14, 10, 32, 12);
-        } else {
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(22);
-          doc.setTextColor(132, 204, 22);
-          doc.text("KOD.", 14, 21);
-          
-          doc.setTextColor(60, 35, 117);
-          doc.text("brand", 34, 21);
-        }
-
-        doc.setFontSize(14);
-        doc.setTextColor(60, 35, 117);
-        doc.text("MONTHLY CONSOLIDATED HR REPORT", 110, 16);
-        
-        doc.setFontSize(7.5);
-        doc.setTextColor(0, 0, 0);
-        doc.text("HR / ADMIN MANAGER", 155, 22);
-      };
-
-      // ================= PAGE 1 =================
-      drawHeader();
-      currentY = 27;
-
-      drawSectionHeader("1. BASIC DETAILS");
-      const basicDetailsRows = [
-        ["Date Range", monthlyBasicDetails.dateRange || ''],
-        ["Employee Name:", monthlyBasicDetails.employeeName || ''],
+      const basicRows = [
+        ["Date Range", monthlyBasicDetails.dateRange || `${monthlyStartDate} to ${monthlyEndDate}`],
+        ["Employee Name", monthlyBasicDetails.employeeName || ''],
         ["Employee ID", monthlyBasicDetails.employeeId || ''],
-        ["Department", monthlyBasicDetails.department || ''],
-        ["Designation", monthlyBasicDetails.designation || ''],
+        ["Department", monthlyBasicDetails.department || 'HR / Admin'],
+        ["Designation", monthlyBasicDetails.designation || 'HR / Admin Manager'],
         ["Reporting To", monthlyBasicDetails.reportingTo || ''],
         ["Prepared Time", monthlyBasicDetails.preparedTime || '']
       ];
 
-      autoTable(doc, {
-        body: basicDetailsRows,
-        startY: currentY,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 45 },
-          1: { width: 137 }
+      const sections = [
+        {
+          title: "2. DAILY OPERATIONS SUMMARY (CONSOLIDATED)",
+          type: "table",
+          headers: ["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"],
+          rows: monthlyDailyOperations.map(o => [o.activity || '', o.dueDate || '', o.startDate || '', o.endDate || '', o.status || '', o.remarks || '']),
+          columnStyles: { 0: { cellWidth: 52 }, 1: { cellWidth: 22 }, 2: { cellWidth: 22 }, 3: { cellWidth: 22 }, 4: { cellWidth: 22 }, 5: { cellWidth: 42 } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("2. DAILY OPERATIONS SUMMARY (CONSOLIDATED)");
-      const opsHeaders = [["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"]];
-      const opsRows = monthlyDailyOperations.map(o => [
-        o.activity || '', 
-        o.dueDate || '', 
-        o.startDate || '', 
-        o.endDate || '', 
-        o.status || '', 
-        o.remarks || ''
-      ]);
-
-      autoTable(doc, {
-        head: opsHeaders,
-        body: opsRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { cellWidth: 52 },
-          1: { cellWidth: 25, halign: 'center' },
-          2: { cellWidth: 25, halign: 'center' },
-          3: { cellWidth: 25, halign: 'center' },
-          4: { cellWidth: 20, halign: 'center' },
-          5: { cellWidth: 35 }
+        {
+          title: "3. EMPLOYEE MANAGEMENT (CONSOLIDATED)",
+          type: "table",
+          headers: ["Employee Name", "Department", "Attendance", "Task Status", "Remarks"],
+          rows: monthlyEmployeeManagement.map(e => [e.employeeName || '', e.department || '', e.attendance || '', e.taskStatus || '', e.remarks || '']),
+          columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: 35 }, 2: { cellWidth: 30 }, 3: { cellWidth: 30 }, 4: { cellWidth: 42 } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("3. RECRUITMENT REPORT (CONSOLIDATED)");
-      const recruitHeaders = [["Recruitment Activity", "Count / Status"]];
-      const recruitRows = monthlyRecruitmentReport.map(r => [r.activity || '', r.countStatus || '']);
-
-      autoTable(doc, {
-        head: recruitHeaders,
-        body: recruitRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 110 },
-          1: { width: 72, halign: 'center' }
+        {
+          title: "4. RECRUITMENT REPORT (CONSOLIDATED)",
+          type: "table",
+          headers: ["Recruitment Activity", "Count / Status"],
+          rows: monthlyRecruitmentReport.map(r => [r.activity || '', r.countStatus || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      // ================= PAGE 2 =================
-      doc.addPage();
-      currentY = 15;
-      drawHeader();
-      currentY = 27;
-
-      drawSectionHeader("4. ATTENDANCE & LEAVE REPORT (CONSOLIDATED)");
-      const leaveHeaders = [["Category", "Count"]];
-      const leaveRows = monthlyAttendanceLeave.map(l => [l.category || '', l.count || '']);
-
-      autoTable(doc, {
-        head: leaveHeaders,
-        body: leaveRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2.2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 110 },
-          1: { width: 72, halign: 'center' }
+        {
+          title: "5. ATTENDANCE & LEAVE REPORT (CONSOLIDATED)",
+          type: "table",
+          headers: ["Category", "Count"],
+          rows: monthlyAttendanceLeave.map(l => [l.category || '', l.count || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("5. ADMIN OPERATIONS REPORT (CONSOLIDATED)");
-      const adminOpsHeaders = [["Activity", "Status", "Remarks"]];
-      const adminOpsRows = monthlyAdminOperations.map(a => [a.activity || '', a.status || '', a.remarks || '']);
-
-      autoTable(doc, {
-        head: adminOpsHeaders,
-        body: adminOpsRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 70 },
-          1: { width: 35, halign: 'center' },
-          2: { width: 77 }
+        {
+          title: "6. ADMIN OPERATIONS REPORT (CONSOLIDATED)",
+          type: "table",
+          headers: ["Activity", "Status", "Remarks"],
+          rows: monthlyAdminOperations.map(a => [a.activity || '', a.status || '', a.remarks || '']),
+          columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 35, halign: 'center' }, 2: { cellWidth: 77 } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("6. DOCUMENTATION & COMPLIANCE (CONSOLIDATED)");
-      const complianceHeaders = [["Activity", "Status"]];
-      const complianceRows = monthlyDocumentationCompliance.map(d => [d.activity || '', d.status || '']);
-
-      autoTable(doc, {
-        head: complianceHeaders,
-        body: complianceRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2.2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 110 },
-          1: { width: 72, halign: 'center' }
+        {
+          title: "7. DOCUMENTATION & COMPLIANCE (CONSOLIDATED)",
+          type: "table",
+          headers: ["Activity", "Status"],
+          rows: monthlyDocumentationCompliance.map(d => [d.activity || '', d.status || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("7. KPI TRACKING (CONSOLIDATED)");
-      const kpiHeaders = [["KPI", "Status"]];
-      const kpiRows = monthlyKpiTracking.map(k => [k.kpi || '', k.status || '']);
-
-      autoTable(doc, {
-        head: kpiHeaders,
-        body: kpiRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2.2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 110 },
-          1: { width: 72, halign: 'center' }
+        {
+          title: "8. KPI TRACKING (CONSOLIDATED)",
+          type: "table",
+          headers: ["KPI", "Status"],
+          rows: monthlyKpiTracking.map(k => [k.kpi || '', k.status || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("8. ISSUES / ESCALATIONS (CONSOLIDATED)");
-      const issueHeaders = [["Issue", "Priority", "Action Taken"]];
-      const issueRows = monthlyIssuesEscalations.map(i => [i.issue || '', i.priority || '', i.actionTaken || '']);
-
-      autoTable(doc, {
-        head: issueHeaders,
-        body: issueRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 60 },
-          1: { width: 45, halign: 'center' },
-          2: { width: 77 }
+        {
+          title: "9. ISSUES / ESCALATIONS (CONSOLIDATED)",
+          type: "table",
+          headers: ["Issue", "Priority", "Action Taken"],
+          rows: monthlyIssuesEscalations.map(i => [i.issue || '', i.priority || '', i.actionTaken || '']),
+          columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 45, halign: 'center' }, 2: { cellWidth: 77 } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("9. NEXT DAY ACTION PLAN (CONSOLIDATED)");
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(0, 0, 0);
-      const planLines = doc.splitTextToSize(monthlyNextDayActionPlan || '', 178);
-      doc.text(planLines, 16, currentY + 5);
-      const planBoxHeight = Math.max(16, planLines.length * 4.2 + 6);
-      doc.setDrawColor(180, 180, 180);
-      doc.rect(14, currentY, 182, planBoxHeight);
-
-      // ================= PAGE 3 =================
-      doc.addPage();
-      currentY = 15;
-      drawHeader();
-      currentY = 27;
-
-      drawSectionHeader("10. FINAL SHIFT HANDOVER (CONSOLIDATED)");
-      const handoverHeaders = [["Handover Item", "Status"]];
-      const handoverRows = monthlyFinalShiftHandover.map(h => [h.item || '', h.status || '']);
-
-      autoTable(doc, {
-        head: handoverHeaders,
-        body: handoverRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2.5, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 110 },
-          1: { width: 72, halign: 'center' }
+        {
+          title: "10. NEXT DAY ACTION PLAN (CONSOLIDATED)",
+          type: "text",
+          content: monthlyNextDayActionPlan || ''
         },
-        margin: { left: 14, right: 14 }
-      });
+        {
+          title: "11. FINAL SHIFT HANDOVER (CONSOLIDATED)",
+          type: "table",
+          headers: ["Handover Item", "Status"],
+          rows: monthlyFinalShiftHandover.map(h => [h.item || '', h.status || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
+        },
+        {
+          title: "12. HR / ADMIN COMMENTS (CONSOLIDATED)",
+          type: "text",
+          content: monthlyHrAdminComments || ''
+        }
+      ];
 
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("11. HR / ADMIN COMMENTS (CONSOLIDATED)");
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(0, 0, 0);
-      const commentsLines = doc.splitTextToSize(monthlyHrAdminComments || '', 178);
-      doc.text(commentsLines, 16, currentY + 5);
-      const commentsBoxHeight = Math.max(16, commentsLines.length * 4.2 + 6);
-      doc.setDrawColor(180, 180, 180);
-      doc.rect(14, currentY, 182, commentsBoxHeight);
-      const pdfBlob = doc.output('blob');
       const filename = `HR_Monthly_Consolidated_Report_${monthlyBasicDetails.employeeName || 'HR'}_${monthlyStartDate}_to_${monthlyEndDate}.pdf`;
-      try {
-        await uploadCompiledPDFReport(selectedUserId, `${monthlyStartDate}_to_${monthlyEndDate}`, pdfBlob, filename, 'hr', 'monthly');
-        console.log("Monthly PDF saved successfully");
-      } catch (uploadErr) {
-        console.error("Failed to upload monthly PDF:", uploadErr);
-      }
-      doc.save(filename);
+      downloadFormattedHrPDF({
+        title: "MONTHLY CONSOLIDATED HR REPORT",
+        subtitle: "HR / ADMIN MANAGER",
+        basicRows,
+        sections,
+        filename
+      });
+
       showToast("Monthly PDF report downloaded successfully!", "success");
     } catch (e) {
       console.error(e);
@@ -1223,351 +1137,111 @@ const HrReportPage = () => {
 
   const handleDownloadWeeklyPDF = async () => {
     try {
-      const logoImg = new Image();
-      logoImg.src = '/logo3.png';
-      await new Promise((resolve) => {
-        logoImg.onload = resolve;
-        logoImg.onerror = resolve;
-      });
-
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-        compress: true
-      });
-
-      let currentY = 15;
-
-      const drawSectionHeader = (title) => {
-        doc.setFillColor(60, 35, 117);
-        doc.rect(14, currentY, 182, 7, 'F');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9.5);
-        doc.setTextColor(255, 255, 255);
-        doc.text(title.toUpperCase(), 17, currentY + 5);
-        currentY += 7;
-      };
-
-      const drawHeader = () => {
-        if (logoImg.complete && logoImg.naturalWidth > 0) {
-          doc.addImage(logoImg, 'PNG', 14, 10, 32, 12);
-        } else {
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(22);
-          doc.setTextColor(132, 204, 22);
-          doc.text("KOD.", 14, 21);
-          
-          doc.setTextColor(60, 35, 117);
-          doc.text("brand", 34, 21);
-        }
-
-        doc.setFontSize(14);
-        doc.setTextColor(60, 35, 117);
-        doc.text("MONTHLY CONSOLIDATED HR REPORT", 110, 16);
-        
-        doc.setFontSize(7.5);
-        doc.setTextColor(0, 0, 0);
-        doc.text("HR / ADMIN MANAGER", 155, 22);
-      };
-
-      // ================= PAGE 1 =================
-      drawHeader();
-      currentY = 27;
-
-      drawSectionHeader("1. BASIC DETAILS");
-      const basicDetailsRows = [
-        ["Date Range", weeklyBasicDetails.dateRange || ''],
-        ["Employee Name:", weeklyBasicDetails.employeeName || ''],
+      const basicRows = [
+        ["Date Range", weeklyBasicDetails.dateRange || `${weeklyStartDate} to ${weeklyEndDate}`],
+        ["Employee Name", weeklyBasicDetails.employeeName || ''],
         ["Employee ID", weeklyBasicDetails.employeeId || ''],
-        ["Department", weeklyBasicDetails.department || ''],
-        ["Designation", weeklyBasicDetails.designation || ''],
+        ["Department", weeklyBasicDetails.department || 'HR / Admin'],
+        ["Designation", weeklyBasicDetails.designation || 'HR / Admin Manager'],
         ["Reporting To", weeklyBasicDetails.reportingTo || ''],
         ["Prepared Time", weeklyBasicDetails.preparedTime || '']
       ];
 
-      autoTable(doc, {
-        body: basicDetailsRows,
-        startY: currentY,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 45 },
-          1: { width: 137 }
+      const sections = [
+        {
+          title: "2. DAILY OPERATIONS SUMMARY (CONSOLIDATED)",
+          type: "table",
+          headers: ["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"],
+          rows: weeklyDailyOperations.map(o => [o.activity || '', o.dueDate || '', o.startDate || '', o.endDate || '', o.status || '', o.remarks || '']),
+          columnStyles: { 0: { cellWidth: 52 }, 1: { cellWidth: 22 }, 2: { cellWidth: 22 }, 3: { cellWidth: 22 }, 4: { cellWidth: 22 }, 5: { cellWidth: 42 } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("2. DAILY OPERATIONS SUMMARY (CONSOLIDATED)");
-      const opsHeaders = [["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"]];
-      const opsRows = weeklyDailyOperations.map(o => [
-        o.activity || '', 
-        o.dueDate || '', 
-        o.startDate || '', 
-        o.endDate || '', 
-        o.status || '', 
-        o.remarks || ''
-      ]);
-
-      autoTable(doc, {
-        head: opsHeaders,
-        body: opsRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { cellWidth: 52 },
-          1: { cellWidth: 25, halign: 'center' },
-          2: { cellWidth: 25, halign: 'center' },
-          3: { cellWidth: 25, halign: 'center' },
-          4: { cellWidth: 20, halign: 'center' },
-          5: { cellWidth: 35 }
+        {
+          title: "3. EMPLOYEE MANAGEMENT (CONSOLIDATED)",
+          type: "table",
+          headers: ["Employee Name", "Department", "Attendance", "Task Status", "Remarks"],
+          rows: weeklyEmployeeManagement.map(e => [e.employeeName || '', e.department || '', e.attendance || '', e.taskStatus || '', e.remarks || '']),
+          columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: 35 }, 2: { cellWidth: 30 }, 3: { cellWidth: 30 }, 4: { cellWidth: 42 } }
         },
-        margin: { left: 14, right: 14 }
-      });
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("3. RECRUITMENT REPORT (CONSOLIDATED)");
-      const recruitHeaders = [["Recruitment Activity", "Count / Status"]];
-      const recruitRows = weeklyRecruitmentReport.map(r => [r.activity || '', r.countStatus || '']);
-
-      autoTable(doc, {
-        head: recruitHeaders,
-        body: recruitRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 110 },
-          1: { width: 72, halign: 'center' }
+        {
+          title: "4. RECRUITMENT REPORT (CONSOLIDATED)",
+          type: "table",
+          headers: ["Recruitment Activity", "Count / Status"],
+          rows: weeklyRecruitmentReport.map(r => [r.activity || '', r.countStatus || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      // ================= PAGE 2 =================
-      doc.addPage();
-      currentY = 15;
-      drawHeader();
-      currentY = 27;
-
-      drawSectionHeader("4. ATTENDANCE & LEAVE REPORT (CONSOLIDATED)");
-      const leaveHeaders = [["Category", "Count"]];
-      const leaveRows = weeklyAttendanceLeave.map(l => [l.category || '', l.count || '']);
-
-      autoTable(doc, {
-        head: leaveHeaders,
-        body: leaveRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2.2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 110 },
-          1: { width: 72, halign: 'center' }
+        {
+          title: "5. ATTENDANCE & LEAVE REPORT (CONSOLIDATED)",
+          type: "table",
+          headers: ["Category", "Count"],
+          rows: weeklyAttendanceLeave.map(l => [l.category || '', l.count || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("5. ADMIN OPERATIONS REPORT (CONSOLIDATED)");
-      const adminOpsHeaders = [["Activity", "Status", "Remarks"]];
-      const adminOpsRows = weeklyAdminOperations.map(a => [a.activity || '', a.status || '', a.remarks || '']);
-
-      autoTable(doc, {
-        head: adminOpsHeaders,
-        body: adminOpsRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 70 },
-          1: { width: 35, halign: 'center' },
-          2: { width: 77 }
+        {
+          title: "6. ADMIN OPERATIONS REPORT (CONSOLIDATED)",
+          type: "table",
+          headers: ["Activity", "Status", "Remarks"],
+          rows: weeklyAdminOperations.map(a => [a.activity || '', a.status || '', a.remarks || '']),
+          columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 35, halign: 'center' }, 2: { cellWidth: 77 } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("6. DOCUMENTATION & COMPLIANCE (CONSOLIDATED)");
-      const complianceHeaders = [["Activity", "Status"]];
-      const complianceRows = weeklyDocumentationCompliance.map(d => [d.activity || '', d.status || '']);
-
-      autoTable(doc, {
-        head: complianceHeaders,
-        body: complianceRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2.2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 110 },
-          1: { width: 72, halign: 'center' }
+        {
+          title: "7. DOCUMENTATION & COMPLIANCE (CONSOLIDATED)",
+          type: "table",
+          headers: ["Activity", "Status"],
+          rows: weeklyDocumentationCompliance.map(d => [d.activity || '', d.status || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("7. KPI TRACKING (CONSOLIDATED)");
-      const kpiHeaders = [["KPI", "Status"]];
-      const kpiRows = weeklyKpiTracking.map(k => [k.kpi || '', k.status || '']);
-
-      autoTable(doc, {
-        head: kpiHeaders,
-        body: kpiRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2.2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 110 },
-          1: { width: 72, halign: 'center' }
+        {
+          title: "8. KPI TRACKING (CONSOLIDATED)",
+          type: "table",
+          headers: ["KPI", "Status"],
+          rows: weeklyKpiTracking.map(k => [k.kpi || '', k.status || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("8. ISSUES / ESCALATIONS (CONSOLIDATED)");
-      const issueHeaders = [["Issue", "Priority", "Action Taken"]];
-      const issueRows = weeklyIssuesEscalations.map(i => [i.issue || '', i.priority || '', i.actionTaken || '']);
-
-      autoTable(doc, {
-        head: issueHeaders,
-        body: issueRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 60 },
-          1: { width: 45, halign: 'center' },
-          2: { width: 77 }
+        {
+          title: "9. ISSUES / ESCALATIONS (CONSOLIDATED)",
+          type: "table",
+          headers: ["Issue", "Priority", "Action Taken"],
+          rows: weeklyIssuesEscalations.map(i => [i.issue || '', i.priority || '', i.actionTaken || '']),
+          columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 45, halign: 'center' }, 2: { cellWidth: 77 } }
         },
-        margin: { left: 14, right: 14 }
-      });
-
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("9. NEXT DAY ACTION PLAN (CONSOLIDATED)");
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(0, 0, 0);
-      const planLines = doc.splitTextToSize(weeklyNextDayActionPlan || '', 178);
-      doc.text(planLines, 16, currentY + 5);
-      const planBoxHeight = Math.max(16, planLines.length * 4.2 + 6);
-      doc.setDrawColor(180, 180, 180);
-      doc.rect(14, currentY, 182, planBoxHeight);
-
-      // ================= PAGE 3 =================
-      doc.addPage();
-      currentY = 15;
-      drawHeader();
-      currentY = 27;
-
-      drawSectionHeader("10. FINAL SHIFT HANDOVER (CONSOLIDATED)");
-      const handoverHeaders = [["Handover Item", "Status"]];
-      const handoverRows = weeklyFinalShiftHandover.map(h => [h.item || '', h.status || '']);
-
-      autoTable(doc, {
-        head: handoverHeaders,
-        body: handoverRows,
-        startY: currentY,
-        theme: 'grid',
-        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
-        styles: { fontSize: 8, cellPadding: 2.5, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
-        columnStyles: {
-          0: { width: 110 },
-          1: { width: 72, halign: 'center' }
+        {
+          title: "10. NEXT DAY ACTION PLAN (CONSOLIDATED)",
+          type: "text",
+          content: weeklyNextDayActionPlan || ''
         },
-        margin: { left: 14, right: 14 }
-      });
+        {
+          title: "11. FINAL SHIFT HANDOVER (CONSOLIDATED)",
+          type: "table",
+          headers: ["Handover Item", "Status"],
+          rows: weeklyFinalShiftHandover.map(h => [h.item || '', h.status || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
+        },
+        {
+          title: "12. HR / ADMIN COMMENTS (CONSOLIDATED)",
+          type: "text",
+          content: weeklyHrAdminComments || ''
+        },
+        {
+          title: "13. ACHIEVEMENTS",
+          type: "text",
+          content: weeklyAchievements || ''
+        },
+        {
+          title: "14. IMPROVEMENTS",
+          type: "text",
+          content: weeklyImprovements || ''
+        }
+      ];
 
-      currentY = doc.lastAutoTable.finalY + 4;
-
-      drawSectionHeader("11. HR / ADMIN COMMENTS (CONSOLIDATED)");
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(0, 0, 0);
-      const commentsLines = doc.splitTextToSize(weeklyHrAdminComments || '', 178);
-      doc.text(commentsLines, 16, currentY + 5);
-      const commentsBoxHeight = Math.max(16, commentsLines.length * 4.2 + 6);
-      doc.setDrawColor(180, 180, 180);
-      doc.rect(14, currentY, 182, commentsBoxHeight);
-
-      currentY += commentsBoxHeight + 6;
-
-      if (currentY > 230) {
-        doc.addPage();
-        currentY = 15;
-        drawHeader();
-        currentY = 27;
-      }
-
-      drawSectionHeader("12. ACHIEVEMENTS");
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(0, 0, 0);
-      const achievementsLines = doc.splitTextToSize(weeklyAchievements || '', 178);
-      doc.text(achievementsLines, 16, currentY + 5);
-      const achievementsBoxHeight = Math.max(16, achievementsLines.length * 4.2 + 6);
-      doc.setDrawColor(180, 180, 180);
-      doc.rect(14, currentY, 182, achievementsBoxHeight);
-
-      currentY += achievementsBoxHeight + 6;
-
-      if (currentY > 230) {
-        doc.addPage();
-        currentY = 15;
-        drawHeader();
-        currentY = 27;
-      }
-
-      drawSectionHeader("13. IMPROVEMENTS");
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(0, 0, 0);
-      const improvementsLines = doc.splitTextToSize(weeklyImprovements || '', 178);
-      doc.text(improvementsLines, 16, currentY + 5);
-      const improvementsBoxHeight = Math.max(16, improvementsLines.length * 4.2 + 6);
-      doc.setDrawColor(180, 180, 180);
-      doc.rect(14, currentY, 182, improvementsBoxHeight);
-
-      currentY += improvementsBoxHeight + 6;
-
-      if (currentY > 230) {
-        doc.addPage();
-        currentY = 15;
-        drawHeader();
-        currentY = 27;
-      }
-
-      drawSectionHeader("14. NEXT WEEK PLANNING");
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(0, 0, 0);
-      const nextWeekLines = doc.splitTextToSize(weeklyNextWeekPlanning || '', 178);
-      doc.text(nextWeekLines, 16, currentY + 5);
-      const nextWeekBoxHeight = Math.max(16, nextWeekLines.length * 4.2 + 6);
-      doc.setDrawColor(180, 180, 180);
-      doc.rect(14, currentY, 182, nextWeekBoxHeight);
-
-      const pdfBlob = doc.output('blob');
       const filename = `HR_Weekly_Consolidated_Report_${weeklyBasicDetails.employeeName || 'HR'}_${weeklyStartDate}_to_${weeklyEndDate}.pdf`;
-      try {
-        await uploadCompiledPDFReport(selectedUserId, `${weeklyStartDate}_to_${weeklyEndDate}`, pdfBlob, filename, 'hr', 'weekly');
-        console.log("Weekly PDF saved successfully");
-      } catch (uploadErr) {
-        console.error("Failed to upload weekly PDF:", uploadErr);
-      }
-      doc.save(filename);
+      downloadFormattedHrPDF({
+        title: "WEEKLY CONSOLIDATED HR REPORT",
+        subtitle: "HR / ADMIN MANAGER",
+        basicRows,
+        sections,
+        filename
+      });
+
       showToast("Weekly PDF report downloaded successfully!", "success");
     } catch (e) {
       console.error(e);
@@ -1825,30 +1499,30 @@ const HrReportPage = () => {
     try {
       setSaving(true);
 
-      const cleanDailyOperations = dailyOperations.filter(t => (t.activity || '').trim() !== '');
-      const cleanEmployeeManagement = employeeManagement.filter(t => (t.particulars || '').trim() !== '');
-      const cleanRecruitmentReport = recruitmentReport.filter(t => (t.position || '').trim() !== '' || (t.candidateName || '').trim() !== '');
-      const cleanAttendanceLeave = attendanceLeave.filter(t => (t.particulars || '').trim() !== '');
-      const cleanAdminOperations = adminOperations.filter(t => (t.particulars || '').trim() !== '');
-      const cleanDocumentationCompliance = documentationCompliance.filter(t => (t.particulars || '').trim() !== '');
+      const cleanDailyOperations = dailyOperations.filter(t => (t.activity || t.task || '').trim() !== '');
+      const cleanEmployeeManagement = employeeManagement.filter(t => (t.employeeName || '').trim() !== '');
+      const cleanRecruitmentReport = recruitmentReport.filter(t => (t.activity || '').trim() !== '');
+      const cleanAttendanceLeave = attendanceLeave.filter(t => (t.category || '').trim() !== '');
+      const cleanAdminOperations = adminOperations.filter(t => (t.activity || '').trim() !== '');
+      const cleanDocumentationCompliance = documentationCompliance.filter(t => (t.activity || '').trim() !== '');
       const cleanKpiTracking = kpiTracking.filter(t => (t.kpi || '').trim() !== '');
       const cleanIssuesEscalations = issuesEscalations.filter(t => (t.issue || '').trim() !== '');
-      const cleanFinalShiftHandover = finalShiftHandover.filter(t => (t.particulars || '').trim() !== '');
+      const cleanFinalShiftHandover = finalShiftHandover.filter(t => (t.item || '').trim() !== '');
 
       const payload = {
         userId: selectedUserId,
         dateString: selectedDate,
         basicDetails,
-        dailyOperations: cleanDailyOperations,
-        employeeManagement: cleanEmployeeManagement,
-        recruitmentReport: cleanRecruitmentReport,
-        attendanceLeave: cleanAttendanceLeave,
-        adminOperations: cleanAdminOperations,
-        documentationCompliance: cleanDocumentationCompliance,
-        kpiTracking: cleanKpiTracking,
-        issuesEscalations: cleanIssuesEscalations,
+        dailyOperations: cleanDailyOperations.length > 0 ? cleanDailyOperations : dailyOperations,
+        employeeManagement: cleanEmployeeManagement.length > 0 ? cleanEmployeeManagement : employeeManagement,
+        recruitmentReport: cleanRecruitmentReport.length > 0 ? cleanRecruitmentReport : recruitmentReport,
+        attendanceLeave: cleanAttendanceLeave.length > 0 ? cleanAttendanceLeave : attendanceLeave,
+        adminOperations: cleanAdminOperations.length > 0 ? cleanAdminOperations : adminOperations,
+        documentationCompliance: cleanDocumentationCompliance.length > 0 ? cleanDocumentationCompliance : documentationCompliance,
+        kpiTracking: cleanKpiTracking.length > 0 ? cleanKpiTracking : kpiTracking,
+        issuesEscalations: cleanIssuesEscalations.length > 0 ? cleanIssuesEscalations : issuesEscalations,
         nextDayActionPlan,
-        finalShiftHandover: cleanFinalShiftHandover,
+        finalShiftHandover: cleanFinalShiftHandover.length > 0 ? cleanFinalShiftHandover : finalShiftHandover,
         hrAdminComments,
         approval
       };
@@ -1878,8 +1552,121 @@ const HrReportPage = () => {
     // Automatically save report as well
     await handleSaveReport();
 
+    const generateClientPDF = () => {
+      const basicRows = [
+        ["Date", basicDetails.date || selectedDate],
+        ["Day", basicDetails.day || ''],
+        ["Employee Name", basicDetails.employeeName || ''],
+        ["Employee ID", basicDetails.employeeId || ''],
+        ["Department", basicDetails.department || 'HR / Admin'],
+        ["Designation", basicDetails.designation || 'HR / Admin Manager'],
+        ["Shift Timing", basicDetails.shiftTiming || ''],
+        ["Reporting To", basicDetails.reportingTo || ''],
+        ["Prepared Time", basicDetails.preparedTime || '']
+      ];
+
+      const sections = [
+        {
+          title: "2. DAILY OPERATIONS SUMMARY",
+          type: "table",
+          headers: ["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"],
+          rows: dailyOperations.map(o => [o.activity || '', o.dueDate || '', o.startDate || '', o.endDate || '', o.status || '', o.remarks || '']),
+          columnStyles: { 0: { cellWidth: 52 }, 1: { cellWidth: 22 }, 2: { cellWidth: 22 }, 3: { cellWidth: 22 }, 4: { cellWidth: 22 }, 5: { cellWidth: 42 } }
+        },
+        {
+          title: "3. EMPLOYEE MANAGEMENT",
+          type: "table",
+          headers: ["Employee Name", "Department", "Attendance", "Task Status", "Remarks"],
+          rows: employeeManagement.map(e => [e.employeeName || '', e.department || '', e.attendance || '', e.taskStatus || '', e.remarks || '']),
+          columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: 35 }, 2: { cellWidth: 30 }, 3: { cellWidth: 30 }, 4: { cellWidth: 42 } }
+        },
+        {
+          title: "4. RECRUITMENT REPORT",
+          type: "table",
+          headers: ["Recruitment Activity", "Due Date / Milestone", "Count / Status"],
+          rows: recruitmentReport.map(r => [r.activity || '', r.dueDate || '', r.countStatus || '']),
+          columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 50 }, 2: { cellWidth: 52 } }
+        },
+        {
+          title: "5. ATTENDANCE & LEAVE REPORT",
+          type: "table",
+          headers: ["Category", "Count"],
+          rows: attendanceLeave.map(a => [a.category || '', a.count || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
+        },
+        {
+          title: "6. ADMIN OPERATIONS",
+          type: "table",
+          headers: ["Activity", "Due Date", "Status", "Remarks"],
+          rows: adminOperations.map(a => [a.activity || '', a.dueDate || '', a.status || '', a.remarks || '']),
+          columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 30 }, 2: { cellWidth: 30 }, 3: { cellWidth: 57 } }
+        },
+        {
+          title: "7. DOCUMENTATION & COMPLIANCE",
+          type: "table",
+          headers: ["Activity", "Due Date", "Status"],
+          rows: documentationCompliance.map(d => [d.activity || '', d.dueDate || '', d.status || '']),
+          columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 42 }, 2: { cellWidth: 40, halign: 'center' } }
+        },
+        {
+          title: "8. KPI TRACKING",
+          type: "table",
+          headers: ["Key Performance Indicator", "Target / Achieved Status"],
+          rows: kpiTracking.map(k => [k.kpi || '', k.status || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72 } }
+        },
+        {
+          title: "9. ISSUES & ESCALATIONS",
+          type: "table",
+          headers: ["Issue Description", "Priority", "Action Taken"],
+          rows: issuesEscalations.map(i => [i.issue || '', i.priority || '', i.actionTaken || '']),
+          columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 30, halign: 'center' }, 2: { cellWidth: 82 } }
+        },
+        {
+          title: "10. NEXT DAY ACTION PLAN",
+          type: "text",
+          content: nextDayActionPlan || ''
+        },
+        {
+          title: "11. FINAL SHIFT HANDOVER",
+          type: "table",
+          headers: ["Handover Item", "Status"],
+          rows: finalShiftHandover.map(h => [h.item || '', h.status || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
+        },
+        {
+          title: "12. HR / ADMIN COMMENTS",
+          type: "text",
+          content: hrAdminComments || ''
+        },
+        {
+          title: "13. APPROVAL & SIGNATURES",
+          type: "table",
+          headers: ["Role / Field", "Signature / Details"],
+          rows: [
+            ["HR Manager Name", approval?.hrName || ''],
+            ["HR Date", approval?.hrDate || ''],
+            ["COO / Executive Director Name", approval?.cooName || ''],
+            ["COO Date", approval?.cooDate || '']
+          ],
+          columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 122 } }
+        }
+      ];
+
+      const filename = `HR_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
+      downloadFormattedHrPDF({
+        title: "DAILY HR OPERATIONS REPORT",
+        subtitle: "HUMAN RESOURCES & ADMINISTRATION",
+        basicRows,
+        sections,
+        filename
+      });
+
+      showToast("Full HR PDF report downloaded successfully!", "success");
+    };
+
     try {
-      showToast("Generating PDF on server...", "info");
+      showToast("Generating PDF report...", "info");
       const token = localStorage.getItem('token');
       const cleanToken = token ? token.replace(/"/g, '') : '';
       
@@ -1892,7 +1679,9 @@ const HrReportPage = () => {
       });
       
       if (!res.ok) {
-        throw new Error("Failed to generate PDF report on server.");
+        // Fallback to high-precision multi-page client side PDF generation
+        generateClientPDF();
+        return;
       }
       
       const blob = await res.blob();
@@ -1909,10 +1698,10 @@ const HrReportPage = () => {
         window.URL.revokeObjectURL(downloadUrl);
       }, 15000);
       
-      showToast("PDF report downloaded and saved successfully!", "success");
+      showToast("PDF report downloaded successfully!", "success");
     } catch (e) {
-      console.error(e);
-      showToast("Failed to download PDF.", "error");
+      console.warn("Server PDF generation failed, executing multi-page client-side generator:", e);
+      generateClientPDF();
     }
   };;
 
@@ -2046,6 +1835,19 @@ const HrReportPage = () => {
 
                 
 
+                <AiAnalyzeButton
+                  onClick={() => {
+                    setAiModalContext({
+                      employeeName: basicDetails.employeeName,
+                      department: 'Human Resources & Recruitment',
+                      designation: basicDetails.designation,
+                      date: selectedDate,
+                      actualReportContentText: JSON.stringify({ basicDetails, dailyOperations, employeeMgmt, recruitmentPipeline, hrComments: comments })
+                    });
+                    setIsAiModalOpen(true);
+                  }}
+                />
+
                 <button
                   type="button"
                   onClick={handleDownloadPDF}
@@ -2061,6 +1863,13 @@ const HrReportPage = () => {
                 </button>
               </div>
             </div>
+
+            <AiAnalyzeModal
+              isOpen={isAiModalOpen}
+              onClose={() => setIsAiModalOpen(false)}
+              contextData={aiModalContext}
+              title="HR Report AI Analysis"
+            />
 
             {/* 1. BASIC DETAILS */}
             <div className="space-y-4">
@@ -2418,24 +2227,39 @@ const HrReportPage = () => {
                         <td className="px-4 py-2.5">
                           <input
                             type="text"
-                            value={row.status}
+                            value={row.dueDate || ''}
                             onChange={(e) => {
                               const newArr = [...adminOperations];
-                              newArr[i].status = e.target.value;
+                              newArr[i].dueDate = e.target.value;
                               setAdminOperations(newArr);
                             }}
+                            placeholder="DD/MM/YYYY"
                             className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
                           />
                         </td>
                         <td className="px-4 py-2.5">
                           <input
                             type="text"
-                            value={row.remarks}
+                            value={row.status || ''}
+                            onChange={(e) => {
+                              const newArr = [...adminOperations];
+                              newArr[i].status = e.target.value;
+                              setAdminOperations(newArr);
+                            }}
+                            placeholder="Pending / Completed"
+                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <input
+                            type="text"
+                            value={row.remarks || ''}
                             onChange={(e) => {
                               const newArr = [...adminOperations];
                               newArr[i].remarks = e.target.value;
                               setAdminOperations(newArr);
                             }}
+                            placeholder="Add remarks..."
                             className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
                           />
                         </td>
@@ -2468,12 +2292,26 @@ const HrReportPage = () => {
                         <td className="px-4 py-2.5">
                           <input
                             type="text"
-                            value={row.status}
+                            value={row.dueDate || ''}
+                            onChange={(e) => {
+                              const newArr = [...documentationCompliance];
+                              newArr[i].dueDate = e.target.value;
+                              setDocumentationCompliance(newArr);
+                            }}
+                            placeholder="DD/MM/YYYY"
+                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                          />
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <input
+                            type="text"
+                            value={row.status || ''}
                             onChange={(e) => {
                               const newArr = [...documentationCompliance];
                               newArr[i].status = e.target.value;
                               setDocumentationCompliance(newArr);
                             }}
+                            placeholder="Yes / No"
                             className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
                           />
                         </td>

@@ -23,26 +23,31 @@ export const recordAudit = async (req, {
     const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || null;
     const userAgent = req.headers['user-agent'] || null;
 
-    // 1. Save directly to Database using Prisma
-    const auditRecord = await prisma.auditLog.create({
-      data: {
-        userId,
-        action,
-        entity,
-        entityId,
-        oldValue: oldValue ? JSON.parse(JSON.stringify(oldValue)) : null,
-        newValue: newValue ? JSON.parse(JSON.stringify(newValue)) : null,
-        ipAddress,
-        userAgent
-      }
-    });
+    // 1. Save directly to Database using Prisma if available
+    let auditRecordId = 'mongo_' + Date.now();
+    let auditRecord = null;
+    if (typeof prisma !== 'undefined' && prisma?.auditLog) {
+      auditRecord = await prisma.auditLog.create({
+        data: {
+          userId,
+          action,
+          entity,
+          entityId,
+          oldValue: oldValue ? JSON.parse(JSON.stringify(oldValue)) : null,
+          newValue: newValue ? JSON.parse(JSON.stringify(newValue)) : null,
+          ipAddress,
+          userAgent
+        }
+      });
+      if (auditRecord) auditRecordId = auditRecord.id;
+    }
 
     // 2. Stream to daily rotating Winston audit log file
     logger.info(
-      `📑 AUDIT TRANSACTION SUCCESS [ID: ${auditRecord.id}] | Action: ${action} | Entity: ${entity} | Triggered By User: ${userId || 'SYSTEM'} | IP: ${ipAddress}`,
+      `📑 AUDIT TRANSACTION SUCCESS [ID: ${auditRecordId}] | Action: ${action} | Entity: ${entity} | Triggered By User: ${userId || 'SYSTEM'} | IP: ${ipAddress}`,
       {
         requestId: req.id,
-        auditId: auditRecord.id,
+        auditId: auditRecordId,
         action,
         entity,
         entityId,

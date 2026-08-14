@@ -19,11 +19,14 @@ import {
   Square
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
+import { sendEmail } from '../services/emailService';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
 const NotificationPage = () => {
   const { showToast } = useToast();
+  const [channel, setChannel] = useState('email'); // email, sms, whatsapp
+
 
   // Form State
   const [title, setTitle] = useState('');
@@ -199,13 +202,19 @@ const NotificationPage = () => {
       return;
     }
 
+    // Resolve email and phone for selected users
+    const getUserById = (id) => userList.find((u) => getUserId(u) === id);
+    const recipientEmails = assignedTo.map((id) => getUserById(id)?.email).filter(Boolean);
+    const recipientPhones = assignedTo.map((id) => getUserById(id)?.phone).filter(Boolean);
+
     try {
       setSending(true);
+      // Send notification record to backend
       const res = await fetch(`${API_BASE}/v1/notifications`, {
-        method: 'POST',
+        method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          title: title.trim() || 'Notification',
+          title: title.trim() || "Notification",
           description: description.trim(),
           assignedTo // Array of user ID strings
         })
@@ -214,9 +223,29 @@ const NotificationPage = () => {
       const data = await res.json();
 
       if (data.success) {
+        // After backend success, send via Brevo based on selected channel
+        if (channel === "email" && recipientEmails.length) {
+          await sendEmail({
+            to: recipientEmails,
+            subject: title.trim() || "Notification",
+            htmlContent: description.trim()
+          });
+        } else if (channel === "sms" && recipientPhones.length) {
+          await sendSms({
+            to: recipientPhones,
+            content: description.trim()
+          });
+        } else if (channel === "whatsapp" && recipientPhones.length) {
+          await sendWhatsApp({
+            to: recipientPhones,
+            templateId: "default",
+            params: { body: description.trim() }
+          });
+        }
+
         showToast(`Notification sent to ${assignedTo.length} user(s)!`, "success");
-        setTitle('');
-        setDescription('');
+        setTitle("");
+        setDescription("");
         setAssignedTo([]);
         setIsUserDropdownOpen(false);
         fetchNotifications();

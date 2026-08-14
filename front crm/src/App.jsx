@@ -19,6 +19,14 @@ import ClientLeads from './pages/ClientLeads';
 import Settings from './pages/Settings';
 import NotFound from './pages/NotFound';
 import StudentAttendance from './pages/StudentAttendance';
+import CourseManagement from './pages/CourseManagement';
+import CourseDetails from './pages/CourseDetails';
+import BatchManagement from './pages/BatchManagement';
+import BatchDetails from './pages/BatchDetails';
+import EnrollmentTracking from './pages/EnrollmentTracking';
+import EnrollmentDetails from './pages/EnrollmentDetails';
+import StudentLmsPortal from './pages/StudentLmsPortal';
+import StudentCourseViewer from './pages/StudentCourseViewer';
 import DepartmentsPage from './modules/departments/DepartmentsPage';
 import DeveloperReportPage from './pages/DeveloperReportPage';
 import DeveloperDashboard from './pages/DeveloperDashboard';
@@ -159,6 +167,14 @@ function App() {
         <Route path="/lead-counselor" element={<ProtectedRoute><MainLayout><RestrictedRoute><LeadCounselor /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><MainLayout><Settings /></MainLayout></ProtectedRoute>} />
         <Route path="/student-attendance" element={<ProtectedRoute><MainLayout><StudentAttendance /></MainLayout></ProtectedRoute>} />
+        <Route path="/academy/courses" element={<ProtectedRoute><MainLayout><CourseManagement /></MainLayout></ProtectedRoute>} />
+        <Route path="/academy/courses/:courseId" element={<ProtectedRoute><MainLayout><CourseDetails /></MainLayout></ProtectedRoute>} />
+        <Route path="/academy/batches" element={<ProtectedRoute><MainLayout><BatchManagement /></MainLayout></ProtectedRoute>} />
+        <Route path="/academy/batches/:batchId" element={<ProtectedRoute><MainLayout><BatchDetails /></MainLayout></ProtectedRoute>} />
+        <Route path="/academy/enrollments" element={<ProtectedRoute><MainLayout><EnrollmentTracking /></MainLayout></ProtectedRoute>} />
+        <Route path="/academy/enrollments/:enrollmentId" element={<ProtectedRoute><MainLayout><EnrollmentDetails /></MainLayout></ProtectedRoute>} />
+        <Route path="/academy/learning" element={<ProtectedRoute><MainLayout><StudentLmsPortal /></MainLayout></ProtectedRoute>} />
+        <Route path="/academy/learning/:courseId" element={<ProtectedRoute><MainLayout><StudentCourseViewer /></MainLayout></ProtectedRoute>} />
         <Route path="/departments" element={<ProtectedRoute><MainLayout><RestrictedRoute><DepartmentsPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/developer-report" element={<ProtectedRoute><MainLayout><DeveloperReportPage /></MainLayout></ProtectedRoute>} />
         <Route path="/developer-dashboard" element={<ProtectedRoute><MainLayout><DeveloperDashboard /></MainLayout></ProtectedRoute>} />
