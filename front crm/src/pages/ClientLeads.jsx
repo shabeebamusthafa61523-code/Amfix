@@ -352,6 +352,7 @@ export default function ClientLeads() {
   });
 
   const [importCsvText, setImportCsvText] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
 
   // Fetch Staff
   const fetchStaff = useCallback(async () => {
@@ -439,11 +440,15 @@ export default function ClientLeads() {
 
   const handleCreateLead = async (e) => {
     e.preventDefault();
+    const payload = {
+      ...formData,
+      assignedTo: formData.assignedTo && formData.assignedTo.trim() ? formData.assignedTo : null
+    };
     try {
       const res = await fetch(`${API_BASE}/v1/client-leads`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
@@ -463,11 +468,15 @@ export default function ClientLeads() {
   const handleUpdateLead = async (e) => {
     e.preventDefault();
     if (!selectedLead) return;
+    const payload = {
+      ...formData,
+      assignedTo: formData.assignedTo && formData.assignedTo.trim() ? formData.assignedTo : null
+    };
     try {
       const res = await fetch(`${API_BASE}/v1/client-leads/${selectedLead.id || selectedLead._id}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
@@ -488,15 +497,16 @@ export default function ClientLeads() {
       showToast("Editing is restricted for your role.", "warning");
       return;
     }
+    const cleanValue = (field === 'assignedTo' && (!value || !String(value).trim())) ? null : value;
     // Optimistic state update: change field color instantly on click
-    const extraFields = field === 'interestedService' ? { courseIntrests: value, courseInterests: value } : {};
-    setLeads(prev => prev.map(l => ((l.id === leadId || l._id === leadId) ? { ...l, [field]: value, ...extraFields } : l)));
+    const extraFields = field === 'interestedService' ? { courseIntrests: cleanValue, courseInterests: cleanValue } : {};
+    setLeads(prev => prev.map(l => ((l.id === leadId || l._id === leadId) ? { ...l, [field]: cleanValue, ...extraFields } : l)));
 
     try {
       const res = await fetch(`${API_BASE}/v1/client-leads/${leadId}`, {
         method: 'PUT',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ [field]: value, ...extraFields })
+        body: JSON.stringify({ [field]: cleanValue, ...extraFields })
       });
       const data = await res.json();
       if (data.success) {
@@ -563,74 +573,61 @@ export default function ClientLeads() {
     }
   };
 
-  const handleImportCsv = async (e) => {
-    e.preventDefault();
-    if (!importCsvText.trim()) return;
+  const handleExportExcel = () => {
+    try {
+      if (!filteredLeads || filteredLeads.length === 0) {
+        showToast("No leads available to export", "warning");
+        return;
+      }
+
+      const exportData = filteredLeads.map((lead, index) => {
+        const assignedName = typeof lead.assignedTo === 'object'
+          ? (lead.assignedTo?.name || 'Unassigned')
+          : (staff.find(s => String(s.id || s._id) === String(lead.assignedTo))?.name || lead.assignedTo || 'Unassigned');
+
+        return {
+          'S.No': index + 1,
+          'Lead Name': lead.leadName || '',
+          'Company Name': lead.companyName || '',
+          'Phone': lead.phone || '',
+          'Email': lead.email || '',
+          'City / Place': lead.city || '',
+          'Interest': lead.interestedService || lead.courseIntrests || lead.courseInterests || '',
+          'Source': lead.source || '',
+          'Status': lead.status || 'New',
+          'Priority': lead.priority || 'Medium',
+          'Assigned To': assignedName,
+          'Client Meeting Fixed': lead.clientMeetingFixed || 'Pending',
+          'Client Onboarding': lead.clientOnboarding || 'Pending',
+          'Leads Received Date': formatDate(lead.leadsReceivedDate),
+          '1st Followup Date': formatDate(lead.followUpDate1),
+          '2nd Followup Date': formatDate(lead.followUpDate2),
+          '3rd Followup Date': formatDate(lead.followUpDate3),
+          'Remarks': lead.remarks || '',
+          'Created Date': formatDate(lead.createdAt)
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Client Leads');
+
+      const fileName = `Client_Leads_${getISTDate()}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+      showToast(`Successfully exported ${exportData.length} client leads to Excel!`, "success");
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      showToast("Failed to export Excel file", "error");
+    }
+  };
+
+  const processAndUploadLeads = async (parsedLeads) => {
+    if (parsedLeads.length === 0) {
+      showToast("No valid leads found (Name and Phone required).", "warning");
+      return;
+    }
 
     try {
-      const lines = importCsvText.trim().split('\n');
-      if (lines.length < 2) {
-        showToast("CSV must contain a header row and data rows.", "error");
-        return;
-      }
-
-      // Robust CSV field parser that handles quoted fields containing commas
-      const parseCsvLine = (line) => {
-        const result = [];
-        let current = '';
-        let inQuotes = false;
-        for (let i = 0; i < line.length; i++) {
-          const ch = line[i];
-          if (ch === '"') {
-            if (inQuotes && line[i + 1] === '"') {
-              current += '"'; // escaped quote
-              i++;
-            } else {
-              inQuotes = !inQuotes;
-            }
-          } else if (ch === ',' && !inQuotes) {
-            result.push(current.trim());
-            current = '';
-          } else {
-            current += ch;
-          }
-        }
-        result.push(current.trim());
-        return result;
-      };
-
-      const headers = parseCsvLine(lines[0]).map(h => h.toLowerCase());
-      const parsedLeads = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        const values = parseCsvLine(lines[i]);
-        const leadObj = {};
-        headers.forEach((h, idx) => {
-          if (h.includes('name')) leadObj.leadName = values[idx];
-          else if (h.includes('company')) leadObj.companyName = values[idx];
-          else if (h.includes('phone') || h.includes('mobile')) leadObj.phone = values[idx];
-          else if (h.includes('email')) leadObj.email = values[idx];
-          else if (h.includes('city')) leadObj.city = values[idx];
-          else if (h.includes('service') || h.includes('course')) leadObj.interestedService = values[idx];
-          else if (h.includes('source')) leadObj.source = values[idx];
-          else if (h.includes('campaign')) leadObj.campaignName = values[idx];
-          else if (h.includes('platform')) leadObj.leadPlatform = values[idx];
-        });
-
-        if (leadObj.leadName && leadObj.phone) {
-          if (isMarketing || !leadObj.source) {
-            leadObj.source = 'MARKETING';
-          }
-          parsedLeads.push(leadObj);
-        }
-      }
-
-      if (parsedLeads.length === 0) {
-        showToast("No valid leads found in CSV.", "warning");
-        return;
-      }
-
       const res = await fetch(`${API_BASE}/v1/client-leads/import`, {
         method: 'POST',
         headers: getAuthHeaders(),
@@ -640,6 +637,7 @@ export default function ClientLeads() {
       if (data.success) {
         showToast(`Successfully imported ${data.data.length} client leads!`, "success");
         setIsImportOpen(false);
+        setSelectedFile(null);
         setImportCsvText('');
         fetchLeads();
       } else {
@@ -647,8 +645,137 @@ export default function ClientLeads() {
       }
     } catch (e) {
       console.error(e);
-      showToast("Error importing CSV", "error");
+      showToast("Error importing leads", "error");
     }
+  };
+
+  const handleImportExcelSubmit = async (e) => {
+    e.preventDefault();
+
+    if (selectedFile) {
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+          if (rawRows.length < 2) {
+            showToast("Excel file must contain a header row and data rows.", "error");
+            return;
+          }
+
+          const headers = rawRows[0].map(h => String(h || '').toLowerCase().trim());
+          const parsedLeads = [];
+
+          for (let i = 1; i < rawRows.length; i++) {
+            const row = rawRows[i];
+            if (!row || row.length === 0) continue;
+            const leadObj = {};
+            headers.forEach((h, idx) => {
+              const val = row[idx] !== undefined && row[idx] !== null ? String(row[idx]).trim() : '';
+              if (h.includes('name')) leadObj.leadName = val;
+              else if (h.includes('company')) leadObj.companyName = val;
+              else if (h.includes('phone') || h.includes('mobile') || h.includes('contact')) leadObj.phone = val;
+              else if (h.includes('email')) leadObj.email = val;
+              else if (h.includes('city') || h.includes('place')) leadObj.city = val;
+              else if (h.includes('service') || h.includes('course') || h.includes('interest')) leadObj.interestedService = val;
+              else if (h.includes('source')) leadObj.source = val;
+              else if (h.includes('campaign')) leadObj.campaignName = val;
+              else if (h.includes('platform')) leadObj.leadPlatform = val;
+              else if (h.includes('remark')) leadObj.remarks = val;
+            });
+
+            if (leadObj.leadName && leadObj.phone) {
+              if (isMarketing || !leadObj.source) {
+                leadObj.source = 'MARKETING';
+              }
+              parsedLeads.push(leadObj);
+            }
+          }
+
+          await processAndUploadLeads(parsedLeads);
+        } catch (err) {
+          console.error(err);
+          showToast("Failed to parse Excel file", "error");
+        }
+      };
+      reader.readAsArrayBuffer(selectedFile);
+      return;
+    }
+
+    if (importCsvText.trim()) {
+      try {
+        const lines = importCsvText.trim().split('\n');
+        if (lines.length < 2) {
+          showToast("Data must contain a header row and data rows.", "error");
+          return;
+        }
+
+        const parseCsvLine = (line) => {
+          const result = [];
+          let current = '';
+          let inQuotes = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+              if (inQuotes && line[i + 1] === '"') {
+                current += '"';
+                i++;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if ((ch === ',' || ch === '\t') && !inQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += ch;
+            }
+          }
+          result.push(current.trim());
+          return result;
+        };
+
+        const headers = parseCsvLine(lines[0]).map(h => h.toLowerCase());
+        const parsedLeads = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          const values = parseCsvLine(lines[i]);
+          const leadObj = {};
+          headers.forEach((h, idx) => {
+            const val = values[idx] || '';
+            if (h.includes('name')) leadObj.leadName = val;
+            else if (h.includes('company')) leadObj.companyName = val;
+            else if (h.includes('phone') || h.includes('mobile') || h.includes('contact')) leadObj.phone = val;
+            else if (h.includes('email')) leadObj.email = val;
+            else if (h.includes('city') || h.includes('place')) leadObj.city = val;
+            else if (h.includes('service') || h.includes('course') || h.includes('interest')) leadObj.interestedService = val;
+            else if (h.includes('source')) leadObj.source = val;
+            else if (h.includes('campaign')) leadObj.campaignName = val;
+            else if (h.includes('platform')) leadObj.leadPlatform = val;
+            else if (h.includes('remark')) leadObj.remarks = val;
+          });
+
+          if (leadObj.leadName && leadObj.phone) {
+            if (isMarketing || !leadObj.source) {
+              leadObj.source = 'MARKETING';
+            }
+            parsedLeads.push(leadObj);
+          }
+        }
+
+        await processAndUploadLeads(parsedLeads);
+      } catch (e) {
+        console.error(e);
+        showToast("Error processing text data", "error");
+      }
+      return;
+    }
+
+    showToast("Please select an Excel/CSV file or paste lead data.", "warning");
   };
 
   const openEditModal = (lead) => {
@@ -777,11 +904,19 @@ export default function ClientLeads() {
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setIsImportOpen(true)}
+            onClick={() => { setSelectedFile(null); setImportCsvText(''); setIsImportOpen(true); }}
             className="px-3.5 py-2.5 bg-slate-900 dark:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-slate-800 transition cursor-pointer"
           >
-            <FileSpreadsheet size={14} />
-            <span>Import CSV</span>
+            <FileSpreadsheet size={14} className="text-emerald-400" />
+            <span>Import Excel</span>
+          </button>
+
+          <button
+            onClick={handleExportExcel}
+            className="px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition cursor-pointer"
+          >
+            <FileDown size={14} />
+            <span>Export Excel</span>
           </button>
 
           <button
@@ -1913,45 +2048,70 @@ export default function ClientLeads() {
         </div>
       )}
 
-      {/* CSV IMPORT MODAL */}
+      {/* EXCEL / CSV IMPORT MODAL */}
       {isImportOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <FileSpreadsheet size={18} className="text-indigo-600" /> Import Client Leads (CSV)
+                <FileSpreadsheet size={18} className="text-indigo-600" /> Import Client Leads (Excel / CSV)
               </h3>
-              <button onClick={() => setIsImportOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => { setIsImportOpen(false); setSelectedFile(null); }} className="text-slate-400 hover:text-slate-600">
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleImportCsv} className="space-y-4">
-              <p className="text-xs text-slate-500">
-                Paste comma-separated values (CSV) containing headers such as <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">Name, Company, Phone, Email, City, Course</code>.
-              </p>
-              <textarea
-                rows={6}
-                required
-                value={importCsvText}
-                onChange={e => setImportCsvText(e.target.value)}
-                placeholder={`Name,Company,Phone,Email,City,Course\nJohn Doe,Acme Corp,9876543210,john@acme.com,Mumbai,HOT LEAD`}
-                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono outline-none"
-              />
+            <form onSubmit={handleImportExcelSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 mb-2">
+                  Upload Excel File (.xlsx, .xls, .csv)
+                </label>
+                <input
+                  type="file"
+                  accept=".xlsx, .xls, .csv"
+                  onChange={e => setSelectedFile(e.target.files[0] || null)}
+                  className="w-full text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 dark:file:bg-slate-800 dark:file:text-indigo-400 cursor-pointer"
+                />
+                {selectedFile && (
+                  <p className="text-[11px] font-semibold text-emerald-600 mt-1">
+                    Selected file: {selectedFile.name}
+                  </p>
+                )}
+              </div>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
+                <span className="flex-shrink mx-3 text-[10px] uppercase font-bold text-slate-400">or paste raw text</span>
+                <div className="flex-grow border-t border-slate-200 dark:border-slate-800"></div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">
+                  Paste comma/tab-separated lead data:
+                </label>
+                <textarea
+                  rows={4}
+                  value={importCsvText}
+                  onChange={e => setImportCsvText(e.target.value)}
+                  placeholder={`Name,Company,Phone,Email,City,Interest\nJohn Doe,Acme Corp,9876543210,john@acme.com,Mumbai,HOT LEAD`}
+                  className="w-full p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono outline-none"
+                />
+              </div>
 
               <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setIsImportOpen(false)}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200"
+                  onClick={() => { setIsImportOpen(false); setSelectedFile(null); setImportCsvText(''); }}
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-500 shadow-md"
+                  className="px-5 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-500 shadow-md flex items-center gap-1.5 cursor-pointer"
                 >
-                  Upload & Import
+                  <FileSpreadsheet size={14} />
+                  <span>Import Excel Leads</span>
                 </button>
               </div>
             </form>
