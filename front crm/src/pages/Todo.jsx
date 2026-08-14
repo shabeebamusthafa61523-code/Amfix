@@ -10,6 +10,7 @@ import {
 import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
 import { useUser } from '../contexts/UserContext';
+import { sendEmail } from '../services/emailService';
 
 const API_BASE = import.meta.env.VITE_API_URL;// --- UTILS & CONSTANTS ---
 const getTaskImageUrl = (path) => {
@@ -539,6 +540,55 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
     }
 
     showToast("Task successfully created!", "success");
+
+    // Send email notification via Brevo to assigned user
+    const assignedUser = users?.find(u => String(u.id || u._id) === String(form.assigned_to));
+    if (assignedUser && assignedUser.email) {
+      try {
+        await sendEmail({
+          to: { email: assignedUser.email, name: assignedUser.name || assignedUser.username },
+          subject: `📌 New Task Assigned: ${form.title}`,
+          htmlContent: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
+              <div style="background: linear-gradient(135deg, #c4ec0d 0%, #aed604 100%); padding: 32px; text-align: left;">
+                <span style="display: inline-block; background: #0f172a; color: #c4ec0d; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; padding: 4px 12px; border-radius: 50px; margin-bottom: 10px;">
+                  New Task Assigned
+                </span>
+                <h1 style="color: #0f172a; font-size: 22px; font-weight: 800; margin: 0; line-height: 1.3;">
+                  ${form.title}
+                </h1>
+              </div>
+
+              <div style="padding: 32px 32px 24px 32px;">
+                <p style="font-size: 15px; color: #334155; margin-top: 0;">Hi <strong>${assignedUser.name || 'Team Member'}</strong>,</p>
+                <p style="font-size: 14px; color: #475569; margin-bottom: 20px;">You have been assigned a new task in the CRM portal:</p>
+                
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #c4ec0d; padding: 20px; border-radius: 12px; margin-bottom: 24px;">
+                  <p style="margin: 0 0 10px 0; color: #0f172a; font-size: 16px; font-weight: 700;">${form.title}</p>
+                  ${form.description ? `<p style="margin: 0 0 12px 0; color: #334155; font-size: 14px; line-height: 1.5;"><strong>Briefing:</strong> ${form.description}</p>` : ''}
+                  <div style="margin-top: 12px;">
+                    <span style="display: inline-block; background: #0f172a; color: #c4ec0d; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; margin-right: 6px;">
+                      Priority: ${(form.priority || 'medium').toUpperCase()}
+                    </span>
+                    ${form.dueDate ? `<span style="display: inline-block; background: #fee2e2; color: #991b1b; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px;">Due: ${formatDateTimeDisplay(form.dueDate)}</span>` : ''}
+                  </div>
+                </div>
+
+                <p style="color: #64748b; font-size: 13px; margin: 0;">Please log in to your CRM dashboard to manage this task.</p>
+              </div>
+
+              <div style="background-color: #f8fafc; padding: 20px 32px; border-top: 1px solid #f1f5f9; text-align: center; color: #94a3b8; font-size: 12px;">
+                Sent via CRM System • Automated Task Dispatcher
+              </div>
+            </div>
+          `
+        });
+        console.log("Task assignment email sent to:", assignedUser.email);
+      } catch (emailErr) {
+        console.error("Failed to send task email notification:", emailErr);
+      }
+    }
+
     await refresh();
     onClose();
 
@@ -1023,6 +1073,54 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
           method: "PUT",
           headers: getAuthHeaders()
         });
+      }
+
+      // Send email if task reassigned to a new user
+      const assignedUser = users?.find(u => String(u.id || u._id) === String(editForm.assigned_to));
+      const oldAssignedId = typeof task.assigned_to === 'object' ? (task.assigned_to?._id || task.assigned_to?.id) : task.assigned_to;
+      if (assignedUser && assignedUser.email && String(editForm.assigned_to) !== String(oldAssignedId)) {
+        try {
+          await sendEmail({
+            to: { email: assignedUser.email, name: assignedUser.name || assignedUser.username },
+            subject: `📌 Task Assigned to You: ${editForm.title}`,
+            htmlContent: `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
+                <div style="background: linear-gradient(135deg, #c4ec0d 0%, #aed604 100%); padding: 32px; text-align: left;">
+                  <span style="display: inline-block; background: #0f172a; color: #c4ec0d; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; padding: 4px 12px; border-radius: 50px; margin-bottom: 10px;">
+                    Task Assigned to You
+                  </span>
+                  <h1 style="color: #0f172a; font-size: 22px; font-weight: 800; margin: 0; line-height: 1.3;">
+                    ${editForm.title}
+                  </h1>
+                </div>
+
+                <div style="padding: 32px 32px 24px 32px;">
+                  <p style="font-size: 15px; color: #334155; margin-top: 0;">Hi <strong>${assignedUser.name || 'Team Member'}</strong>,</p>
+                  <p style="font-size: 14px; color: #475569; margin-bottom: 20px;">A task has been reassigned to you in the CRM portal:</p>
+                  
+                  <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #c4ec0d; padding: 20px; border-radius: 12px; margin-bottom: 24px;">
+                    <p style="margin: 0 0 10px 0; color: #0f172a; font-size: 16px; font-weight: 700;">${editForm.title}</p>
+                    ${editForm.description ? `<p style="margin: 0 0 12px 0; color: #334155; font-size: 14px; line-height: 1.5;"><strong>Briefing:</strong> ${editForm.description}</p>` : ''}
+                    <div style="margin-top: 12px;">
+                      <span style="display: inline-block; background: #0f172a; color: #c4ec0d; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; text-transform: uppercase; margin-right: 6px;">
+                        Priority: ${(editForm.priority || 'medium').toUpperCase()}
+                      </span>
+                      ${editForm.dueDate ? `<span style="display: inline-block; background: #fee2e2; color: #991b1b; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px;">Due: ${formatDateTimeDisplay(editForm.dueDate)}</span>` : ''}
+                    </div>
+                  </div>
+
+                  <p style="color: #64748b; font-size: 13px; margin: 0;">Please log in to your CRM dashboard to manage this task.</p>
+                </div>
+
+                <div style="background-color: #f8fafc; padding: 20px 32px; border-top: 1px solid #f1f5f9; text-align: center; color: #94a3b8; font-size: 12px;">
+                  Sent via CRM System • Automated Task Dispatcher
+                </div>
+              </div>
+            `
+          });
+        } catch (emailErr) {
+          console.error("Failed to send task reassignment email:", emailErr);
+        }
       }
 
       await onUpdate();
