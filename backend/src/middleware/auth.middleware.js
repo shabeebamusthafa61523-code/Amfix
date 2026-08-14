@@ -1,3 +1,4 @@
+
 // middleware/auth.middleware.js
 
 import jwt from 'jsonwebtoken';
@@ -23,7 +24,13 @@ export const verifyToken = (req, res, next) => {
     const secret = process.env.JWT_SECRET || 'supersecretjwtkey_12345';
     const decoded = jwt.verify(token, secret);
     
-    req.user = decoded;
+    req.user = decoded || {};
+    const userId = decoded.id || decoded._id || decoded.userId;
+    if (userId) {
+      req.user.id = userId;
+      req.user._id = userId;
+      req.user.userId = userId;
+    }
     if (decoded && (decoded.isSuperAdmin || String(decoded.role || '').toLowerCase() === 'superadmin' || String(decoded.role_id || '') === '0')) {
       req.user.isSuperAdmin = true;
     }
@@ -70,6 +77,14 @@ export const requireRole = (allowedRoles = []) => {
 
     if (isSuperAdmin) return next();
 
+    // Explicitly deny students from administrative access
+    if (roleId === '10' || roleName === 'student') {
+      return res.status(403).json({
+        success: false,
+        detail: 'Access denied. Students cannot perform administrative actions.'
+      });
+    }
+
     // Map of roles for broad compatibility
     const isAllowed = allowedRoles.some(allowed => {
       const target = allowed.toLowerCase().trim();
@@ -78,9 +93,8 @@ export const requireRole = (allowedRoles = []) => {
       if (target === 'admin') {
         return (
           roleName === 'admin' ||
+          roleId === '2' ||
           roleId === '1' ||
-          roleId === '10' ||
-          roleName === '10' ||
           roleName.toUpperCase() === 'MD' ||
           roleName.toUpperCase() === 'COO'
         );
@@ -100,6 +114,7 @@ export const requireRole = (allowedRoles = []) => {
       if (target === 'student') {
         return (
           roleName === 'student' ||
+          roleId === '10' ||
           roleId === '4'
         );
       }
@@ -117,6 +132,38 @@ export const requireRole = (allowedRoles = []) => {
 
     next();
   };
+};
+
+/**
+ * Reusable Admin / Staff Middleware for Academy & CRM Administrative mutations
+ */
+export const requireAdminOrStaff = (req, res, next) => {
+  const roleId = String(req.user?.role_id || req.user?.roleId || '').trim();
+  const roleName = String(req.user?.role || '').toLowerCase().trim();
+
+  const isSuperAdmin = req.user?.isSuperAdmin === true || roleId === '0' || roleName.includes('super');
+  if (isSuperAdmin) return next();
+
+  if (roleId === '10' || roleName === 'student') {
+    return res.status(403).json({
+      success: false,
+      detail: 'Access denied. Students are not authorized for administrative operations.'
+    });
+  }
+
+  const isStaffOrAdmin = 
+    ['1', '2', '3', 'hr', 'admin', 'employee', 'staff', 'instructor', 'teacher', 'manager'].includes(roleId) ||
+    ['1', '2', '3', 'hr', 'admin', 'employee', 'staff', 'instructor', 'teacher', 'manager'].includes(roleName) ||
+    roleName.toUpperCase() === 'MD' || roleName.toUpperCase() === 'COO';
+
+  if (!isStaffOrAdmin) {
+    return res.status(403).json({
+      success: false,
+      detail: 'Access denied. Insufficient permissions for administrative operation.'
+    });
+  }
+
+  next();
 };
 
 /**
@@ -215,6 +262,12 @@ const protectRoute = async (req, res, next) => {
     const decoded = jwt.verify(token, secret);
 
     req.user = decoded || {};
+    const userId = decoded.id || decoded._id || decoded.userId;
+    if (userId) {
+      req.user.id = userId;
+      req.user._id = userId;
+      req.user.userId = userId;
+    }
     const rId = String(req.user.role_id || req.user.roleId || '').trim();
     const rName = String(req.user.role || '').toLowerCase().trim();
     if (req.user.isSuperAdmin === true || req.user.is_super_admin === true || rId === '0' || rName.includes('super')) {
@@ -250,4 +303,4 @@ const protectRoute = async (req, res, next) => {
   }
 };
 
-export default protectRoute;
+export default protectRoute;

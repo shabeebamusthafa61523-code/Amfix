@@ -54,6 +54,12 @@ const StudentAttendance = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
 
+  // Course & Batch context filters
+  const [courses, setCourses] = useState([]);
+  const [batches, setBatches] = useState([]);
+  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [selectedBatchId, setSelectedBatchId] = useState('');
+
   // Registration & Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddingStudent, setIsAddingStudent] = useState(false);
@@ -74,9 +80,43 @@ const StudentAttendance = () => {
     };
   }, []);
 
+  const fetchCoursesAndBatches = useCallback(async () => {
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+
+      const cRes = await fetch(`${cleanBase}/v1/academy/courses`, { headers: getHeaders() });
+      if (cRes.ok) {
+        const cData = await cRes.json();
+        const cList = cData?.data || cData?.courses || (Array.isArray(cData) ? cData : []);
+        setCourses(cList);
+        if (cList.length > 0 && !selectedCourseId) {
+          setSelectedCourseId(cList[0]._id || cList[0].id);
+        }
+      }
+
+      const bRes = await fetch(`${cleanBase}/v1/academy/batches`, { headers: getHeaders() });
+      if (bRes.ok) {
+        const bData = await bRes.json();
+        const bList = bData?.data || bData?.batches || (Array.isArray(bData) ? bData : []);
+        setBatches(bList);
+        if (bList.length > 0 && !selectedBatchId) {
+          setSelectedBatchId(bList[0]._id || bList[0].id);
+        }
+      }
+    } catch (err) {
+      console.error("Fetch Courses/Batches Error:", err);
+    }
+  }, [getHeaders, selectedCourseId, selectedBatchId]);
+
   const syncAttendance = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/attendance/student/${selectedDate}`, {
+      let endpoint = `${API_BASE}/attendance/student/${selectedDate}`;
+      const params = new URLSearchParams();
+      if (selectedBatchId) params.append('batchId', selectedBatchId);
+      if (selectedCourseId) params.append('courseId', selectedCourseId);
+      if (params.toString()) endpoint += `?${params.toString()}`;
+
+      const res = await fetch(endpoint, {
         headers: getHeaders(),
       });
 
@@ -87,8 +127,9 @@ const StudentAttendance = () => {
 
       const map = {};
       records.forEach((record) => {
-        if (record.user_id) {
-          map[record.user_id] = {
+        const stId = record.user_id?._id || record.user_id || record.studentId;
+        if (stId) {
+          map[stId] = {
             status: record.status?.toUpperCase() || "UNMARKED",
             id: record._id || record.id,
           };
@@ -99,7 +140,7 @@ const StudentAttendance = () => {
     } catch (e) {
       console.error("Sync Error", e);
     }
-  }, [selectedDate, getHeaders]);
+  }, [selectedDate, selectedBatchId, selectedCourseId, getHeaders]);
 
   const fetchStudents = useCallback(async () => {
     setLoading(true);
@@ -142,21 +183,42 @@ const StudentAttendance = () => {
   }, [getHeaders, syncAttendance]);
 
   useEffect(() => {
+    fetchCoursesAndBatches();
     fetchStudents();
-  }, [fetchStudents]);
+  }, [fetchCoursesAndBatches, fetchStudents]);
 
   useEffect(() => {
     syncAttendance();
-  }, [selectedDate, syncAttendance]);
+  }, [selectedDate, selectedBatchId, selectedCourseId, syncAttendance]);
 
   const getFilteredStudents = () => {
-    return students.filter(s => {
+    let filtered = students.filter(s => {
       const nameMatch = s.name?.toLowerCase().includes(searchQuery.toLowerCase());
       const emailMatch = s.email?.toLowerCase().includes(searchQuery.toLowerCase());
       const idMatch = (s.studentId || s.employeeId || '').toLowerCase().includes(searchQuery.toLowerCase());
       return nameMatch || emailMatch || idMatch;
     });
+
+    if (selectedBatchId && selectedBatchId !== 'ALL') {
+      const activeBatch = batches.find(b => String(b._id || b.id) === String(selectedBatchId));
+      if (activeBatch && Array.isArray(activeBatch.students) && activeBatch.students.length > 0) {
+        const bStudentIds = activeBatch.students.map(st => String(st._id || st.id || st));
+        filtered = filtered.filter(s => bStudentIds.includes(String(s._id || s.id)));
+      }
+    }
+
+    return filtered;
   };
+
+  const filteredStudents = getFilteredStudents();
+  const totalFilteredCount = filteredStudents.length;
+  const totalPages = Math.ceil(totalFilteredCount / PAGE_SIZE) || 1;
+  const displayedStudents = filteredStudents.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+  // Reset page to 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCourseId, selectedBatchId]);
 
   const exportToExcel = () => {
     const dataToExport = getFilteredStudents().map(s => ({
@@ -408,6 +470,11 @@ const StudentAttendance = () => {
   const handleAction = async (studentId, type) => {
     const targetStatus = type.toUpperCase(); 
     const previousState = { ...attendanceData };
+
+    if (!selectedCourseId || !selectedBatchId) {
+      showToast("Please select a Course and Batch to mark attendance.", "warning");
+      return;
+    }
     
     setAttendanceData(prev => ({
       ...prev,
@@ -423,6 +490,8 @@ const StudentAttendance = () => {
         headers: getHeaders(),
         body: JSON.stringify({ 
           user_id: studentId, 
+          batchId: selectedBatchId,
+          courseId: selectedCourseId,
           date: selectedDate, 
           status: targetStatus 
         }),
@@ -431,8 +500,9 @@ const StudentAttendance = () => {
       if (res.ok) {
         await syncAttendance(); 
       } else {
+        const errData = await res.json().catch(() => ({}));
         setAttendanceData(previousState); 
-        showToast("Action failed to write on cluster logs.", 'error');
+        showToast(errData.detail || errData.message || "Action failed to write attendance.", 'error');
       }
     } catch (e) { 
       setAttendanceData(previousState);
@@ -472,6 +542,36 @@ const StudentAttendance = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+            {/* Course Selector */}
+            <select
+              value={selectedCourseId}
+              onChange={(e) => setSelectedCourseId(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 outline-none cursor-pointer"
+            >
+              <option value="">-- Select Course --</option>
+              {courses.map(c => (
+                <option key={c._id || c.id} value={c._id || c.id}>
+                  {c.courseCode} - {c.courseName}
+                </option>
+              ))}
+            </select>
+
+            {/* Batch Selector */}
+            <select
+              value={selectedBatchId}
+              onChange={(e) => setSelectedBatchId(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-950 text-xs font-bold text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 outline-none cursor-pointer"
+            >
+              <option value="">-- Select Batch --</option>
+              {batches
+                .filter(b => !selectedCourseId || String(b.courseId?._id || b.courseId) === String(selectedCourseId))
+                .map(b => (
+                  <option key={b._id || b.id} value={b._id || b.id}>
+                    {b.batchCode} ({b.batchName})
+                  </option>
+                ))}
+            </select>
+
             <button 
               onClick={() => setViewMode('grid')} 
               className={`p-3 rounded-xl transition-all cursor-pointer ${viewMode === 'grid' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
@@ -559,7 +659,7 @@ const StudentAttendance = () => {
           <AnimatePresence mode="wait">
             {viewMode === 'grid' ? (
               <motion.div key="grid" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {getFilteredStudents().map(s => {
+                {displayedStudents.map(s => {
                   const studentId = s._id || s.id;
                   const status = attendanceData[studentId]?.status || 'UNMARKED';
                   const isPresent = status === 'PRESENT';
@@ -663,7 +763,7 @@ const StudentAttendance = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {getFilteredStudents().map((s) => {
+                      {displayedStudents.map((s) => {
                         const studentId = s._id || s.id;
                         const status = attendanceData[studentId]?.status || 'UNMARKED';
                         const imgUrl = s.profile_image || s.avatar;
@@ -746,7 +846,7 @@ const StudentAttendance = () => {
           </button>
           
           <div className="hidden md:flex gap-3">
-            {[...Array(Math.ceil(totalStudents / PAGE_SIZE) || 1)].map((_, i) => (
+            {[...Array(totalPages)].map((_, i) => (
               <button 
                 key={i} 
                 onClick={() => setCurrentPage(i + 1)}
@@ -758,7 +858,7 @@ const StudentAttendance = () => {
           </div>
 
           <button 
-            disabled={currentPage * PAGE_SIZE >= totalStudents} 
+            disabled={currentPage * PAGE_SIZE >= totalFilteredCount} 
             onClick={() => setCurrentPage(p => p + 1)}
             className="flex items-center gap-3 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-20 transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-700 cursor-pointer"
           >

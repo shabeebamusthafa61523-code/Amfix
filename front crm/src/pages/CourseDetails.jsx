@@ -65,6 +65,12 @@ const CourseDetails = () => {
   }, []);
 
   const fetchCourseDetails = useCallback(async () => {
+    if (!courseId || courseId === 'undefined' || courseId === 'null' || !courseId.trim()) {
+      setCourse(null);
+      setLoading(false);
+      showToast("Invalid or missing course identifier.", "warning");
+      return;
+    }
     setLoading(true);
     try {
       const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
@@ -73,9 +79,13 @@ const CourseDetails = () => {
         : `${cleanBase}/v1/academy/courses/${courseId}`;
 
       const res = await fetch(endpoint, { headers: getHeaders() });
-      if (!res.ok) throw new Error('Course record not found.');
+      const data = await res.json().catch(() => ({}));
 
-      const data = await res.json();
+      if (!res.ok) {
+        const errorMsg = data.message || data.error || 'Course record not found.';
+        throw new Error(errorMsg);
+      }
+
       setCourse(data.data || null);
 
       if (data.data?.syllabus) {
@@ -86,8 +96,8 @@ const CourseDetails = () => {
         setExpandedModules(initialMap);
       }
     } catch (err) {
-      console.error("Fetch Course Details Error:", err);
-      showToast("Unable to load course overview.", "error");
+      console.error("Fetch Course Details Error:", err.message);
+      showToast(err.message || "Unable to load course overview.", "error");
     } finally {
       setLoading(false);
     }

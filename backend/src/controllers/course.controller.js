@@ -117,21 +117,42 @@ export const courseController = {
   getCourseById: async (req, res, next) => {
     try {
       const { id } = req.params;
+      const targetIdStr = (id || '').trim();
 
-      if (!mongoose.Types.ObjectId.isValid(id)) {
-        throw new AppError('Invalid course ID format provided.', 400);
+      if (!targetIdStr || targetIdStr === 'undefined' || targetIdStr === 'null') {
+        throw new AppError('Invalid or missing course identifier.', 400);
       }
 
-      const course = await Course.findById(id).lean();
+      let course = null;
+      if (mongoose.Types.ObjectId.isValid(targetIdStr)) {
+        course = await Course.findById(targetIdStr).lean();
+      }
 
       if (!course) {
-        throw new AppError('Course not found.', 404);
+        course = await Course.findOne({
+          $or: [
+            { courseCode: targetIdStr },
+            { slug: targetIdStr.toLowerCase() }
+          ]
+        }).lean();
       }
 
-      const batches = await Batch.find({ courseId: id })
-        .populate('instructorId', 'name email phone role profile_image avatar')
-        .sort({ startDate: -1 })
-        .lean();
+      if (!course) {
+        console.warn(`[COURSE_NOT_FOUND] Requested ID: ${targetIdStr}, Authenticated User: ${req.user?.id || req.user?._id || 'anonymous'}`);
+        throw new AppError('Course record not found.', 404);
+      }
+
+      console.log(`[COURSE_LOOKUP_SUCCESS] Requested ID: ${targetIdStr}, Found Course: ${course.courseCode} (${course._id}), User: ${req.user?.id || req.user?._id || 'anonymous'}`);
+
+      let batches = [];
+      try {
+        batches = await Batch.find({ courseId: course._id })
+          .populate('instructorId', 'name email phone role profile_image avatar')
+          .sort({ startDate: -1 })
+          .lean();
+      } catch (batchErr) {
+        console.error(`[COURSE_BATCH_POPULATE_ERROR] Failed fetching batches for course ${course._id}:`, batchErr.message);
+      }
 
       return res.status(200).json({
         success: true,
