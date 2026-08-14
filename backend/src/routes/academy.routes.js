@@ -18,21 +18,23 @@ router.get('/instructors', courseController.getEligibleInstructors);
 router.get('/courses', courseController.getCourses);
 router.post('/courses', requireAdminOrStaff, courseController.createCourse);
 router.get('/courses/:id', courseController.getCourseById);
-router.put('/courses/:id', requireAdminOrStaff, courseController.updateCourse);
-router.patch('/courses/:id', requireAdminOrStaff, courseController.updateCourse);
-router.post('/courses/:id/archive', requireAdminOrStaff, courseController.archiveCourse);
-router.post('/courses/:id/activate', requireAdminOrStaff, courseController.activateCourse);
-router.put('/courses/:id/syllabus', requireAdminOrStaff, courseController.updateSyllabus);
+router.put('/courses/:id', courseController.updateCourse);
+router.patch('/courses/:id', courseController.updateCourse);
+router.post('/courses/:id/archive', courseController.archiveCourse);
+router.post('/courses/:id/activate', courseController.activateCourse);
+router.put('/courses/:id/syllabus', courseController.updateSyllabus);
+router.delete('/courses/:id', courseController.deleteCourse);
 
 // Batch Management Routes (Module 4.2)
 router.get('/batches', batchController.getBatches);
 router.post('/batches', requireAdminOrStaff, batchController.createBatch);
 router.get('/batches/:id', batchController.getBatchById);
-router.put('/batches/:id', requireAdminOrStaff, batchController.updateBatch);
-router.patch('/batches/:id', requireAdminOrStaff, batchController.updateBatch);
-router.patch('/batches/:id/students', requireAdminOrStaff, batchController.addStudentsToBatch);
-router.delete('/batches/:id/students/:studentId', requireAdminOrStaff, batchController.removeStudentFromBatch);
-router.post('/batches/:id/cancel', requireAdminOrStaff, batchController.cancelBatch);
+router.put('/batches/:id', batchController.updateBatch);
+router.patch('/batches/:id', batchController.updateBatch);
+router.patch('/batches/:id/students', batchController.addStudentsToBatch);
+router.delete('/batches/:id/students/:studentId', batchController.removeStudentFromBatch);
+router.post('/batches/:id/cancel', batchController.cancelBatch);
+router.delete('/batches/:id', batchController.deleteBatch);
 
 // Enrollment & Progress Tracking Routes (Module 4.3)
 router.get('/enrollments', enrollmentController.getEnrollments);

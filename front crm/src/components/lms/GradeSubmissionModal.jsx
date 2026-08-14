@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle2, Award, FileText, ExternalLink, Download, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '../ToastProvider';
@@ -64,13 +65,13 @@ const GradeSubmissionModal = ({ submission, assignment, onClose, onGraded }) => 
   const student = submission?.studentId || {};
   const maxMarks = assignment?.maxMarks || submission?.maxMarks || 100;
 
-  return (
-    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 md:p-10">
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="relative w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden"
+        className="relative my-auto w-full max-w-2xl max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col"
       >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
@@ -95,7 +96,7 @@ const GradeSubmissionModal = ({ submission, assignment, onClose, onGraded }) => 
           </button>
         </div>
 
-        <form onSubmit={handleGradeSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleGradeSubmit} className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
           {/* Submission Preview Card */}
           <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl space-y-3">
             <div className="flex items-center justify-between text-xs font-semibold text-slate-400">
@@ -209,7 +210,8 @@ const GradeSubmissionModal = ({ submission, assignment, onClose, onGraded }) => 
           </div>
         </form>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

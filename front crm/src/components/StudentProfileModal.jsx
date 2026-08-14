@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, User, Mail, Phone, MapPin, GraduationCap, ShieldCheck, 
@@ -60,14 +61,16 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
   const attendance = profileData?.attendanceSummary || { totalMarked: 0, presentCount: 0, absentCount: 0, attendancePercentage: 0 };
   const studentImage = student.profile_image || student.avatar;
 
-  return (
+  const studentName = student.name || `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Student';
+
+  return createPortal(
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] overflow-y-auto bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 md:p-10">
+      <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-4xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden my-auto"
+          className="relative w-full max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col my-auto"
         >
           {/* Top Banner Header */}
           <div className="relative bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-800 p-8 sm:p-10 text-white">
@@ -79,26 +82,26 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
             </button>
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white/20 backdrop-blur-md border-2 border-white/30 flex items-center justify-center text-3xl font-black text-white uppercase shadow-lg overflow-hidden flex-shrink-0">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-white text-indigo-700 font-black text-3xl sm:text-4xl shadow-xl border-2 border-indigo-200 flex items-center justify-center uppercase overflow-hidden flex-shrink-0">
                 {studentImage ? (
-                  <img src={studentImage} alt={student.name} className="w-full h-full object-cover" />
+                  <img src={studentImage} alt={studentName} className="w-full h-full object-cover" />
                 ) : (
-                  student.name ? student.name.charAt(0).toUpperCase() : <User size={36} />
+                  studentName ? studentName.charAt(0).toUpperCase() : <User size={36} />
                 )}
               </div>
 
               <div className="space-y-1">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="px-3.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 border border-white/30 backdrop-blur-sm">
-                    {student.studentId || student.employeeId || 'STD-STUDENT'}
+                <div className="flex flex-wrap items-center gap-3 mb-1">
+                  <span className="px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-white text-slate-900 border border-indigo-200 shadow-md">
+                    {student.studentId || student.student_id || student.employeeId || student.employee_id || 'STD-STUDENT'}
                   </span>
-                  <span className="px-3.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/30 text-emerald-200 border border-emerald-400/40">
+                  <span className="px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-400 text-slate-950 shadow-md">
                     {student.status || 'ACTIVE'}
                   </span>
                 </div>
-                <h2 className="text-2xl sm:text-4xl font-extrabold uppercase tracking-tight text-white">{student.name}</h2>
-                <p className="text-xs font-medium text-indigo-100/80 flex items-center gap-2">
-                  <Mail size={14} /> {student.email}
+                <h2 className="text-2xl sm:text-4xl font-extrabold uppercase tracking-tight text-white drop-shadow-md">{studentName}</h2>
+                <p className="text-xs font-bold text-indigo-100 flex items-center gap-2 drop-shadow-sm">
+                  <Mail size={14} /> {student.email || 'No email specified'}
                 </p>
               </div>
 
@@ -149,16 +152,16 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
 
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
-                    <p className="text-[10px] font-black uppercase text-slate-400">Total Sessions</p>
+                    <p className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Total Sessions</p>
                     <p className="text-xl font-black text-slate-900 dark:text-slate-100">{attendance.totalMarked}</p>
                   </div>
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
-                    <p className="text-[10px] font-black uppercase text-emerald-500">Days Present</p>
-                    <p className="text-xl font-black text-emerald-600">{attendance.presentCount}</p>
+                    <p className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400">Days Present</p>
+                    <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">{attendance.presentCount}</p>
                   </div>
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl">
-                    <p className="text-[10px] font-black uppercase text-rose-500">Days Absent</p>
-                    <p className="text-xl font-black text-rose-600">{attendance.absentCount}</p>
+                    <p className="text-[10px] font-black uppercase text-rose-600 dark:text-rose-400">Days Absent</p>
+                    <p className="text-xl font-black text-rose-600 dark:text-rose-400">{attendance.absentCount}</p>
                   </div>
                 </div>
               </div>
@@ -172,18 +175,18 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
                     <User size={16} /> Personal Information
                   </h4>
                   <div className="space-y-3 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Date of Birth:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">{student.dateOfBirth || 'N/A'}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Date of Birth:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{student.dateOfBirth || student.dob || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Gender:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 capitalize">{student.gender || 'N/A'}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Gender:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100 capitalize">{student.gender || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Admission Date:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {student.joining_date ? new Date(student.joining_date).toLocaleDateString() : 'N/A'}
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Admission Date:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                        {student.joining_date ? new Date(student.joining_date).toLocaleDateString() : student.admissionDate ? new Date(student.admissionDate).toLocaleDateString() : student.createdAt ? new Date(student.createdAt).toLocaleDateString() : 'N/A'}
                       </span>
                     </div>
                   </div>
@@ -195,21 +198,21 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
                     <Phone size={16} /> Contact Details
                   </h4>
                   <div className="space-y-3 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Primary Phone:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">{student.phone || 'N/A'}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Primary Phone:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{student.phone || student.contactPhone || student.mobile || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Alternate Phone:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">{student.alternatePhone || 'N/A'}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Alternate Phone:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{student.alternatePhone || student.alternate_phone || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Address:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">{student.address || 'N/A'}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Address:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{student.address || student.fullAddress || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Location:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Location:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">
                         {[student.city, student.state, student.pincode].filter(Boolean).join(', ') || 'N/A'}
                       </span>
                     </div>
@@ -222,21 +225,21 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
                     <GraduationCap size={16} /> Educational Background
                   </h4>
                   <div className="space-y-3 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Qualification:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">{student.qualification || 'N/A'}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Qualification:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{student.qualification || student.highestQualification || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Institution:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">{student.institution || 'N/A'}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Institution:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{student.institution || student.college || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Passing Year:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">{student.passingYear || 'N/A'}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Passing Year:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{student.passingYear || student.passing_year || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Course Preference:</span>
-                      <span className="font-semibold text-indigo-600 dark:text-indigo-400">{student.coursePreference || 'N/A'}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Course Preference:</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-400">{student.coursePreference || student.course_preference || student.course || 'N/A'}</span>
                     </div>
                   </div>
                 </div>
@@ -247,18 +250,18 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
                     <CreditCard size={16} /> ID Verification & System Metadata
                   </h4>
                   <div className="space-y-3 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">ID Document Type:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 uppercase">{student.identityType || 'N/A'}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">ID Document Type:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100 uppercase">{student.identityType || student.identity_type || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">ID Document Number:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">{student.identityNumber || 'N/A'}</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">ID Document Number:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">{student.identityNumber || student.identity_number || 'N/A'}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400 font-bold">Registered On:</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">
-                        {student.createdAt ? new Date(student.createdAt).toLocaleDateString() : 'N/A'}
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600 dark:text-slate-400 font-bold">Registered On:</span>
+                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                        {student.createdAt ? new Date(student.createdAt).toLocaleDateString() : student.joining_date ? new Date(student.joining_date).toLocaleDateString() : 'N/A'}
                       </span>
                     </div>
                   </div>
@@ -270,7 +273,8 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
           )}
         </motion.div>
       </div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 

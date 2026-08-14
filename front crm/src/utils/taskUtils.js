@@ -25,34 +25,46 @@ export const fetchCompletedTasks = async (userId, dateStr) => {
       const assignedUser = t.assigned_to?._id || t.assigned_to?.id || t.assigned_to || t.assignedTo?._id || t.assignedTo?.id || t.assignedTo;
       if (String(assignedUser) !== String(userId)) return false;
       
-      // Check dates timezone-safely by comparing both Local and UTC formatted dates
-      const matchesDate = (d) => {
-        if (!d) return false;
+      const statusLower = String(t.status || '').toLowerCase();
+      const isDone = ['done', 'completed'].includes(statusLower);
+
+      const getDateStrings = (d) => {
+        if (!d) return [];
         try {
           const dateObj = new Date(d);
-          if (isNaN(dateObj.getTime())) return false;
+          if (isNaN(dateObj.getTime())) return [];
 
-          // Local Date parts
           const localY = dateObj.getFullYear();
           const localM = String(dateObj.getMonth() + 1).padStart(2, '0');
           const localD = String(dateObj.getDate()).padStart(2, '0');
           const localDateStr = `${localY}-${localM}-${localD}`;
 
-          // UTC Date parts
           const utcY = dateObj.getUTCFullYear();
           const utcM = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
           const utcD = String(dateObj.getUTCDate()).padStart(2, '0');
           const utcDateStr = `${utcY}-${utcM}-${utcD}`;
 
-          return localDateStr === dateStr || utcDateStr === dateStr;
+          return [localDateStr, utcDateStr];
         } catch (e) {
-          return false;
+          return [];
         }
       };
 
-      const dateMatches = matchesDate(t.date) || matchesDate(t.updatedAt) || matchesDate(t.createdAt) || matchesDate(t.dueDate);
+      const matchesDate = (d) => getDateStrings(d).includes(dateStr);
+
+      // If task was already completed on a date prior to dateStr (e.g. updated to complete yesterday), exclude it from today's report
+      if (isDone) {
+        const completionTime = t.updatedAt || t.completedAt;
+        const completionDateStrs = getDateStrings(completionTime);
+        const isCompletedOnPriorDate = completionDateStrs.length > 0 && completionDateStrs.every(cd => cd < dateStr);
+        if (isCompletedOnPriorDate) {
+          return false;
+        }
+        return matchesDate(t.updatedAt) || matchesDate(t.completedAt) || matchesDate(t.date) || matchesDate(t.dueDate);
+      }
       
-      const isPendingOrInProgress = ['pending', 'current'].includes(String(t.status).toLowerCase());
+      const isPendingOrInProgress = ['pending', 'current'].includes(statusLower);
+      const dateMatches = matchesDate(t.date) || matchesDate(t.createdAt) || matchesDate(t.dueDate);
       
       return dateMatches || isPendingOrInProgress;
     });
@@ -191,8 +203,27 @@ export const fetchDelegatedTasks = async (userId, dateStr) => {
       if (createdUser !== String(userId)) return false;
       if (assignedUser && assignedUser === String(userId)) return false; 
       
+      const statusLower = String(t.status || '').toLowerCase();
+      const isDone = ['done', 'completed'].includes(statusLower);
+
+      if (isDone) {
+        const completionTime = t.updatedAt || t.completedAt;
+        const completionDateStrs = matchesDate(completionTime);
+        // Extract date string from completionTime if needed
+        try {
+          const dObj = new Date(completionTime);
+          if (!isNaN(dObj.getTime())) {
+            const locY = dObj.getFullYear();
+            const locM = String(dObj.getMonth() + 1).padStart(2, '0');
+            const locD = String(dObj.getDate()).padStart(2, '0');
+            const locStr = `${locY}-${locM}-${locD}`;
+            if (locStr < dateStr) return false;
+          }
+        } catch (e) {}
+      }
+
       const dateMatches = matchesDate(t.date) || matchesDate(t.createdAt) || matchesDate(t.updatedAt) || matchesDate(t.dueDate);
-      const isPendingOrInProgress = ['pending', 'current'].includes(String(t.status).toLowerCase());
+      const isPendingOrInProgress = ['pending', 'current'].includes(statusLower);
 
       return dateMatches || isPendingOrInProgress;
     });

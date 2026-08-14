@@ -167,14 +167,15 @@ export const batchController = {
         students = [],
         studentIds = [],
         status,
-        instructorId,
+
         startDate,
         endDate,
         daysOfWeek,
         startTime,
         endTime,
         timezone,
-        capacity
+        capacity,
+        instructorId
       } = req.body;
 
       const finalBatchName = (batchName || name || '').trim();
@@ -198,6 +199,10 @@ export const batchController = {
       const courseExists = await Course.findById(finalCourseId);
       if (!courseExists) {
         throw new AppError('Associated course was not found.', 404);
+      }
+
+      if (instructorId && !mongoose.Types.ObjectId.isValid(instructorId)) {
+        throw new AppError('Invalid instructor ID format provided.', 400);
       }
 
       // Validate that all assigned students are registered in Student Attendance registry
@@ -226,6 +231,14 @@ export const batchController = {
         timezone: timezone || 'IST (UTC+5:30)',
         capacity: capacity ? parseInt(capacity, 10) : 30,
         students: validatedStudentIds,
+        instructorId: instructorId || null,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        daysOfWeek: Array.isArray(daysOfWeek) ? daysOfWeek : [],
+        startTime: startTime || undefined,
+        endTime: endTime || undefined,
+        timezone: timezone || 'IST (UTC+5:30)',
+        capacity: capacity ? parseInt(capacity, 10) : 30,
         status: status || 'UPCOMING',
         createdBy: req.user?.id || req.user?._id
       });
@@ -241,6 +254,7 @@ export const batchController = {
         .populate('courseId', 'courseName courseCode')
         .populate('instructorId', 'name email phone role profile_image avatar')
         .populate('students', 'name email phone studentId profile_image')
+        .populate('instructorId', 'name email phone role profile_image avatar')
         .lean();
 
       return res.status(201).json({
@@ -277,14 +291,15 @@ export const batchController = {
         students,
         studentIds,
         status,
-        instructorId,
+
         startDate,
         endDate,
         daysOfWeek,
         startTime,
         endTime,
         timezone,
-        capacity
+        capacity,
+        instructorId
       } = req.body;
 
       const finalBatchName = batchName !== undefined ? batchName : name;
@@ -301,6 +316,10 @@ export const batchController = {
         }
       }
 
+      if (instructorId && !mongoose.Types.ObjectId.isValid(instructorId)) {
+        throw new AppError('Invalid instructor ID format provided.', 400);
+      }
+
       const oldValue = existingBatch.toObject();
 
       if (finalBatchName !== undefined && finalBatchName !== null) {
@@ -310,6 +329,7 @@ export const batchController = {
         existingBatch.courseId = finalCourseId;
       }
       if (status !== undefined) existingBatch.status = status;
+
       if (instructorId !== undefined) {
         existingBatch.instructorId = (instructorId && mongoose.Types.ObjectId.isValid(instructorId)) ? instructorId : null;
       }
@@ -320,6 +340,7 @@ export const batchController = {
       if (endTime !== undefined) existingBatch.endTime = endTime;
       if (timezone !== undefined) existingBatch.timezone = timezone;
       if (capacity !== undefined) existingBatch.capacity = parseInt(capacity, 10) || existingBatch.capacity;
+
 
       if (Array.isArray(rawStudents)) {
         existingBatch.students = await validateRegisteredStudents(rawStudents);
@@ -465,6 +486,43 @@ export const batchController = {
         success: true,
         message: 'Batch cancelled successfully.',
         data: batch
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * DELETE /api/v1/academy/batches/:id
+   * Delete a batch record permanently
+   */
+  deleteBatch: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw new AppError('Invalid batch ID format provided.', 400);
+      }
+
+      const batch = await Batch.findById(id);
+      if (!batch) {
+        throw new AppError('Batch record not found.', 404);
+      }
+
+      const oldValue = batch.toObject();
+      await Batch.findByIdAndDelete(id);
+
+      await recordAudit(req, {
+        action: 'DELETE',
+        entity: 'Batch',
+        entityId: id,
+        oldValue,
+        newValue: null
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Batch deleted successfully.'
       });
     } catch (error) {
       next(error);

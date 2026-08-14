@@ -126,10 +126,30 @@ const BasicReportPage = () => {
           const d = await res.json();
           const allTasks = Array.isArray(d) ? d : d?.data || [];
           
-          // Filter tasks for current user
+          // Filter tasks for current user (excluding tasks completed prior to today)
+          const todayStr = new Date().toISOString().split('T')[0];
           const myTasks = allTasks.filter(t => {
             const aId = t.assigned_to && typeof t.assigned_to === 'object' ? (t.assigned_to.id || t.assigned_to._id) : t.assigned_to;
-            return String(aId).trim() === String(userId).trim();
+            if (String(aId).trim() !== String(userId).trim()) return false;
+
+            const statusLower = String(t.status || '').toLowerCase();
+            const isDone = ['done', 'completed'].includes(statusLower);
+            if (isDone) {
+              const compDate = t.updatedAt || t.completedAt;
+              if (compDate) {
+                try {
+                  const dObj = new Date(compDate);
+                  if (!isNaN(dObj.getTime())) {
+                    const locY = dObj.getFullYear();
+                    const locM = String(dObj.getMonth() + 1).padStart(2, '0');
+                    const locD = String(dObj.getDate()).padStart(2, '0');
+                    const compStr = `${locY}-${locM}-${locD}`;
+                    if (compStr < todayStr) return false;
+                  }
+                } catch (e) {}
+              }
+            }
+            return true;
           });
 
           // Map to report task summary format

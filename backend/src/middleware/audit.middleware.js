@@ -25,8 +25,9 @@ export const recordAudit = async (req, {
 
     // 1. Save directly to Database using Prisma if available
     let auditRecordId = 'mongo_' + Date.now();
+    let auditRecord = null;
     if (typeof prisma !== 'undefined' && prisma?.auditLog) {
-      const auditRecord = await prisma.auditLog.create({
+      auditRecord = await prisma.auditLog.create({
         data: {
           userId,
           action,

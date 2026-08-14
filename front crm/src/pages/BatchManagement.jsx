@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -40,6 +41,11 @@ const BatchManagement = () => {
   const [editingBatch, setEditingBatch] = useState(null);
   const [formData, setFormData] = useState(initialBatchForm);
   const [studentSearchText, setStudentSearchText] = useState('');
+
+  // Delete Batch Modal State
+  const [batchToDelete, setBatchToDelete] = useState(null);
+  const [isDeleteBatchModalOpen, setIsDeleteBatchModalOpen] = useState(false);
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
   const getHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
@@ -114,9 +120,47 @@ const BatchManagement = () => {
   }, [fetchBatches]);
 
   useEffect(() => {
+    fetchBatches();
     fetchCourses();
     fetchRegisteredStudents();
-  }, [fetchCourses, fetchRegisteredStudents]);
+  }, [fetchBatches, fetchCourses, fetchRegisteredStudents]);
+
+  const handleDeleteBatch = (batch) => {
+    setBatchToDelete(batch);
+    setIsDeleteBatchModalOpen(true);
+  };
+
+  const confirmDeleteBatch = async () => {
+    if (!batchToDelete) return;
+    setIsDeletingBatch(true);
+    try {
+      const batchId = batchToDelete._id || batchToDelete.id;
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/batches/${batchId}`
+        : `${cleanBase}/v1/academy/batches/${batchId}`;
+
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        showToast(data.message || 'Batch deleted successfully!', 'success');
+        setIsDeleteBatchModalOpen(false);
+        setBatchToDelete(null);
+        fetchBatches();
+      } else {
+        showToast(data.message || 'Failed to delete batch.', 'error');
+      }
+    } catch (err) {
+      showToast('Network error while deleting batch.', 'error');
+    } finally {
+      setIsDeletingBatch(false);
+    }
+  };
 
   const handleOpenAddModal = () => {
     setEditingBatch(null);
@@ -418,6 +462,13 @@ const BatchManagement = () => {
                       >
                         <Edit size={14} />
                       </button>
+                      <button
+                        onClick={() => handleDeleteBatch(b)}
+                        className="p-3 bg-white dark:bg-slate-950 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-600 dark:text-slate-300 hover:text-rose-600 rounded-xl transition-all cursor-pointer border border-slate-200 dark:border-slate-800"
+                        title="Delete Batch"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </motion.div>
                 );
@@ -483,6 +534,13 @@ const BatchManagement = () => {
                               >
                                 <Edit size={15} />
                               </button>
+                              <button
+                                onClick={() => handleDeleteBatch(b)}
+                                className="p-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-rose-50 text-slate-600 dark:text-slate-300 hover:text-rose-600 rounded-xl transition-all cursor-pointer"
+                                title="Delete Batch"
+                              >
+                                <Trash2 size={15} />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -497,14 +555,15 @@ const BatchManagement = () => {
       )}
 
       {/* Create / Edit Batch Modal without Instructor Selection */}
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6 md:p-10">
+      {createPortal(
+        <AnimatePresence>
+          {isModalOpen && (
+            <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="relative w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[3rem] shadow-2xl overflow-hidden my-auto"
+              className="relative w-full max-w-3xl max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col"
             >
               <header className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-950">
                 <div>
@@ -692,7 +751,52 @@ const BatchManagement = () => {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body
+    )}
+
+      {/* Delete Batch Confirmation Modal */}
+      {createPortal(
+        <AnimatePresence>
+          {isDeleteBatchModalOpen && batchToDelete && (
+            <div className="fixed inset-0 z-[99999] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-y-auto"
+            >
+              <div className="w-12 h-12 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center mb-4">
+                <Trash2 size={24} />
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight mb-2">
+                Delete Batch?
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-6">
+                Are you sure you want to permanently delete batch <strong className="text-slate-800 dark:text-slate-200">{batchToDelete.batchName}</strong> ({batchToDelete.batchCode})? This action cannot be undone.
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => { setIsDeleteBatchModalOpen(false); setBatchToDelete(null); }}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteBatch}
+                  disabled={isDeletingBatch}
+                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-rose-600/20 flex items-center gap-2 cursor-pointer"
+                >
+                  {isDeletingBatch ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  <span>{isDeletingBatch ? 'Deleting...' : 'Delete Batch'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>,
+      document.body
+    )}
     </motion.div>
   );
 };

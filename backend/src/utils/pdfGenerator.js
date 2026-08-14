@@ -7,11 +7,11 @@ const __dirname = path.dirname(__filename);
 const logoPath = path.join(__dirname, '../assets/logo3.png');
 
 /**
- * Helper to check if a row is essentially empty (ignoring metadata and status/priority fields)
+ * Helper to check if a row is essentially empty (ignoring metadata fields)
  */
 const isRowEmpty = (item) => {
   if (!item || typeof item !== 'object') return true;
-  const skipKeys = new Set(['_id', 'id', 'status', 'priority', 'stage', 'statusRemarks']);
+  const skipKeys = new Set(['_id', 'id', '__v']);
   return !Object.entries(item).some(([k, v]) => {
     if (skipKeys.has(k)) return false;
     return v !== null && v !== undefined && String(v).trim() !== '';
@@ -282,21 +282,30 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
               });
             });
 
-            // Filter columns: keep only keys that have at least one non-empty value in filledRows (or are critical columns like status/priority)
-            const criticalKeys = new Set(['status', 'priority', 'stage', 'statusRemarks', 'remarks', 'remark']);
-            const activeKeys = allKeys.filter(k => {
-              if (criticalKeys.has(k)) return true;
-              return filledRows.some(item => {
-                const v = item[k];
-                return v !== null && v !== undefined && String(v).trim() !== '';
-              });
-            });
+            // Filter columns: keep all keys that exist on sub-documents
+            const activeKeys = allKeys.filter(k => k !== '_id' && k !== 'id' && k !== '__v');
 
             if (activeKeys.length > 0) {
               drawSectionHeader(`${sectionIndex}. ${title}`);
               
+              // Custom key label map for clean headers
+              const headerMap = {
+                employeeName: 'Employee Name',
+                countStatus: 'Count / Status',
+                actionTaken: 'Action Taken',
+                taskStatus: 'Task Status',
+                dueDate: 'Due Date',
+                startDate: 'Start Date',
+                endDate: 'End Date',
+                statusRemarks: 'Remarks',
+                hrAdminComments: 'HR Comments',
+                incomes: 'Incomes',
+                expense: 'Expense',
+                transactionType: 'Transaction Type'
+              };
+
               // Build headers
-              const headers = activeKeys.map(k => k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' '));
+              const headers = activeKeys.map(k => headerMap[k] || k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' '));
               
               // Row data
               const rows = filledRows.map(item => activeKeys.map(k => item[k] || ''));

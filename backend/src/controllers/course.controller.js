@@ -420,6 +420,52 @@ export const courseController = {
     } catch (error) {
       next(error);
     }
+  },
+
+  /**
+   * DELETE /api/v1/academy/courses/:id
+   * Delete course if no batches are attached to it
+   */
+  deleteCourse: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        throw new AppError('Invalid course ID format provided.', 400);
+      }
+
+      const course = await Course.findById(id);
+      if (!course) {
+        throw new AppError('Course record not found.', 404);
+      }
+
+      // Check if any batches exist for this course
+      const batchCount = await Batch.countDocuments({ courseId: id });
+      if (batchCount > 0) {
+        throw new AppError(
+          `Cannot delete course '${course.courseName}'. It has ${batchCount} batch(es) assigned to it. Remove or reassign batches first.`,
+          400
+        );
+      }
+
+      const oldValue = course.toObject();
+      await Course.findByIdAndDelete(id);
+
+      await recordAudit(req, {
+        action: 'DELETE',
+        entity: 'Course',
+        entityId: id,
+        oldValue,
+        newValue: null
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Course deleted successfully.'
+      });
+    } catch (error) {
+      next(error);
+    }
   }
 };
 
