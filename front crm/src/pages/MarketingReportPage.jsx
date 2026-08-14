@@ -11,6 +11,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
+import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -163,6 +164,10 @@ const MarketingReportPage = () => {
   const [weeklyAchievements, setWeeklyAchievements] = useState('');
   const [weeklyImprovements, setWeeklyImprovements] = useState('');
   const [weeklyNextWeekPlanning, setWeeklyNextWeekPlanning] = useState('');
+
+  // AI Analysis Modal State
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiModalContext, setAiModalContext] = useState(null);
 
   const handleMonthlyTaskChange = (index, field, value) => {
     const updated = [...monthlyTaskSummary];
@@ -1420,6 +1425,19 @@ const MarketingReportPage = () => {
 
                 
 
+                <AiAnalyzeButton
+                  onClick={() => {
+                    setAiModalContext({
+                      employeeName: basicDetails.employeeName,
+                      department: 'Marketing & Digital Strategy',
+                      designation: basicDetails.designation,
+                      date: selectedDate,
+                      actualReportContentText: JSON.stringify({ basicDetails, taskSummary, keyNumbers, blockersTomorrowPlan, marketingComments: comments })
+                    });
+                    setIsAiModalOpen(true);
+                  }}
+                />
+
                 <button
                   type="button"
                   onClick={handleDownloadPDF}
@@ -1435,6 +1453,13 @@ const MarketingReportPage = () => {
                 </button>
               </div>
             </div>
+
+            <AiAnalyzeModal
+              isOpen={isAiModalOpen}
+              onClose={() => setIsAiModalOpen(false)}
+              contextData={aiModalContext}
+              title="Marketing Report AI Analysis"
+            />
 
             {/* 1. BASIC DETAILS */}
             <div className="space-y-4">

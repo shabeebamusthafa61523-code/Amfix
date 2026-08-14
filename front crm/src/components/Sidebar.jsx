@@ -193,9 +193,7 @@ const menuItems = [
   {
     icon: Sparkles,
     label: 'AI Reports',
-    path: '/ai-report',
-    allowedDesignationNames: ['hr', 'admin', 'recruiter'],
-    allowedRoles: ['1', '2', 'admin' ],
+    path: '/ai-report'
   },
   {
     icon: Award,

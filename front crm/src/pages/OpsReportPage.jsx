@@ -10,6 +10,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks, fetchDelegatedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
+import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -253,6 +254,10 @@ const OpsReportPage = () => {
     directorSignature: '',
     directorDate: ''
   });
+
+  // AI Analysis Modal State
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiModalContext, setAiModalContext] = useState(null);
 
   // Get Auth Headers Helper
   const getAuthHeaders = useCallback(() => {
@@ -1778,6 +1783,19 @@ const OpsReportPage = () => {
 
                 
 
+                <AiAnalyzeButton
+                  onClick={() => {
+                    setAiModalContext({
+                      employeeName: basicDetails.employeeName,
+                      department: 'Operations & Management',
+                      designation: basicDetails.designation,
+                      date: selectedDate,
+                      actualReportContentText: JSON.stringify({ basicDetails, kpiTracking, projectOperations, clientInteractions, taskDelegation, teamPerformance, issuesEscalation, nextDayPlanning, opsComments: comments })
+                    });
+                    setIsAiModalOpen(true);
+                  }}
+                />
+
                 <button
                   type="button"
                   onClick={handleDownloadPDF}
@@ -1793,6 +1811,13 @@ const OpsReportPage = () => {
                 </button>
               </div>
             </div>
+
+            <AiAnalyzeModal
+              isOpen={isAiModalOpen}
+              onClose={() => setIsAiModalOpen(false)}
+              contextData={aiModalContext}
+              title="Operations Report AI Analysis"
+            />
 
             {/* 1. BASIC DETAILS */}
             <div className="space-y-4">

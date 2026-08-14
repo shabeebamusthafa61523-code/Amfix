@@ -153,27 +153,29 @@ export const schedulerService = {
     }, { scheduled: true, timezone: TIMEZONE });
     activeJobs.push(weeklySummaryJob);
 
-    // 5. Every 5 minutes: Check tasks due in 10 minutes and send notifications to assigned employees
+    // 5. Every 5 minutes: Check tasks due in 15 minutes or overdue, and send multi-channel reminders to assigned employees
     const taskDueReminderJob = cron.schedule('*/5 * * * *', async () => {
       try {
         const now = new Date();
-        const tenMinsLater = new Date(now.getTime() + 10 * 60 * 1000);
+        const fifteenMinsLater = new Date(now.getTime() + 15 * 60 * 1000);
 
         const upcomingTasks = await Task.find({
           status: { $ne: 'done' },
-          dueDate: { $gte: now, $lte: tenMinsLater }
-        });
+          dueDate: { $gte: now, $lte: fifteenMinsLater }
+        }).populate('assigned_to', 'name email phone');
 
         for (const t of upcomingTasks) {
           if (t.assigned_to) {
-            const userId = t.assigned_to._id || t.assigned_to.id || t.assigned_to;
+            const userId = t.assigned_to._id || t.assigned_to.id;
             const dueTimeStr = new Date(t.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            await sendNotification(
-              userId,
-              `Your assigned task "${t.title}" is due in less than 10 minutes at ${dueTimeStr}.`,
-              'warning',
-              '⏰ Task Due Soon'
-            );
+            if (userId) {
+              await sendNotification(
+                userId,
+                `⏰ TASK DUE SOON: Your assigned task "${t.title}" is due at ${dueTimeStr}. Please complete or update its status.`,
+                'warning',
+                `⏰ Task Due Reminder: ${t.title}`
+              );
+            }
           }
         }
       } catch (err) {

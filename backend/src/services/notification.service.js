@@ -1,13 +1,19 @@
 import nodemailer from 'nodemailer';
 import User from '../models/user.model.js';
 import Notification from '../models/notification.model.js';
+import { sendBrevoEmail, sendBrevoSms } from './brevo.service.js';
+import emailService from './emailService.js';
+import smsService from './smsService.js';
+import whatsappService from './whatsappService.js';
+
+export { emailService, smsService, whatsappService };
 
 // Create SMTP Transporter using .env credentials
 const createTransporter = () => {
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
+  const port = parseInt(process.env.SMTP_PORT || '587', 10);
   const user = process.env.SMTP_USER || process.env.EMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.BREVO_API_KEY;
 
   if (!user || user.includes('smtp_username_here') || !pass || pass.includes('smtp_password_here')) {
     return null;
@@ -39,12 +45,19 @@ const createTransporter = () => {
 };
 
 /**
- * Generic email sender tool
+ * Generic email sender tool with automatic Brevo API & SMTP fallback support
  */
 export const sendEmail = async (to, subject, htmlContent, textFallback = '') => {
   try {
     if (!to || typeof to !== 'string') return { success: false, message: 'Invalid recipient email' };
 
+    // 1. Primary: Try Brevo API v3 if BREVO_API_KEY is configured
+    if (process.env.BREVO_API_KEY && !process.env.BREVO_API_KEY.includes('your_brevo_api_key') && process.env.BREVO_API_KEY.trim() !== '') {
+      const brevoRes = await sendBrevoEmail({ to, subject, htmlContent, textContent: textFallback });
+      if (brevoRes.success) return brevoRes;
+    }
+
+    // 2. Secondary: Fallback to SMTP or Simulation
     const fromAddress = process.env.SMTP_FROM || process.env.EMAIL_FROM || '"KOD.BRAND CRM" <no-reply@kodbrand.com>';
     const transporter = createTransporter();
 
@@ -70,9 +83,16 @@ export const sendEmail = async (to, subject, htmlContent, textFallback = '') => 
     console.log(`[SMTP Mailer] 🚀 Email sent successfully to ${to} | Message ID: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`[SMTP Mailer Error] Failed to send email to ${to}:`, error.message);
+    console.error(`[Mail Error] Failed to send email to ${to}:`, error.message);
     return { success: false, error: error.message };
   }
+};
+
+/**
+ * Generic SMS sender tool via Brevo
+ */
+export const sendSms = async (recipientMobile, message, sender = null) => {
+  return sendBrevoSms({ recipientMobile, message, sender });
 };
 
 /**
@@ -191,12 +211,14 @@ export const sendNotification = async (userId, message, type = 'info', title = '
   try {
     let userEmail = null;
     let userName = null;
+    let userPhone = null;
 
     if (userId) {
-      const recipient = await User.findById(userId).select('name email');
+      const recipient = await User.findById(userId).select('name email phone alternatePhone');
       if (recipient) {
         userEmail = recipient.email;
         userName = recipient.name;
+        userPhone = recipient.phone || recipient.alternatePhone;
       }
     }
 
@@ -213,32 +235,48 @@ export const sendNotification = async (userId, message, type = 'info', title = '
 
     // 2. If recipient has an email, trigger email delivery
     if (userEmail) {
-      await sendEmail(
-        userEmail,
-        `🔔 ${title}`,
-        `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: 'Segoe UI', sans-serif; background-color: #f8fafc; padding: 20px; }
-            .card { background: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0; max-width: 550px; margin: 0 auto; }
-            .title { font-size: 16px; font-weight: 800; color: #4338ca; margin-bottom: 8px; }
-            .desc { font-size: 14px; color: #334155; line-height: 1.6; }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <div class="title">🔔 ${title}</div>
-            <div class="desc">${message}</div>
-            <hr style="border: none; border-top: 1px solid #f1f5f9; margin-top: 16px;"/>
-            <p style="font-size: 11px; color: #94a3b8; margin: 0;">Sent via KOD.BRAND CRM HQ</p>
-          </div>
-        </body>
-        </html>
-        `,
-        message
-      );
+      try {
+        await sendEmail(
+          userEmail,
+          `🔔 ${title}`,
+          `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: 'Segoe UI', sans-serif; background-color: #f8fafc; padding: 20px; }
+              .card { background: #ffffff; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0; max-width: 550px; margin: 0 auto; }
+              .title { font-size: 16px; font-weight: 800; color: #4338ca; margin-bottom: 8px; }
+              .desc { font-size: 14px; color: #334155; line-height: 1.6; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <div class="title">🔔 ${title}</div>
+              <div class="desc">${message}</div>
+              <hr style="border: none; border-top: 1px solid #f1f5f9; margin-top: 16px;"/>
+              <p style="font-size: 11px; color: #94a3b8; margin: 0;">Sent via KOD.BRAND CRM HQ</p>
+            </div>
+          </body>
+          </html>
+          `,
+          message
+        );
+      } catch (emailErr) {
+        console.error("sendNotification Email error:", emailErr?.message);
+      }
+    }
+
+    // 3. If recipient has a phone number, trigger SMS delivery
+    if (userPhone) {
+      try {
+        await sendBrevoSms({
+          recipientMobile: userPhone,
+          message: `${title}: ${message}`
+        });
+      } catch (smsErr) {
+        console.error("sendNotification SMS error:", smsErr?.message);
+      }
     }
 
     return { success: true, notification: newNotification };
@@ -251,6 +289,11 @@ export const sendNotification = async (userId, message, type = 'info', title = '
 const notificationService = {
   sendNotification,
   sendEmail,
+  sendSms,
+  sendWhatsApp: whatsappService.sendWhatsAppMessage,
+  emailService,
+  smsService,
+  whatsappService,
   sendTaskAssignmentEmail,
   sendTaskStatusUpdateEmail
 };

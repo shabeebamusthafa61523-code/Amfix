@@ -11,6 +11,7 @@ import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
 import PayslipModal from '../components/accounts/PayslipModal';
+import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -196,6 +197,10 @@ const HrReportPage = () => {
   const [isWeeklyModalOpen, setIsWeeklyModalOpen] = useState(false);
 
   // Auto-open weekly modal from URL parameters
+  // AI Analysis Modal State
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiModalContext, setAiModalContext] = useState(null);
+
   useEffect(() => {
     if (selectedUserId) {
       const queryParams = new URLSearchParams(window.location.search);
@@ -1830,6 +1835,19 @@ const HrReportPage = () => {
 
                 
 
+                <AiAnalyzeButton
+                  onClick={() => {
+                    setAiModalContext({
+                      employeeName: basicDetails.employeeName,
+                      department: 'Human Resources & Recruitment',
+                      designation: basicDetails.designation,
+                      date: selectedDate,
+                      actualReportContentText: JSON.stringify({ basicDetails, dailyOperations, employeeMgmt, recruitmentPipeline, hrComments: comments })
+                    });
+                    setIsAiModalOpen(true);
+                  }}
+                />
+
                 <button
                   type="button"
                   onClick={handleDownloadPDF}
@@ -1845,6 +1863,13 @@ const HrReportPage = () => {
                 </button>
               </div>
             </div>
+
+            <AiAnalyzeModal
+              isOpen={isAiModalOpen}
+              onClose={() => setIsAiModalOpen(false)}
+              contextData={aiModalContext}
+              title="HR Report AI Analysis"
+            />
 
             {/* 1. BASIC DETAILS */}
             <div className="space-y-4">

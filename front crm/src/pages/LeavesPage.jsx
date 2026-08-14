@@ -109,11 +109,20 @@ export default function LeavesPage() {
   // Fetch staff list for CC dropdown
   useEffect(() => {
     if (isApplyModalOpen && staffUsers.length === 0) {
-      fetch(`${API_BASE}/users`, { headers: getAuthHeaders() })
+      fetch(`${API_BASE}/users/list`, { headers: getAuthHeaders() })
         .then(res => res.json())
         .then(data => {
-          if (data.success && Array.isArray(data.data)) {
-            setStaffUsers(data.data);
+          const list = Array.isArray(data) ? data : (data.success && Array.isArray(data.data) ? data.data : (Array.isArray(data.data) ? data.data : []));
+          if (list.length > 0) {
+            setStaffUsers(list);
+          } else {
+            return fetch(`${API_BASE}/users`, { headers: getAuthHeaders() }).then(r => r.json());
+          }
+        })
+        .then(fallbackData => {
+          if (fallbackData) {
+            const list = Array.isArray(fallbackData) ? fallbackData : (fallbackData.success && Array.isArray(fallbackData.data) ? fallbackData.data : (Array.isArray(fallbackData.data) ? fallbackData.data : []));
+            setStaffUsers(list);
           }
         })
         .catch(err => console.error("Error fetching staff list for CC:", err));
@@ -403,18 +412,16 @@ export default function LeavesPage() {
                 My Leave Requests
               </button>
 
-              {isManagerOrTl && (
-                <button
-                  onClick={() => setActiveTab('team')}
-                  className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                    activeTab === 'team'
-                      ? 'bg-white text-indigo-600 shadow-xs border border-slate-200/80'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5" /> Team Leave Requests
-                </button>
-              )}
+              <button
+                onClick={() => setActiveTab('team')}
+                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'team'
+                    ? 'bg-white text-indigo-600 shadow-xs border border-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" /> Team / CC Requests
+              </button>
             </>
           )}
 
@@ -768,11 +775,14 @@ export default function LeavesPage() {
                       {leave.ccUsers && leave.ccUsers.length > 0 && (
                         <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-1 pt-1">
                           <span className="font-semibold text-slate-600">CC:</span>
-                          {leave.ccUsers.map((cc, idx) => (
-                            <span key={idx} className="px-1.5 py-0.5 bg-white border border-slate-200/80 rounded text-[10px] text-slate-600 font-medium">
-                              {cc.name}
-                            </span>
-                          ))}
+                          {leave.ccUsers.map((cc, idx) => {
+                            const isMe = (cc.userId?._id || cc.userId)?.toString() === (user?.id || user?._id)?.toString();
+                            return (
+                              <span key={idx} className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${isMe ? 'bg-purple-100 text-purple-700 font-bold border border-purple-200 shadow-2xs' : 'bg-white border border-slate-200/80 text-slate-600'}`}>
+                                {cc.name} {isMe ? '(You)' : ''}
+                              </span>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
