@@ -57,6 +57,7 @@ import LeavesPage from './pages/LeavesPage';
 import ApprovalsPage from './pages/ApprovalsPage';
 import PayslipsPage from './pages/PayslipsPage';
 import PersonalPayslipPage from './pages/PersonalPayslipPage';
+import RecruitmentPage from './pages/RecruitmentPage';
 
 
 
@@ -202,6 +203,7 @@ function App() {
         <Route path="/approvals" element={<ProtectedRoute><MainLayout><ApprovalsPage /></MainLayout></ProtectedRoute>} />
         <Route path="/payslips" element={<ProtectedRoute><MainLayout><PayslipsPage /></MainLayout></ProtectedRoute>} />
         <Route path="/my-payslip" element={<ProtectedRoute><MainLayout><PersonalPayslipPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/recruitment" element={<ProtectedRoute><MainLayout><RecruitmentPage /></MainLayout></ProtectedRoute>} />
 
         {/* Accounts Department Module Routes */}
         <Route path="/accounts" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />
