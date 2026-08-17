@@ -1,41 +1,95 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  Eye, ArrowLeft, Clock, CheckCircle, AlertCircle, FileText, Image as ImageIcon,
-  MessageSquare, GitCommit, UserCheck, ShieldCheck, User
+  Eye, ArrowLeft, AlertCircle, User, RefreshCw
 } from 'lucide-react';
 import { getVisibleWork } from '../services/projectService';
+import { formatApiError } from '../utils/errorUtils';
+
+const getValue = (...values) => values.find(value => value !== undefined && value !== null && String(value).trim() !== '') || '';
+
+const getAssignedUser = task => {
+  const candidate = getValue(task?.assignedTo, task?.assigned_to, task?.assignedUser, task?.employee);
+  return candidate && typeof candidate === 'object' ? candidate : {};
+};
+
+const getEmployeeName = task => getValue(
+  getAssignedUser(task).name,
+  getAssignedUser(task).username,
+  getAssignedUser(task).employeeName,
+  task?.employeeName,
+  task?.assignedToName
+);
+
+const getInitials = name => String(name || 'N/A').trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+
+const formatDateTime = value => {
+  if (!value) return 'N/A';
+  // Date-only strings are displayed as provided so the browser cannot shift them by timezone.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return String(value);
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'N/A' : date.toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+};
+
+const normalizeStatus = status => {
+  const value = String(status || '').trim().toLowerCase();
+  if (['done', 'completed'].includes(value)) return 'Completed';
+  if (['current', 'in progress', 'in-progress'].includes(value)) return 'In Progress';
+  if (value === 'preview') return 'Preview';
+  if (value === 'pending') return 'Pending';
+  return status || 'N/A';
+};
+
+const EmployeeAvatar = ({ task }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const employee = getAssignedUser(task);
+  const name = getEmployeeName(task);
+  const avatar = getValue(employee.avatar, employee.avatarUrl, employee.profileImage, task?.avatar);
+
+  if (!avatar || imageFailed) {
+    return <span className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 inline-flex items-center justify-center text-[10px] font-black ring-2 ring-indigo-500/20">{getInitials(name)}</span>;
+  }
+
+  return <img src={avatar} alt={name ? `${name} avatar` : 'Employee avatar'} onError={() => setImageFailed(true)} className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-500/20" />;
+};
 
 const VisibleWorkPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchWorkData();
-  }, [id]);
-
-  const fetchWorkData = async () => {
+  const fetchWorkData = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const res = await getVisibleWork(id);
-      if (res && res.success) {
-        setData(res.data);
-      }
+      const payload = res?.data && !Array.isArray(res.data) && (res.success !== false || res.data.project) ? res.data : res;
+      if (res?.success === false) throw new Error(res.message || 'Unable to load visible work.');
+      setData(payload && typeof payload === 'object' ? payload : null);
     } catch (err) {
-      console.error("Failed to fetch visible work:", err);
+      setData(null);
+      setError(formatApiError(err, 'Unable to load visible work. Please try again.'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => { fetchWorkData(); }, [fetchWorkData]);
 
   if (loading) {
     return (
-      <div className="py-20 text-center text-xs text-slate-400 font-semibold">
-        Loading project employee visible work tracker...
+      <div className="py-12 animate-pulse space-y-5" aria-label="Loading project employee visible work tracker">
+        <div className="h-8 w-64 rounded bg-slate-200 dark:bg-slate-800" />
+        <div className="h-32 rounded-3xl bg-slate-200 dark:bg-slate-800" />
+        <div className="h-72 rounded-3xl bg-slate-200 dark:bg-slate-800" />
       </div>
     );
+  }
+
+  if (error) {
+    return <div className="py-20 text-center text-xs text-slate-400 font-semibold flex flex-col items-center gap-3"><AlertCircle className="w-10 h-10 text-rose-400" /><span>{error}</span><button type="button" onClick={fetchWorkData} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-700"><RefreshCw className="w-4 h-4" />Retry</button></div>;
   }
 
   if (!data || !data.project) {
@@ -47,7 +101,8 @@ const VisibleWorkPage = () => {
     );
   }
 
-  const { project, tasks = [], comments = [] } = data;
+  const project = data.project;
+  const tasks = Array.isArray(data.tasks) ? data.tasks : [];
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-7xl mx-auto">
@@ -63,24 +118,24 @@ const VisibleWorkPage = () => {
 
         <h1 className="text-xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
           <Eye className="w-5 h-5 text-indigo-600" />
-          Employee Visible Work Dashboard ({project.projectName})
+          Employee Visible Work Dashboard ({getValue(project.projectName, project.name, 'N/A')})
         </h1>
       </div>
 
       {/* Overview Card */}
       <div className="p-6 rounded-3xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/80 dark:border-slate-800/80 backdrop-blur-md shadow-xl flex flex-col md:flex-row justify-between gap-4 items-center">
         <div>
-          <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase">{project.projectCode}</span>
-          <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">{project.projectName}</h2>
+          <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase">{getValue(project.projectCode, project.code, 'N/A')}</span>
+          <h2 className="text-lg font-black text-slate-800 dark:text-slate-100">{getValue(project.projectName, project.name, 'N/A')}</h2>
           <p className="text-xs text-slate-500 font-semibold">
-            Tracking active task assignments across {(project.assignedEmployees || []).length} assigned employees.
+            Tracking active task assignments across {Array.isArray(project.assignedEmployees) ? project.assignedEmployees.length : 0} assigned employees.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-slate-500">Stage:</span>
           <span className="px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 font-extrabold text-xs">
-            {project.status}
+            {getValue(project.status, 'N/A')}
           </span>
         </div>
       </div>
@@ -115,53 +170,52 @@ const VisibleWorkPage = () => {
                   </td>
                 </tr>
               ) : (
-                tasks.map((task) => (
-                  <tr key={task._id || task.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                tasks.map((task, index) => {
+                  const employee = getAssignedUser(task);
+                  const employeeName = getEmployeeName(task);
+                  const status = normalizeStatus(task?.status);
+                  return <tr key={task?._id || task?.id || `${task?.title || 'task'}-${index}`} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <img 
-                          src={task.assignedTo?.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${task.assignedTo?.name || 'Staff'}`} 
-                          alt="" 
-                          className="w-8 h-8 rounded-full object-cover ring-2 ring-indigo-500/20" 
-                        />
+                        <EmployeeAvatar task={task} />
                         <div className="flex flex-col">
-                          <span className="font-black text-slate-800 dark:text-slate-100">{task.assignedTo?.name || 'Unassigned'}</span>
-                          <span className="text-[10px] text-slate-400">{task.assignedTo?.designation || 'Employee'}</span>
+                          <span className="font-black text-slate-800 dark:text-slate-100">{employeeName || 'N/A'}</span>
+                          <span className="text-[10px] text-slate-400">{getValue(employee.designation, task?.designation, 'N/A')}</span>
                         </div>
                       </div>
                     </td>
 
                     <td className="p-4 font-bold text-slate-800 dark:text-slate-200">
-                      {task.title}
+                      {getValue(task?.title, task?.taskTitle, 'N/A')}
                     </td>
 
                     <td className="p-4">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                        task.status === 'Completed' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' :
-                        task.status === 'In Progress' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400' :
+                        status === 'Completed' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400' :
+                        status === 'In Progress' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/40 dark:text-indigo-400' :
                         'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400'
                       }`}>
-                        {task.status || 'Pending'}
+                        {status}
                       </span>
                     </td>
 
                     <td className="p-4 font-bold text-slate-700 dark:text-slate-300">
-                      {task.priority || 'Medium'}
+                      {getValue(task?.priority, 'N/A')}
                     </td>
 
                     <td className="p-4 font-mono font-semibold text-slate-600 dark:text-slate-400">
-                      {task.timeLogged || '4.5 hrs'}
+                      {getValue(task?.timeLogged, task?.loggedTime, task?.time_logged, 'N/A')}
                     </td>
 
                     <td className="p-4 font-semibold text-slate-600 dark:text-slate-400">
-                      {task.dueDate ? new Date(task.dueDate).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'N/A'}
+                      {formatDateTime(getValue(task?.dueDate, task?.deadline))}
                     </td>
 
                     <td className="p-4 max-w-xs text-[11px] text-slate-500 line-clamp-2">
-                      {task.remarks || task.description || 'No manager comments recorded.'}
+                      {getValue(task?.remarks, task?.managerComments, task?.manager_comments, task?.leadNotes, task?.description, 'N/A')}
                     </td>
                   </tr>
-                ))
+                })
               )}
             </tbody>
           </table>

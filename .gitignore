@@ -1,5 +1,5 @@
 .env
-.env.example
+.env.*
 node_modules/
 backend/node_modules/
 backend/logs/

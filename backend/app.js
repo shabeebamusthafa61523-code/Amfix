@@ -33,6 +33,17 @@ import Designation from './src/models/designation.model.js';
 import Department from './src/modules/departments/department.model.js';
 const app = express();
 
+const cloudinaryEnvWarnings = [];
+if (!process.env.CLOUDINARY_CLOUD_NAME) cloudinaryEnvWarnings.push('CLOUDINARY_CLOUD_NAME');
+if (!process.env.CLOUDINARY_API_KEY) cloudinaryEnvWarnings.push('CLOUDINARY_API_KEY');
+if (!process.env.CLOUDINARY_API_SECRET) cloudinaryEnvWarnings.push('CLOUDINARY_API_SECRET');
+
+if (cloudinaryEnvWarnings.length > 0) {
+  console.warn(`Cloudinary configuration is incomplete: missing ${cloudinaryEnvWarnings.join(', ')}`);
+} else {
+  console.info('Cloudinary configuration loaded successfully.');
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -67,6 +78,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // 3. Specific/Dedicated API Routers
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/attendance', attendanceRoutes); 
 app.use('/api/user', userRoutes); 

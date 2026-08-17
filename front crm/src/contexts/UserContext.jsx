@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
 const UserContext = createContext({
   user: null,
@@ -15,8 +15,8 @@ export const UserProvider = ({ children }) => {
 
   const getAuthHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
-    const cleanToken = rawToken ? rawToken.replace(/"/g, '') : '';
-    return { 'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}` };
+    const cleanToken = rawToken ? rawToken.replace(/^"(.*)"$/, '$1').replace(/"/g, '').replace(/^Bearer\s+/i, '').trim() : '';
+    return cleanToken ? { Authorization: `Bearer ${cleanToken}` } : {};
   }, []);
 
   const fetchCurrentUser = useCallback(async () => {
@@ -38,30 +38,39 @@ export const UserProvider = ({ children }) => {
       }
 
       if (!userId) {
+        setUser(null);
         setLoading(false);
         return;
       }
 
-      const res = await fetch(`${API_BASE}/v1/users/${userId}`, {
+      const userUrl = API_BASE.endsWith('/v1') ? `${API_BASE}/users/${userId}` : `${API_BASE}/v1/users/${userId}`;
+      const res = await fetch(userUrl, {
         headers: getAuthHeaders()
       });
 
       if (res.ok) {
         const data = await res.json();
-        if (data.data) {
-          setUser(data.data);
+        const freshUser = data?.data || data?.user;
+        if (freshUser && typeof freshUser === 'object') {
+          const savedUser = savedUserStr ? (() => { try { return JSON.parse(savedUserStr); } catch { return {}; } })() : {};
+          const mergedUser = {
+            ...savedUser,
+            ...freshUser,
+            permissions: Array.isArray(freshUser.permissions) ? freshUser.permissions : (savedUser.permissions || []),
+            isSuperAdmin: Boolean(freshUser.isSuperAdmin || freshUser.is_super_admin || freshUser.role === 'superadmin' || freshUser.role_id === '0')
+          };
+          setUser(mergedUser);
+          localStorage.setItem('user', JSON.stringify(mergedUser));
+          window.dispatchEvent(new Event('storage'));
         }
+      } else if (res.status === 401 || res.status === 403) {
+        // Keep navigation stable; the backend remains authoritative for access control.
+        setUser(null);
       }
-    } catch (err) {
-      console.error("UserContext: Error fetching live user profile:", err);
     } finally {
       setLoading(false);
     }
   }, [getAuthHeaders]);
-
-  useEffect(() => {
-    fetchCurrentUser();
-  }, [fetchCurrentUser]);
 
   return (
     <UserContext.Provider value={{ user, setUser, refetchUser: fetchCurrentUser, loading }}>

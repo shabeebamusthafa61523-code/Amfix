@@ -11,6 +11,7 @@ import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
 import { useUser } from '../contexts/UserContext';
 import { sendEmail } from '../services/emailService';
+import TaskCollaboration from '../components/TaskCollaboration';
 
 const API_BASE = import.meta.env.VITE_API_URL;// --- UTILS & CONSTANTS ---
 const getTaskImageUrl = (path) => {
@@ -307,8 +308,6 @@ const fetchData = useCallback(async () => {
       <p className="mt-6 text-[10px] font-black uppercase tracking-[0.5em] text-indigo-500/50">Syncing Nexus</p>
     </div>
   );
-console.log("TOKEN:", localStorage.getItem("token"));
-console.log("HEADERS:", getAuthHeaders());
   return (
     <div className="text-slate-700 dark:text-slate-200 font-sans selection:bg-white-500/30 selection:text-white">
       <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
@@ -1874,6 +1873,12 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
               getAuthHeaders={getAuthHeaders} 
               onUpdate={onUpdate} 
               users={users} 
+            />
+
+            <TaskCollaboration
+              task={task}
+              currentUserId={currentUserId}
+              onTaskUpdate={onUpdate}
             />
           </div>
 
