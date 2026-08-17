@@ -204,8 +204,18 @@ const NotificationPage = () => {
 
     // Resolve email and phone for selected users
     const getUserById = (id) => userList.find((u) => getUserId(u) === id);
-    const recipientEmails = assignedTo.map((id) => getUserById(id)?.email).filter(Boolean);
+    const recipientEmails = assignedTo
+      .map((id) => {
+        const u = getUserById(id);
+        return u && u.email ? { email: u.email, name: u.name || u.username } : null;
+      })
+      .filter(Boolean);
     const recipientPhones = assignedTo.map((id) => getUserById(id)?.phone).filter(Boolean);
+
+    if (channel === "email" && recipientEmails.length === 0) {
+      showToast("Selected employee(s) do not have a valid email address configured.", "warning");
+      return;
+    }
 
     try {
       setSending(true);
@@ -223,34 +233,35 @@ const NotificationPage = () => {
       const data = await res.json();
 
       if (data.success) {
+        let emailError = null;
+
         // After backend success, send via Brevo based on selected channel
         if (channel === "email" && recipientEmails.length) {
-          await sendEmail({
-            to: recipientEmails,
-            subject: title.trim() || "Notification",
-            htmlContent: description.trim()
-          });
-        } else if (channel === "sms" && recipientPhones.length) {
-          await sendSms({
-            to: recipientPhones,
-            content: description.trim()
-          });
-        } else if (channel === "whatsapp" && recipientPhones.length) {
-          await sendWhatsApp({
-            to: recipientPhones,
-            templateId: "default",
-            params: { body: description.trim() }
-          });
+          try {
+            await sendEmail({
+              to: recipientEmails,
+              subject: title.trim() || "New CRM Notification Alert",
+              htmlContent: description.trim()
+            });
+          } catch (eErr) {
+            console.error("Brevo Email Sending Error:", eErr);
+            emailError = eErr.message || "Failed to send email via Brevo";
+          }
         }
 
-        showToast(`Notification sent to ${assignedTo.length} user(s)!`, "success");
+        if (emailError) {
+          showToast(`Notification saved, but email failed: ${emailError}`, "error");
+        } else {
+          showToast(`Notification created and sent to ${assignedTo.length} user(s)!`, "success");
+        }
+
         setTitle("");
         setDescription("");
         setAssignedTo([]);
         setIsUserDropdownOpen(false);
         fetchNotifications();
       } else {
-        showToast(data.message || "Failed to send notification.", "error");
+        showToast(data.message || "Failed to create notification.", "error");
       }
     } catch (err) {
       console.error("Error sending notification:", err);
