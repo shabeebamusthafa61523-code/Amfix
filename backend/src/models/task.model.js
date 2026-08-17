@@ -10,11 +10,10 @@ const taskSchema = new mongoose.Schema({
   description: {
     type: String
   },
-  assigned_to: {
+  assigned_to: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
+    ref: 'User'
+  }],
   created_by: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -66,6 +65,13 @@ const taskSchema = new mongoose.Schema({
   links: [{
     title: { type: String },
     url: { type: String }
+  }],
+  subtasks: [{
+    title: { type: String, required: true, trim: true },
+    completed: { type: Boolean, default: false },
+    created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    completed_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    createdAt: { type: Date, default: Date.now }
   }]
 }, {
   timestamps: true,
@@ -85,6 +91,23 @@ const taskSchema = new mongoose.Schema({
     if (ret.file_url) {
       ret.file = ret.file_url;
       ret.image = ret.file_url;
+    }
+
+    if (Array.isArray(ret.subtasks)) {
+      ret.subtasks = ret.subtasks.map(st => {
+        if (!st) return st;
+        const stObj = typeof st.toObject === 'function' ? st.toObject() : st;
+        const stId = stObj._id ? stObj._id.toString() : (stObj.id || '');
+        const created_by = stObj.created_by && typeof stObj.created_by === 'object' && (stObj.created_by._id || stObj.created_by.id)
+          ? { ...stObj.created_by, id: (stObj.created_by._id || stObj.created_by.id).toString() }
+          : stObj.created_by;
+        const completed_by = stObj.completed_by && typeof stObj.completed_by === 'object' && (stObj.completed_by._id || stObj.completed_by.id)
+          ? { ...stObj.completed_by, id: (stObj.completed_by._id || stObj.completed_by.id).toString() }
+          : stObj.completed_by;
+        const cleanSt = { ...stObj, id: stId, created_by, completed_by };
+        delete cleanSt._id;
+        return cleanSt;
+      });
     }
 
     delete ret._id;
@@ -111,6 +134,23 @@ toObject: {
     if (ret.file_url) {
       ret.file = ret.file_url;
       ret.image = ret.file_url;
+    }
+
+    if (Array.isArray(ret.subtasks)) {
+      ret.subtasks = ret.subtasks.map(st => {
+        if (!st) return st;
+        const stObj = typeof st.toObject === 'function' ? st.toObject() : st;
+        const stId = stObj._id ? stObj._id.toString() : (stObj.id || '');
+        const created_by = stObj.created_by && typeof stObj.created_by === 'object' && (stObj.created_by._id || stObj.created_by.id)
+          ? { ...stObj.created_by, id: (stObj.created_by._id || stObj.created_by.id).toString() }
+          : stObj.created_by;
+        const completed_by = stObj.completed_by && typeof stObj.completed_by === 'object' && (stObj.completed_by._id || stObj.completed_by.id)
+          ? { ...stObj.completed_by, id: (stObj.completed_by._id || stObj.completed_by.id).toString() }
+          : stObj.completed_by;
+        const cleanSt = { ...stObj, id: stId, created_by, completed_by };
+        delete cleanSt._id;
+        return cleanSt;
+      });
     }
 
     delete ret._id;
