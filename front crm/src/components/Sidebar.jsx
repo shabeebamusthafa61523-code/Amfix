@@ -57,6 +57,13 @@ const menuItems = [
     allowedDesignationNames: ['hr', 'recruiter'],
   },
   {
+    icon: UserCheck,
+    label: 'Recruitment',
+    path: '/recruitment',
+    allowedRoles: ['0', '1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'recruiter'],
+    allowedDesignationNames: ['hr', 'recruiter', 'admin', 'manager']
+  },
+  {
     icon: BarChart3,
     label: 'Lead Dashboard',
     path: '/lead-dashboard',
