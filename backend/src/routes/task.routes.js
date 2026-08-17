@@ -12,7 +12,10 @@ import {
   getCurrentUserTasks,
   deleteTask,
   updateTaskStatus,
-  updateTask
+  updateTask,
+  addSubtask,
+  toggleSubtask,
+  deleteSubtask
 } from '../controllers/task.controller.js';
 
 import {
@@ -20,6 +23,7 @@ import {
   updateTaskSchema,
   updateStatusQuerySchema,
   taskIdParamsSchema,
+  subtaskParamsSchema,
   userTasksQuerySchema,
   validateBody,
   validateQuery,
@@ -87,6 +91,25 @@ router.put(
   upload.any(),
   validateBody(updateTaskSchema),
   updateTask
+);
+
+// SUBTASK ROUTES
+router.post(
+  '/:task_id/subtasks',
+  validateParams(taskIdParamsSchema),
+  addSubtask
+);
+
+router.put(
+  '/:task_id/subtasks/:subtask_id',
+  validateParams(subtaskParamsSchema),
+  toggleSubtask
+);
+
+router.delete(
+  '/:task_id/subtasks/:subtask_id',
+  validateParams(subtaskParamsSchema),
+  deleteSubtask
 );
 
 export default router;

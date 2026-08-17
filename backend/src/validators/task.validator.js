@@ -19,7 +19,7 @@ export const createTaskSchema = z.object({
       .min(1, { message: 'Title cannot be empty' })
   ),
   description: preprocessSingleString(z.string().trim().optional()),
-  assigned_to: objectIdSchema('assigned_to'),
+  assigned_to: z.union([z.string(), z.array(z.any())]).optional(),
   designation_id: preprocessSingleString(
     z.string()
       .optional()
@@ -56,7 +56,7 @@ export const updateTaskSchema = z.object({
     z.string().trim().min(1, { message: 'Title cannot be empty' }).optional()
   ),
   description: preprocessSingleString(z.string().trim().optional()),
-  assigned_to: objectIdSchema('assigned_to').optional(),
+  assigned_to: z.union([z.string(), z.array(z.any())]).optional(),
   designation_id: preprocessSingleString(
     z.string()
       .optional()
@@ -98,7 +98,13 @@ export const updateStatusQuerySchema = z.object({
 // Params validation for task_id
 export const taskIdParamsSchema = z.object({
   task_id: objectIdSchema('task_id')
-});
+}).passthrough();
+
+// Params validation for subtask routes
+export const subtaskParamsSchema = z.object({
+  task_id: objectIdSchema('task_id'),
+  subtask_id: objectIdSchema('subtask_id')
+}).passthrough();
 
 // Query validation for fetching user tasks
 export const userTasksQuerySchema = z.object({

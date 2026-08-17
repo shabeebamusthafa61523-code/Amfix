@@ -94,24 +94,57 @@ const formatLeanTask = (task) => {
     }
   }
 
+  let assignees = [];
+  if (Array.isArray(task.assigned_to)) {
+    assignees = task.assigned_to.map(u => {
+      if (!u) return null;
+      if (typeof u === 'object' && (u._id || u.id)) {
+        const uId = (u._id || u.id).toString();
+        const obj = { ...u, id: uId };
+        delete obj._id;
+        return obj;
+      }
+      return u.toString();
+    }).filter(Boolean);
+  } else if (task.assigned_to) {
+    if (typeof task.assigned_to === 'object' && (task.assigned_to._id || task.assigned_to.id)) {
+      const uId = (task.assigned_to._id || task.assigned_to.id).toString();
+      const obj = { ...task.assigned_to, id: uId };
+      delete obj._id;
+      assignees = [obj];
+    } else {
+      assignees = [task.assigned_to.toString()];
+    }
+  }
+
   const formatted = {
     ...task,
     id,
     user_id,
+    assigned_to: assignees,
     file,
     image,
     attachments: (task.attachments && task.attachments.length > 0) ? task.attachments : (file ? [{ url: file, name: 'Attachment', fileType: 'file' }] : []),
     links: task.links || [],
+    subtasks: (task.subtasks || []).map(st => {
+      if (!st) return st;
+      const stId = st._id ? st._id.toString() : (st.id || '');
+      let created_by = st.created_by;
+      if (created_by && typeof created_by === 'object' && created_by._id) {
+        created_by = { ...created_by, id: created_by._id.toString() };
+      }
+      let completed_by = st.completed_by;
+      if (completed_by && typeof completed_by === 'object' && completed_by._id) {
+        completed_by = { ...completed_by, id: completed_by._id.toString() };
+      }
+      return { ...st, id: stId, created_by, completed_by };
+    }),
     client: clientVal,
     client_id: clientIdVal,
     project: projectVal,
     project_id: projectIdVal
   };
 
-  if (formatted.assigned_to && formatted.assigned_to._id) {
-    formatted.assigned_to.id = formatted.assigned_to._id.toString();
-    delete formatted.assigned_to._id;
-  }
   if (formatted.created_by && formatted.created_by._id) {
     formatted.created_by.id = formatted.created_by._id.toString();
     delete formatted.created_by._id;
@@ -217,11 +250,54 @@ export const createTask = async (req, res, next) => {
       }
     }
 
+    // Handle subtasks array / JSON string
+    let subtasks = [];
+    const { subtasks: rawSubtasks } = req.body;
+    if (rawSubtasks) {
+      try {
+        const parsed = typeof rawSubtasks === 'string' ? JSON.parse(rawSubtasks) : rawSubtasks;
+        if (Array.isArray(parsed)) {
+          subtasks = parsed.map(st => ({
+            title: typeof st === 'string' ? st.trim() : (st.title || '').trim(),
+            completed: Boolean(st.completed),
+            created_by: userId
+          })).filter(st => st.title);
+        }
+      } catch (e) {
+        subtasks = [];
+      }
+    }
+
+    // Handle assigned_to array / single / JSON string
+    let assigneesInput = assigned_to;
+    let assigneeIds = [];
+    if (typeof assigneesInput === 'string') {
+      try {
+        const parsed = JSON.parse(assigneesInput);
+        if (Array.isArray(parsed)) assigneesInput = parsed;
+        else assigneesInput = assigneesInput.split(',').map(s => s.trim());
+      } catch (e) {
+        assigneesInput = assigneesInput.split(',').map(s => s.trim());
+      }
+    }
+
+    if (Array.isArray(assigneesInput)) {
+      assigneeIds = assigneesInput
+        .map(id => (typeof id === 'object' && id ? (id._id || id.id || String(id)) : String(id)).trim())
+        .filter(id => mongoose.Types.ObjectId.isValid(id));
+    } else if (assigneesInput && mongoose.Types.ObjectId.isValid(String(assigneesInput).trim())) {
+      assigneeIds = [String(assigneesInput).trim()];
+    }
+
+    if (assigneeIds.length === 0) {
+      throw new AppError('At least one assigned user is required', 400);
+    }
+
     const task = new Task({
       title: title?.trim(),
       description: description?.trim() || "",
 
-      assigned_to,
+      assigned_to: assigneeIds,
       designation_id: designation_id || undefined,
       dueDate: dueDate || undefined,
       client: (client && mongoose.Types.ObjectId.isValid(client)) ? new mongoose.Types.ObjectId(client) : null,
@@ -236,6 +312,7 @@ export const createTask = async (req, res, next) => {
 
       attachments,
       links,
+      subtasks,
 
       // image/file
       file_url,
@@ -253,14 +330,17 @@ export const createTask = async (req, res, next) => {
     const populatedTask = await Task.findById(task._id)
       .populate('assigned_to', 'name email')
       .populate('created_by', 'name email')
+      .populate('subtasks.created_by', 'name email')
+      .populate('subtasks.completed_by', 'name email')
       .populate('client', 'companyName clientName clientId')
       .populate('project', 'projectName projectCode status')
       .lean();
 
-    // Trigger in-app notification & email assignment to assignee
+    // Trigger in-app notification & email assignment to all assignees
     try {
-      if (populatedTask?.assigned_to) {
-        const assignee = populatedTask.assigned_to;
+      const assignees = Array.isArray(populatedTask?.assigned_to) ? populatedTask.assigned_to : [populatedTask?.assigned_to].filter(Boolean);
+      for (const assignee of assignees) {
+        if (!assignee) continue;
         const assigneeId = assignee._id || assignee.id;
         const assigneeEmail = assignee.email;
         const assigneeName = assignee.name;
@@ -458,9 +538,12 @@ export const getAllTasks = async (req, res, next) => {
     const tasks = await Task.find(query)
       .populate('assigned_to', 'name email')
       .populate('created_by', 'name email')
+      .populate('subtasks.created_by', 'name email')
+      .populate('subtasks.completed_by', 'name email')
       .populate('client', 'companyName clientName clientId')
       .populate('project', 'projectName projectCode status')
       .select('-file_public_id')
+      .sort({ createdAt: -1 })
       .lean();
 
     const formattedTasks = tasks.map(formatLeanTask);
@@ -558,9 +641,12 @@ export const getUserTasks = async (req, res, next) => {
     const tasks = await Task.find({ assigned_to: user_id })
       .populate('assigned_to', 'name email')
       .populate('created_by', 'name email')
+      .populate('subtasks.created_by', 'name email')
+      .populate('subtasks.completed_by', 'name email')
       .populate('client', 'companyName clientName clientId')
       .populate('project', 'projectName projectCode status')
       .select('-file_public_id')
+      .sort({ createdAt: -1 })
       .lean();
 
     const formattedTasks = tasks.map(formatLeanTask);
@@ -582,9 +668,12 @@ export const getCurrentUserTasks = async (req, res, next) => {
     const tasks = await Task.find({ assigned_to: userId })
       .populate('assigned_to', 'name email')
       .populate('created_by', 'name email')
+      .populate('subtasks.created_by', 'name email')
+      .populate('subtasks.completed_by', 'name email')
       .populate('client', 'companyName clientName clientId')
       .populate('project', 'projectName projectCode status')
       .select('-file_public_id')
+      .sort({ createdAt: -1 })
       .lean();
 
     const formattedTasks = tasks.map(formatLeanTask);
@@ -741,7 +830,27 @@ export const updateTask = async (req, res, next) => {
 
     if (title !== undefined) task.title = title.trim();
     if (description !== undefined) task.description = description;
-    if (assigned_to !== undefined) task.assigned_to = assigned_to;
+    if (assigned_to !== undefined) {
+      let assigneesInput = assigned_to;
+      let assigneeIds = [];
+      if (typeof assigneesInput === 'string') {
+        try {
+          const parsed = JSON.parse(assigneesInput);
+          if (Array.isArray(parsed)) assigneesInput = parsed;
+          else assigneesInput = assigneesInput.split(',').map(s => s.trim());
+        } catch (e) {
+          assigneesInput = assigneesInput.split(',').map(s => s.trim());
+        }
+      }
+      if (Array.isArray(assigneesInput)) {
+        assigneeIds = assigneesInput
+          .map(id => (typeof id === 'object' && id ? (id._id || id.id || String(id)) : String(id)).trim())
+          .filter(id => mongoose.Types.ObjectId.isValid(id));
+      } else if (assigneesInput && mongoose.Types.ObjectId.isValid(String(assigneesInput).trim())) {
+        assigneeIds = [String(assigneesInput).trim()];
+      }
+      task.assigned_to = assigneeIds;
+    }
     if (req.body.status !== undefined) task.status = req.body.status;
     if (req.body.priority !== undefined && ['low', 'medium', 'high'].includes(String(req.body.priority).toLowerCase())) {
       task.priority = String(req.body.priority).toLowerCase();
@@ -816,6 +925,22 @@ export const updateTask = async (req, res, next) => {
       }
     }
 
+    if (req.body.subtasks !== undefined) {
+      try {
+        const parsedSubtasks = typeof req.body.subtasks === 'string' ? JSON.parse(req.body.subtasks) : req.body.subtasks;
+        if (Array.isArray(parsedSubtasks)) {
+          task.subtasks = parsedSubtasks.map(st => ({
+            title: typeof st === 'string' ? st.trim() : (st.title || '').trim(),
+            completed: Boolean(st.completed),
+            created_by: st.created_by || userId,
+            completed_by: st.completed ? (st.completed_by || userId) : null
+          })).filter(st => st.title);
+        }
+      } catch (e) {
+        console.error("Error parsing subtasks:", e);
+      }
+    }
+
     await task.save();
 
     if (task.project) {
@@ -825,6 +950,8 @@ export const updateTask = async (req, res, next) => {
     const populatedTask = await Task.findById(task._id)
       .populate('assigned_to', 'name email')
       .populate('created_by', 'name email')
+      .populate('subtasks.created_by', 'name email')
+      .populate('subtasks.completed_by', 'name email')
       .populate('client', 'companyName clientName clientId')
       .populate('project', 'projectName projectCode status')
       .lean();
@@ -832,10 +959,10 @@ export const updateTask = async (req, res, next) => {
     // Trigger notification & email/SMS to both assignee and task creator on task updates
     try {
       const creatorUser = populatedTask.created_by;
-      const assigneeUser = populatedTask.assigned_to;
+      const assignees = Array.isArray(populatedTask.assigned_to) ? populatedTask.assigned_to : [populatedTask.assigned_to].filter(Boolean);
       const updaterName = req.user?.name || 'Manager';
 
-      const recipientsToNotify = [creatorUser, assigneeUser].filter(u => u && (u._id || u.id));
+      const recipientsToNotify = [creatorUser, ...assignees].filter(u => u && (u._id || u.id));
       const uniqueRecipients = Array.from(new Map(recipientsToNotify.map(u => [(u._id || u.id).toString(), u])).values());
 
       for (const recipient of uniqueRecipients) {
@@ -863,3 +990,188 @@ export const updateTask = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * 8. ADD SUBTASK
+ * POST /api/v1/tasks/:task_id/subtasks
+ */
+export const addSubtask = async (req, res, next) => {
+  try {
+    const { task_id } = req.params;
+    const { title } = req.body;
+
+    if (!title || !title.trim()) {
+      throw new AppError('Subtask title is required', 400);
+    }
+
+    const task = await Task.findById(task_id);
+    if (!task) {
+      throw new AppError('Task not found', 404);
+    }
+
+    const userId = req.user.id || req.user._id;
+    const roleName = String(req.user.role || '').toLowerCase();
+    const roleId = String(req.user.role_id || req.user.roleId || '');
+    const isSuperAdmin = req.user.isSuperAdmin === true || req.user.is_super_admin === true || roleName === 'superadmin' || roleId === '0';
+
+    const isCreator = task.created_by && task.created_by.toString() === userId.toString();
+    const isAssignee = Array.isArray(task.assigned_to)
+      ? task.assigned_to.some(u => (u._id || u.id || u).toString() === userId.toString())
+      : (task.assigned_to && (task.assigned_to._id || task.assigned_to.id || task.assigned_to).toString() === userId.toString());
+
+    if (!isCreator && !isAssignee && !isSuperAdmin) {
+      throw new AppError('Forbidden: Only the task creator, assignee, or Admin can add subtasks', 403);
+    }
+
+    if (!task.subtasks) task.subtasks = [];
+    task.subtasks.push({
+      title: title.trim(),
+      completed: false,
+      created_by: userId
+    });
+
+    await task.save();
+
+    const populatedTask = await Task.findById(task._id)
+      .populate('assigned_to', 'name email')
+      .populate('created_by', 'name email')
+      .populate('subtasks.created_by', 'name email')
+      .populate('subtasks.completed_by', 'name email')
+      .populate('client', 'companyName clientName clientId')
+      .populate('project', 'projectName projectCode status')
+      .lean();
+
+    // Send notification to the other party
+    try {
+      const targetUserId = isCreator ? task.assigned_to : task.created_by;
+      if (targetUserId && targetUserId.toString() !== userId.toString()) {
+        const updaterName = req.user?.name || 'Team Member';
+        await sendNotification(
+          targetUserId,
+          `New subtask "${title.trim()}" added to task "${task.title}" by ${updaterName}.`,
+          'subtask_added',
+          `Subtask Added: ${task.title}`,
+          userId,
+          updaterName
+        );
+      }
+    } catch (notifErr) {
+      console.error("Subtask notification error:", notifErr);
+    }
+
+    const formattedTask = formatLeanTask(populatedTask);
+    return res.status(201).json(formattedTask);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 9. TOGGLE / UPDATE SUBTASK
+ * PUT /api/v1/tasks/:task_id/subtasks/:subtask_id
+ */
+export const toggleSubtask = async (req, res, next) => {
+  try {
+    const { task_id, subtask_id } = req.params;
+    const { completed, title } = req.body;
+
+    const task = await Task.findById(task_id);
+    if (!task) {
+      throw new AppError('Task not found', 404);
+    }
+
+    const userId = req.user.id || req.user._id;
+    const roleName = String(req.user.role || '').toLowerCase();
+    const roleId = String(req.user.role_id || req.user.roleId || '');
+    const isSuperAdmin = req.user.isSuperAdmin === true || req.user.is_super_admin === true || roleName === 'superadmin' || roleId === '0';
+
+    const isCreator = task.created_by && task.created_by.toString() === userId.toString();
+    const isAssignee = Array.isArray(task.assigned_to)
+      ? task.assigned_to.some(u => (u._id || u.id || u).toString() === userId.toString())
+      : (task.assigned_to && (task.assigned_to._id || task.assigned_to.id || task.assigned_to).toString() === userId.toString());
+
+    if (!isCreator && !isAssignee && !isSuperAdmin) {
+      throw new AppError('Forbidden: Only the task creator, assignee, or Admin can update subtasks', 403);
+    }
+
+    if (!task.subtasks) task.subtasks = [];
+    const subtask = task.subtasks.id(subtask_id) || task.subtasks.find(st => (st._id ? st._id.toString() : st.id) === subtask_id);
+
+    if (!subtask) {
+      throw new AppError('Subtask not found', 404);
+    }
+
+    if (completed !== undefined) {
+      subtask.completed = Boolean(completed);
+      subtask.completed_by = subtask.completed ? userId : null;
+    }
+
+    if (title !== undefined && title.trim()) {
+      subtask.title = title.trim();
+    }
+
+    await task.save();
+
+    const populatedTask = await Task.findById(task._id)
+      .populate('assigned_to', 'name email')
+      .populate('created_by', 'name email')
+      .populate('subtasks.created_by', 'name email')
+      .populate('subtasks.completed_by', 'name email')
+      .populate('client', 'companyName clientName clientId')
+      .populate('project', 'projectName projectCode status')
+      .lean();
+
+    const formattedTask = formatLeanTask(populatedTask);
+    return res.status(200).json(formattedTask);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * 10. DELETE SUBTASK
+ * DELETE /api/v1/tasks/:task_id/subtasks/:subtask_id
+ */
+export const deleteSubtask = async (req, res, next) => {
+  try {
+    const { task_id, subtask_id } = req.params;
+
+    const task = await Task.findById(task_id);
+    if (!task) {
+      throw new AppError('Task not found', 404);
+    }
+
+    const userId = req.user.id || req.user._id;
+    const roleName = String(req.user.role || '').toLowerCase();
+    const roleId = String(req.user.role_id || req.user.roleId || '');
+    const isSuperAdmin = req.user.isSuperAdmin === true || req.user.is_super_admin === true || roleName === 'superadmin' || roleId === '0';
+
+    const isCreator = task.created_by && task.created_by.toString() === userId.toString();
+    const isAssignee = Array.isArray(task.assigned_to)
+      ? task.assigned_to.some(u => (u._id || u.id || u).toString() === userId.toString())
+      : (task.assigned_to && (task.assigned_to._id || task.assigned_to.id || task.assigned_to).toString() === userId.toString());
+
+    if (!isCreator && !isAssignee && !isSuperAdmin) {
+      throw new AppError('Forbidden: Only the task creator, assignee, or Admin can delete subtasks', 403);
+    }
+
+    task.subtasks = (task.subtasks || []).filter(st => (st._id ? st._id.toString() : st.id) !== subtask_id);
+
+    await task.save();
+
+    const populatedTask = await Task.findById(task._id)
+      .populate('assigned_to', 'name email')
+      .populate('created_by', 'name email')
+      .populate('subtasks.created_by', 'name email')
+      .populate('subtasks.completed_by', 'name email')
+      .populate('client', 'companyName clientName clientId')
+      .populate('project', 'projectName projectCode status')
+      .lean();
+
+    const formattedTask = formatLeanTask(populatedTask);
+    return res.status(200).json(formattedTask);
+  } catch (error) {
+    next(error);
+  }
+};
+
