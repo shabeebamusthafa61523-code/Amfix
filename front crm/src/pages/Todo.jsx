@@ -5,7 +5,7 @@ import {
   Plus, Clock, CheckCircle2, Eye, Layout, X, 
   Trash2, Edit3, Save, Upload, Image as ImageIcon, 
   Loader2, Camera, ShieldCheck, User, Target, Info, Building, FolderKanban,
-  Paperclip, Link2, ExternalLink, FileText
+  Paperclip, Link2, ExternalLink, FileText, CheckSquare, ListTodo, PlusCircle, Check
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
@@ -68,6 +68,13 @@ const getDatetimeLocalValue = (dVal) => {
 
 const getUserDisplayName = (userOrId, usersList = []) => {
   if (!userOrId) return 'Unassigned';
+  if (Array.isArray(userOrId)) {
+    if (userOrId.length === 0) return 'Unassigned';
+    const names = userOrId.map(u => getUserDisplayName(u, usersList)).filter(Boolean);
+    if (names.length === 1) return names[0];
+    if (names.length === 2) return `${names[0]}, ${names[1]}`;
+    return `${names[0]}, ${names[1]} +${names.length - 2}`;
+  }
   if (typeof userOrId === 'object' && userOrId !== null) {
     if (userOrId.name) return userOrId.name;
     if (userOrId.email) return userOrId.email;
@@ -83,6 +90,28 @@ const getUserDisplayName = (userOrId, usersList = []) => {
   if (found?.name) return found.name;
   if (found?.email) return found.email;
   return targetId.length === 24 ? 'Unassigned Staff' : targetId;
+};
+
+const getUserDesignationName = (userOrId, designationsList = [], usersList = []) => {
+  if (!userOrId) return '';
+  let userObj = userOrId;
+  if (typeof userOrId === 'string') {
+    userObj = usersList.find(u => String(u._id || u.id) === String(userOrId)) || { designation: userOrId };
+  }
+  if (!userObj) return '';
+  if (userObj.designationId) {
+    if (typeof userObj.designationId === 'object' && userObj.designationId.name) {
+      return userObj.designationId.name;
+    }
+    const dFound = designationsList.find(d => String(d.id || d._id) === String(userObj.designationId));
+    if (dFound?.name) return dFound.name;
+  }
+  if (userObj.designation) {
+    const dFound = designationsList.find(d => String(d.id || d._id) === String(userObj.designation));
+    if (dFound?.name) return dFound.name;
+    return String(userObj.designation);
+  }
+  return '';
 };
 
 const getOwnerDisplayName = (taskObj, usersList = []) => {
@@ -115,6 +144,7 @@ const PRIORITY_META = {
     shortLabel: 'High', 
     color: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30', 
     dot: 'bg-rose-500',
+    barColor: 'bg-rose-500',
     style: { backgroundColor: 'rgba(244, 63, 94, 0.15)', color: '#f43f5e', borderColor: 'rgba(244, 63, 94, 0.4)' },
     dotStyle: { backgroundColor: '#f43f5e' }
   },
@@ -123,6 +153,7 @@ const PRIORITY_META = {
     shortLabel: 'Medium',
     color: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30', 
     dot: 'bg-sky-500',
+    barColor: 'bg-sky-500',
     style: { backgroundColor: 'rgba(2, 132, 199, 0.18)', color: '#0284c7', borderColor: 'rgba(2, 132, 199, 0.45)' },
     dotStyle: { backgroundColor: '#0284c7' }
   },
@@ -131,6 +162,7 @@ const PRIORITY_META = {
     shortLabel: 'Low',
     color: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400 border-yellow-500/30', 
     dot: 'bg-yellow-500',
+    barColor: 'bg-yellow-500',
     style: { backgroundColor: 'rgba(234, 179, 8, 0.18)', color: '#ca8a04', borderColor: 'rgba(234, 179, 8, 0.45)' },
     dotStyle: { backgroundColor: '#eab308' }
   }
@@ -202,7 +234,22 @@ const fetchData = useCallback(async () => {
       ? tData
       : (tData.data || []);
 
-    const sortedTasks = [...rawTasks].reverse();
+    const sortedTasks = [...rawTasks].sort((a, b) => {
+      const getTimestamp = (item) => {
+        if (!item) return 0;
+        if (item.createdAt) {
+          const t = new Date(item.createdAt).getTime();
+          if (!isNaN(t) && t > 0) return t;
+        }
+        const idStr = String(item.id || item._id || '');
+        if (idStr.length === 24) {
+          const sec = parseInt(idStr.substring(0, 8), 16);
+          if (!isNaN(sec)) return sec * 1000;
+        }
+        return 0;
+      };
+      return getTimestamp(b) - getTimestamp(a);
+    });
     const cleanedTasks = sortedTasks.map(task => ({
       ...task,
       assigned_to: (task.assigned_to && typeof task.assigned_to === "object" && (task.assigned_to.name || task.assigned_to.email))
@@ -335,7 +382,7 @@ console.log("HEADERS:", getAuthHeaders());
                               className={`group relative p-5 pl-7 rounded-[1.75rem] bg-white/80 dark:bg-slate-900/40 backdrop-blur-md border ${isUrgent ? 'border-rose-500 bg-rose-50/20 dark:bg-rose-950/20' : 'border-slate-200/50 dark:border-slate-800/50'} shadow-sm hover:shadow-lg dark:hover:shadow-indigo-500/[0.02] transition-all duration-300 cursor-grab active:cursor-grabbing hover:-translate-y-[2px] ${s.isDragging ? 'rotate-[1.5deg] scale-[1.02] shadow-2xl z-50 bg-white/95 dark:bg-slate-900/95 border-indigo-500/40 dark:border-indigo-500/50 ring-2 ring-indigo-500/10' : ''}`}
                             >
                               {/* Left Accent Bar */}
-                              <div className={`absolute left-0 top-6 bottom-6 w-[3px] rounded-r-full transition-all duration-300 group-hover:top-4 group-hover:bottom-4 ${isUrgent ? 'bg-rose-500' : COLUMN_META[statusKey].color}`} />
+                              <div className={`absolute left-0 top-6 bottom-6 w-[3px] rounded-r-full transition-all duration-300 group-hover:top-4 group-hover:bottom-4 ${prioMeta.barColor || prioMeta.dot}`} />
 
                               <div className="flex items-center justify-between gap-2 mb-3">
                                 <div className="flex items-center gap-2">
@@ -363,8 +410,24 @@ console.log("HEADERS:", getAuthHeaders());
                                 </div>
                               )}
 
-                              
-                              <div className="flex items-center justify-between pt-4 border-t border-slate-100/60 dark:border-slate-850/50">
+                              {task.subtasks && task.subtasks.length > 0 && (
+                                <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                    <CheckSquare size={12} className="text-indigo-500" />
+                                    <span>
+                                      {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length} subtasks
+                                    </span>
+                                  </div>
+                                  <div className="w-16 bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                    <div 
+                                      className="bg-indigo-500 h-full rounded-full transition-all duration-300"
+                                      style={{ width: `${Math.round((task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="flex items-center justify-between pt-3 border-t border-slate-100/60 dark:border-slate-850/50">
                                 <div className="flex items-center gap-2">
                                   <div className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-750/50 flex items-center justify-center text-slate-500 dark:text-slate-400">
                                     <User size={12} />
@@ -433,6 +496,19 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const [initialSubtasks, setInitialSubtasks] = useState([]);
+  const [subtaskInput, setSubtaskInput] = useState('');
+
+  const handleAddInitialSubtask = (e) => {
+    if (e) e.preventDefault();
+    if (!subtaskInput.trim()) return;
+    setInitialSubtasks(prev => [...prev, subtaskInput.trim()]);
+    setSubtaskInput('');
+  };
+
+  const removeInitialSubtask = (index) => {
+    setInitialSubtasks(prev => prev.filter((_, i) => i !== index));
+  };
 
   const [clientsList, setClientsList] = useState([]);
   const [clientProjects, setClientProjects] = useState([]);
@@ -494,12 +570,20 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    const selectedAssignees = Array.isArray(form.assigned_to)
+      ? form.assigned_to
+      : (form.assigned_to ? [form.assigned_to] : []);
+
+    if (selectedAssignees.length === 0) {
+      showToast("Please select at least one staff member to assign", "error");
+      setIsSubmitting(false);
+      return;
+    }
 
     const fd = new FormData();
     fd.append('title', form.title);
     fd.append('description', form.description || '');
-    fd.append('assigned_to', form.assigned_to);
+    fd.append('assigned_to', JSON.stringify(selectedAssignees));
     fd.append('designation_id', form.designation_id);
     fd.append('status', 'pending');
     fd.append('priority', form.priority || 'medium');
@@ -515,6 +599,11 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
     // Append links as JSON
     if (attachedLinks.length > 0) {
       fd.append('links', JSON.stringify(attachedLinks));
+    }
+
+    // Append initial subtasks as JSON
+    if (initialSubtasks.length > 0) {
+      fd.append('subtasks', JSON.stringify(initialSubtasks.map(t => ({ title: t, completed: false }))));
     }
 
   // DEBUG
@@ -709,6 +798,48 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
             )}
           </div>
 
+          {/* Subtasks Section in Create Modal */}
+          <div className="space-y-2 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
+            <span className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] flex items-center gap-1.5">
+              <ListTodo size={12} /> Initial Subtasks ({initialSubtasks.length})
+            </span>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Add a subtask (e.g. Prepare design draft)..."
+                value={subtaskInput}
+                onChange={e => setSubtaskInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddInitialSubtask(e);
+                  }
+                }}
+                className="flex-1 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none text-slate-900 dark:text-slate-100 font-medium"
+              />
+              <button
+                type="button"
+                onClick={handleAddInitialSubtask}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-xl uppercase tracking-wider cursor-pointer flex items-center gap-1 shrink-0"
+              >
+                <PlusCircle size={12} /> Add
+              </button>
+            </div>
+            {initialSubtasks.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {initialSubtasks.map((stTitle, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs text-xs">
+                    <CheckSquare size={12} className="text-indigo-500" />
+                    <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 truncate max-w-[160px]">{stTitle}</span>
+                    <button type="button" onClick={() => removeInitialSubtask(idx)} className="text-slate-400 hover:text-rose-500 p-0.5 cursor-pointer">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">Title</label>
@@ -787,42 +918,93 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
             </div>
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">Assign To</label>
-            <div className="grid grid-cols-2 gap-3">
-              <select
-                required
-                className="appearance-none bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 px-3 py-2 rounded-xl text-gray-900 dark:text-gray-200 text-xs font-bold outline-none"
-                value={form.assigned_to}
-                onChange={e => {
-                  const userId = e.target.value;
-                  const user = users.find(u => String(u.id || u._id) === String(userId));
-                  let desigId = '';
-                  if (user) {
-                    if (user.designationId) {
-                      desigId = (user.designationId && typeof user.designationId === 'object')
-                        ? (user.designationId._id || user.designationId.id || '')
-                        : String(user.designationId);
-                    } else if (user.designation) {
-                      desigId = String(user.designation);
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">
+                Assign To (Select Staff Members) *
+              </label>
+              <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+                {(Array.isArray(form.assigned_to) ? form.assigned_to : (form.assigned_to ? [form.assigned_to] : [])).length} Selected
+              </span>
+            </div>
+
+            {/* Selected Assignee Chips */}
+            {(Array.isArray(form.assigned_to) ? form.assigned_to : (form.assigned_to ? [form.assigned_to] : [])).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 max-h-28 overflow-y-auto">
+                {(Array.isArray(form.assigned_to) ? form.assigned_to : [form.assigned_to]).map((uId) => {
+                  const uObj = users.find(u => String(u.id || u._id) === String(uId));
+                  const uName = uObj ? uObj.name : uId;
+                  const desigName = getUserDesignationName(uObj, designations, users);
+                  return (
+                    <div key={uId} className="inline-flex items-center gap-2 bg-indigo-100/90 dark:bg-indigo-950 px-2.5 py-1 rounded-xl text-xs font-bold text-indigo-900 dark:text-indigo-100 border border-indigo-200 dark:border-indigo-800">
+                      <div className="flex flex-col">
+                        <span className="font-bold leading-tight">{uName}</span>
+                        {desigName && (
+                          <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-medium leading-none mt-0.5">
+                            {desigName}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = Array.isArray(form.assigned_to) ? form.assigned_to : [form.assigned_to];
+                          const next = current.filter(id => String(id) !== String(uId));
+                          setForm({ ...form, assigned_to: next });
+                        }}
+                        className="hover:text-rose-500 p-0.5 cursor-pointer ml-1"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Multi-Select Users Dropdown */}
+            <select
+              className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2.5 rounded-xl text-slate-900 dark:text-slate-100 text-xs font-bold outline-none cursor-pointer"
+              value=""
+              onChange={e => {
+                const selectedId = e.target.value;
+                if (!selectedId) return;
+                const current = Array.isArray(form.assigned_to) ? form.assigned_to : (form.assigned_to ? [form.assigned_to] : []);
+                let next;
+                if (current.map(String).includes(String(selectedId))) {
+                  next = current.filter(id => String(id) !== String(selectedId));
+                } else {
+                  next = [...current, selectedId];
+                }
+
+                let desigId = form.designation_id;
+                if (next.length > 0) {
+                  const firstUser = users.find(u => String(u.id || u._id) === String(next[0]));
+                  if (firstUser) {
+                    if (firstUser.designationId) {
+                      desigId = (firstUser.designationId && typeof firstUser.designationId === 'object')
+                        ? (firstUser.designationId._id || firstUser.designationId.id || '')
+                        : String(firstUser.designationId);
+                    } else if (firstUser.designation) {
+                      desigId = String(firstUser.designation);
                     }
                   }
-                  setForm({ ...form, assigned_to: userId, designation_id: desigId });
-                }}
-              >
-                <option value="">Assign to</option>
-                {users.map(u => (
-                  <option key={u.id || u._id} value={u.id || u._id} className="bg-white text-gray-900">
-                    {u.name}
+                }
+                setForm({ ...form, assigned_to: next, designation_id: desigId });
+              }}
+            >
+              <option value="">+ Click to add / remove assigned staff member...</option>
+              {users.map(u => {
+                const uId = u.id || u._id;
+                const isSel = (Array.isArray(form.assigned_to) ? form.assigned_to : [form.assigned_to]).some(id => String(id) === String(uId));
+                const desigName = getUserDesignationName(u, designations, users);
+                return (
+                  <option key={uId} value={uId} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium">
+                    {isSel ? `✓ ${u.name}` : u.name}{desigName ? ` — (${desigName})` : ''}{isSel ? ' [Selected]' : ''}
                   </option>
-                ))}
-              </select>
-              <div className="bg-slate-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-650 px-3 py-2 rounded-xl text-gray-500 dark:text-gray-400 text-xs font-bold flex items-center">
-                <span>
-                  {designations.find(d => String(d.id || d._id) === String(form.designation_id))?.name || "Designation"}
-                </span>
-              </div>
-            </div>
+                );
+              })}
+            </select>
           </div>
 
           <div className="space-y-1">
@@ -934,8 +1116,251 @@ const DocPreviewModal = ({ file, onClose }) => {
   );
 };
 
+// --- SUBTASKS SECTION COMPONENT ---
+const SubtasksSection = ({ task, canManageSubtasks, API_BASE, getAuthHeaders, onUpdate, users }) => {
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [loadingAdd, setLoadingAdd] = useState(false);
+  const [subtasks, setSubtasks] = useState(task.subtasks || []);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    setSubtasks(task.subtasks || []);
+  }, [task.subtasks]);
+
+  const totalSubtasks = subtasks.length;
+  const completedCount = subtasks.filter(st => st.completed).length;
+  const progressPercent = totalSubtasks > 0 ? Math.round((completedCount / totalSubtasks) * 100) : 0;
+
+  const getCleanTaskId = () => {
+    if (!task) return '';
+    const raw = task.id || task._id;
+    if (!raw) return '';
+    return (typeof raw === 'object' ? (raw._id || raw.id || raw) : raw).toString();
+  };
+
+  const getCleanStId = (stVal) => {
+    if (!stVal) return '';
+    if (typeof stVal === 'object') {
+      return (stVal._id || stVal.id || stVal).toString();
+    }
+    return String(stVal);
+  };
+
+  const handleAddSubtask = async (e) => {
+    if (e) e.preventDefault();
+    if (!newSubtaskTitle.trim()) return;
+    setLoadingAdd(true);
+
+    const cleanTaskId = getCleanTaskId();
+
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${cleanTaskId}/subtasks`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ title: newSubtaskTitle.trim() })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.message || 'Failed to add subtask', 'error');
+        return;
+      }
+
+      setNewSubtaskTitle('');
+      const updatedSubtasks = data.subtasks || (data.task && data.task.subtasks);
+      if (updatedSubtasks) {
+        setSubtasks(updatedSubtasks);
+      }
+      showToast('Subtask added successfully', 'success');
+      await onUpdate();
+    } catch (err) {
+      console.error('Error adding subtask:', err);
+      showToast('Error adding subtask', 'error');
+    } finally {
+      setLoadingAdd(false);
+    }
+  };
+
+  const handleToggleSubtask = async (rawStId, currentCompleted) => {
+    const cleanStId = getCleanStId(rawStId);
+    const cleanTaskId = getCleanTaskId();
+
+    setSubtasks(prev => prev.map(st => {
+      const sId = getCleanStId(st.id || st._id || st);
+      return sId === cleanStId ? { ...st, completed: !currentCompleted } : st;
+    }));
+
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${cleanTaskId}/subtasks/${cleanStId}`, {
+        method: 'PUT',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ completed: !currentCompleted })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        const updatedSubtasks = data.subtasks || (data.task && data.task.subtasks);
+        if (updatedSubtasks) {
+          setSubtasks(updatedSubtasks);
+        }
+        await onUpdate();
+      } else {
+        console.error('Failed to toggle subtask:', data.message);
+        showToast(data.message || 'Failed to update subtask', 'error');
+        setSubtasks(task.subtasks || []);
+      }
+    } catch (err) {
+      console.error('Error toggling subtask:', err);
+      setSubtasks(task.subtasks || []);
+    }
+  };
+
+  const handleDeleteSubtask = async (rawStId) => {
+    const cleanStId = getCleanStId(rawStId);
+    const cleanTaskId = getCleanTaskId();
+
+    setSubtasks(prev => prev.filter(st => {
+      const sId = getCleanStId(st.id || st._id || st);
+      return sId !== cleanStId;
+    }));
+
+    try {
+      const res = await fetch(`${API_BASE}/tasks/${cleanTaskId}/subtasks/${cleanStId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        const updatedSubtasks = data.subtasks || (data.task && data.task.subtasks);
+        if (updatedSubtasks) {
+          setSubtasks(updatedSubtasks);
+        }
+        showToast('Subtask removed', 'info');
+        await onUpdate();
+      } else {
+        setSubtasks(task.subtasks || []);
+      }
+    } catch (err) {
+      console.error('Error deleting subtask:', err);
+      setSubtasks(task.subtasks || []);
+    }
+  };
+
+  return (
+    <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 rounded-2xl space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ListTodo size={16} className="text-indigo-500" />
+          <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+            Subtasks ({completedCount}/{totalSubtasks})
+          </h4>
+        </div>
+        {totalSubtasks > 0 && (
+          <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800/60">
+            {progressPercent}% Done
+          </span>
+        )}
+      </div>
+
+      {totalSubtasks > 0 && (
+        <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+          <div 
+            className="bg-gradient-to-r from-indigo-500 to-purple-500 h-full rounded-full transition-all duration-300"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      )}
+
+      {/* Subtask items list */}
+      {subtasks.length > 0 ? (
+        <div className="space-y-1.5 pt-1">
+          {subtasks.map((st, idx) => {
+            const stId = st.id || st._id || idx;
+            const creatorName = getOwnerDisplayName({ created_by: st.created_by }, users);
+            const completerName = st.completed ? getOwnerDisplayName({ created_by: st.completed_by }, users) : null;
+            return (
+              <div 
+                key={stId}
+                className="flex items-center justify-between gap-3 p-2.5 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-xl group transition-all hover:border-indigo-500/30"
+              >
+                <button
+                  type="button"
+                  disabled={!canManageSubtasks}
+                  onClick={() => handleToggleSubtask(stId, st.completed)}
+                  className="flex items-center gap-2.5 flex-1 text-left cursor-pointer disabled:cursor-default"
+                >
+                  <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${st.completed ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-transparent hover:border-indigo-500'}`}>
+                    <Check size={12} strokeWidth={3} className={st.completed ? 'opacity-100' : 'opacity-0'} />
+                  </div>
+                  <span className={`text-xs font-semibold ${st.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
+                    {st.title}
+                  </span>
+                </button>
+
+                <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+                  {creatorName && creatorName !== 'System Admin' && (
+                    <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md">
+                      by {creatorName}
+                    </span>
+                  )}
+                  {st.completed && completerName && completerName !== 'System Admin' && (
+                    <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-md border border-emerald-200/60 dark:border-emerald-800/60 flex items-center gap-1">
+                      ✓ done by {completerName}
+                    </span>
+                  )}
+                  {canManageSubtasks && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSubtask(stId)}
+                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-500 transition-opacity cursor-pointer ml-1"
+                      title="Delete subtask"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 italic">No subtasks added yet.</p>
+      )}
+
+      {/* Add subtask input */}
+      {canManageSubtasks && (
+        <form onSubmit={handleAddSubtask} className="flex items-center gap-2 pt-1">
+          <input
+            type="text"
+            placeholder="Add a new subtask..."
+            value={newSubtaskTitle}
+            onChange={e => setNewSubtaskTitle(e.target.value)}
+            className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-xl text-xs text-slate-900 dark:text-slate-100 font-medium outline-none focus:border-indigo-500/50"
+          />
+          <button
+            type="submit"
+            disabled={loadingAdd || !newSubtaskTitle.trim()}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+          >
+            {loadingAdd ? <Loader2 size={13} className="animate-spin" /> : <PlusCircle size={13} />}
+            <span>Add Subtask</span>
+          </button>
+        </form>
+      )}
+    </div>
+  );
+};
+
 // --- DETAIL MODAL COMPONENT (CLEANED & INTEGRATED) ---
 const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, DESIGNATIONS, users, API_BASE, onPreviewFile }) => {
+  const designations = DESIGNATIONS || [];
   const { showToast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState(null);
@@ -973,12 +1398,29 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
   }, []);
   const currentUserObj = liveUser || storedUser;
 
+  const effectiveUserId = useMemo(() => {
+    if (currentUserId) return String(currentUserId).trim();
+    if (currentUserObj) {
+      return String(currentUserObj._id || currentUserObj.id || currentUserObj.user_id || '').trim();
+    }
+    return '';
+  }, [currentUserId, currentUserObj]);
+
   const isSuperAdminUser = useMemo(() => {
     if (!currentUserObj) return false;
     const roleStr = String(currentUserObj.role || '').toLowerCase().trim();
     const roleIdStr = String(currentUserObj.role_id || currentUserObj.roleId || '').trim();
     return currentUserObj.isSuperAdmin === true || currentUserObj.is_super_admin === true || roleStr === 'superadmin' || roleIdStr === '0';
   }, [currentUserObj]);
+
+  const isAssignee = useMemo(() => {
+    if (!effectiveUserId || !task) return false;
+    const list = Array.isArray(task.assigned_to) ? task.assigned_to : [task.assigned_to].filter(Boolean);
+    return list.some(u => {
+      const uId = (u && typeof u === 'object') ? (u._id || u.id) : u;
+      return String(uId || '').trim() === effectiveUserId;
+    });
+  }, [task, effectiveUserId]);
 
   const canModify = useMemo(() => {
     if (isSuperAdminUser) return true;
@@ -1005,8 +1447,12 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
     };
 
     const creatorId = getCreatorId();
-    return currentUserId && creatorId && String(currentUserId).trim() === creatorId;
-  }, [task, currentUserId, isSuperAdminUser]);
+    return effectiveUserId && creatorId && effectiveUserId === creatorId;
+  }, [task, effectiveUserId, isSuperAdminUser]);
+
+  const canManageSubtasks = useMemo(() => {
+    return canModify || isAssignee;
+  }, [canModify, isAssignee]);
 
   const [clientsList, setClientsList] = useState([]);
   const [projectsList, setProjectsList] = useState([]);
@@ -1029,7 +1475,14 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
       window.scrollTo({ top: 0, behavior: 'smooth' });
       const rawClient = (task.client && typeof task.client === 'object') ? (task.client._id || task.client.id) : (task.client || task.client_id || '');
       const rawProject = (task.project && typeof task.project === 'object') ? (task.project._id || task.project.id) : (task.project || task.project_id || '');
-      const rawAssignedTo = (task.assigned_to && typeof task.assigned_to === 'object') ? (task.assigned_to._id || task.assigned_to.id) : (task.assigned_to || '');
+      
+      let rawAssignedTo = [];
+      if (Array.isArray(task.assigned_to)) {
+        rawAssignedTo = task.assigned_to.map(u => (u && typeof u === 'object') ? (u._id || u.id || String(u)) : String(u));
+      } else if (task.assigned_to) {
+        rawAssignedTo = [(task.assigned_to && typeof task.assigned_to === 'object') ? (task.assigned_to._id || task.assigned_to.id || String(task.assigned_to)) : String(task.assigned_to)];
+      }
+
       setEditForm({ ...task, assigned_to: rawAssignedTo, status: task.status || "pending", client: rawClient, project: rawProject }); 
       setIsEditing(false); 
       setNewFile(null);
@@ -1042,10 +1495,12 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
     if (isSaving) return;
     setIsSaving(true);
 
+    const assigneesToSubmit = Array.isArray(editForm.assigned_to) ? editForm.assigned_to : (editForm.assigned_to ? [editForm.assigned_to] : []);
+
     const fd = new FormData();
     fd.append('title', editForm.title);
     fd.append('description', editForm.description || '');
-    fd.append('assigned_to', editForm.assigned_to);
+    fd.append('assigned_to', JSON.stringify(assigneesToSubmit));
     fd.append('designation_id', editForm.designation_id);
     if (editForm.priority) fd.append('priority', editForm.priority);
 
@@ -1410,66 +1865,107 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
                 </div>
               </div>
             )}
+
+            {/* Subtasks Section inside Detail Modal */}
+            <SubtasksSection 
+              task={task} 
+              canManageSubtasks={canManageSubtasks} 
+              API_BASE={API_BASE} 
+              getAuthHeaders={getAuthHeaders} 
+              onUpdate={onUpdate} 
+              users={users} 
+            />
           </div>
 
-          <div className="grid grid-cols-3 gap-3 py-3 border-y border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 rounded-xl px-3 mt-3">
+          <div className="grid grid-cols-2 gap-3 py-3 border-y border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 rounded-xl px-3 mt-3">
             <div>
               <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.3em] block mb-2">Staff</span>
               {isEditing ? (
-                <div className="relative">
+                <div className="space-y-2">
+                  {(Array.isArray(editForm.assigned_to) ? editForm.assigned_to : (editForm.assigned_to ? [editForm.assigned_to] : [])).length > 0 && (
+                    <div className="flex flex-wrap gap-1 p-1.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 max-h-24 overflow-y-auto">
+                      {(Array.isArray(editForm.assigned_to) ? editForm.assigned_to : [editForm.assigned_to]).map((uId) => {
+                        const uObj = users.find(u => String(u.id || u._id) === String(uId));
+                        const uName = uObj ? uObj.name : uId;
+                        const desigName = getUserDesignationName(uObj, designations, users);
+                        return (
+                          <div key={uId} className="inline-flex items-center gap-1.5 bg-indigo-100 dark:bg-indigo-950 px-2.5 py-1 rounded-xl text-xs font-bold text-indigo-900 dark:text-indigo-100 border border-indigo-200 dark:border-indigo-800">
+                            <div className="flex flex-col">
+                              <span className="font-bold leading-tight">{uName}</span>
+                              {desigName && (
+                                <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-medium leading-none mt-0.5">
+                                  {desigName}
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const current = Array.isArray(editForm.assigned_to) ? editForm.assigned_to : [editForm.assigned_to];
+                                const next = current.filter(id => String(id) !== String(uId));
+                                setEditForm({ ...editForm, assigned_to: next });
+                              }}
+                              className="hover:text-rose-500 p-0.5 cursor-pointer ml-1"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   <select
-                    required
-                    className="w-full appearance-none bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-slate-900 dark:text-slate-100 text-[11px] font-bold outline-none cursor-pointer"
-                    value={editForm.assigned_to}
+                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 rounded-xl text-slate-900 dark:text-slate-100 text-[11px] font-bold outline-none cursor-pointer"
+                    value=""
                     onChange={e => {
-                      const userId = e.target.value;
-                      const user = users.find(u => String(u.id || u._id) === String(userId));
-                      let desigId = '';
-                      if (user) {
-                        if (user.designationId) {
-                          desigId = (user.designationId && typeof user.designationId === 'object')
-                            ? (user.designationId._id || user.designationId.id || '')
-                            : String(user.designationId);
-                        } else if (user.designation) {
-                          desigId = String(user.designation);
-                        }
+                      const selectedId = e.target.value;
+                      if (!selectedId) return;
+                      const current = Array.isArray(editForm.assigned_to) ? editForm.assigned_to : (editForm.assigned_to ? [editForm.assigned_to] : []);
+                      let next;
+                      if (current.map(String).includes(String(selectedId))) {
+                        next = current.filter(id => String(id) !== String(selectedId));
+                      } else {
+                        next = [...current, selectedId];
                       }
-                      setEditForm({ ...editForm, assigned_to: userId, designation_id: desigId });
+                      setEditForm({ ...editForm, assigned_to: next });
                     }}
                   >
-                    <option value="">Assign to</option>
-                    {users.map(u => (
-                      <option key={u.id || u._id} value={u.id || u._id}>
-                        {u.name}
-                      </option>
-                    ))}
+                    <option value="">+ Assign / Remove Staff...</option>
+                    {users.map(u => {
+                      const uId = u.id || u._id;
+                      const isSel = (Array.isArray(editForm.assigned_to) ? editForm.assigned_to : [editForm.assigned_to]).some(id => String(id) === String(uId));
+                      const desigName = getUserDesignationName(u, designations, users);
+                      return (
+                        <option key={uId} value={uId} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium">
+                          {isSel ? `✓ ${u.name}` : u.name}{desigName ? ` — (${desigName})` : ''}{isSel ? ' [Selected]' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 bg-indigo-500/10 rounded-full flex items-center justify-center border border-indigo-500/20 text-indigo-400">
-                    <User size={18} />
-                  </div>
-                  <span className="text-slate-900 dark:text-slate-100 font-bold tracking-tight uppercase text-sm">
-                    {getUserDisplayName(task.assigned_to, users)}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div>
-              <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.3em] block mb-2">Designation</span>
-              {isEditing ? (
-                <div className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-gray-500 dark:text-gray-400 text-[11px] font-bold">
-                  {DESIGNATIONS?.find(d => String(d.id || d._id) === String(editForm.designation_id))?.name || "Designation"}
-                </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 bg-purple-500/10 rounded-full flex items-center justify-center border border-purple-500/20 text-purple-400">
-                    <Target size={18} />
-                  </div>
-                  <span className="text-slate-900 dark:text-slate-100 font-bold tracking-tight uppercase text-sm">
-                    {DESIGNATIONS?.find(d => String(d.id) === String(task.designation_id))?.name || "General"}
-                  </span>
+                <div className="flex flex-wrap gap-2">
+                  {(Array.isArray(task.assigned_to) ? task.assigned_to : [task.assigned_to]).filter(Boolean).map((uItem, idx) => {
+                    const uName = getUserDisplayName(uItem, users);
+                    const desigName = getUserDesignationName(uItem, designations, users);
+                    return (
+                      <div key={idx} className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800">
+                        <div className="h-7 w-7 bg-indigo-500/10 rounded-full flex items-center justify-center border border-indigo-500/20 text-indigo-400 shrink-0">
+                          <User size={14} />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-slate-900 dark:text-slate-100 font-bold uppercase text-xs leading-tight">
+                            {uName}
+                          </span>
+                          {desigName && (
+                            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold leading-tight mt-0.5">
+                              {desigName}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
