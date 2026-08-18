@@ -27,6 +27,7 @@ import accountRoutes from './account.routes.js';
 import academyRoutes from './academy.routes.js';
 import leaveRoutes from './leave.routes.js';
 import recruitmentRoutes from './recruitment.routes.js';
+import calendarRoutes from './calendar.routes.js';
 
 const router = Router();
 
@@ -59,5 +60,6 @@ router.use('/videographer-reports', videographerReportRoutes);
 router.use('/employee-reports', employeeReportPDFRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/performance', performanceRoutes);
+router.use('/calendar-work', calendarRoutes);
 
 export default router;

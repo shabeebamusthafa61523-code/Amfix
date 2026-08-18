@@ -58,8 +58,7 @@ import ApprovalsPage from './pages/ApprovalsPage';
 import PayslipsPage from './pages/PayslipsPage';
 import PersonalPayslipPage from './pages/PersonalPayslipPage';
 import RecruitmentPage from './pages/RecruitmentPage';
-
-
+import CalendarWorkPage from './pages/CalendarWorkPage';
 
 // Client & Project Management Module Pages
 import ClientsPage from './pages/ClientsPage';
@@ -228,6 +227,9 @@ function App() {
         <Route path="/projects/reports" element={<ProtectedRoute><MainLayout><RestrictedRoute><ProjectReportsPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/projects/:id" element={<ProtectedRoute><MainLayout><RestrictedRoute><ProjectDetailsPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
         <Route path="/projects/:id/visible-work" element={<ProtectedRoute><MainLayout><RestrictedRoute><VisibleWorkPage /></RestrictedRoute></MainLayout></ProtectedRoute>} />
+
+        {/* Content Calendar Module Route */}
+        <Route path="/calendar-work" element={<ProtectedRoute><MainLayout><CalendarWorkPage /></MainLayout></ProtectedRoute>} />
 
         {/* Default Landing Route */}
         <Route path="/" element={<LandingRoute />} />

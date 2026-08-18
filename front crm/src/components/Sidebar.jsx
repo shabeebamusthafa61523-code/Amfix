@@ -92,6 +92,13 @@ const menuItems = [
     path: '/projects',
     allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead']
   },
+  {
+    icon: Calendar,
+    label: 'Content Calendar',
+    path: '/calendar-work',
+    allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'],
+    allowedDesignationNames: ['designer', 'graphic', 'marketer', 'marketing', 'digital', 'social']
+  },
   { 
     icon: Briefcase, 
     label: 'Client Leads', 
