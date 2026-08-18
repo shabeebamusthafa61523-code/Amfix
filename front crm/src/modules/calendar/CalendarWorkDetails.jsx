@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Edit2, Trash2, Calendar, Clock, User, AlertTriangle, CheckCircle2, ExternalLink } from 'lucide-react';
 import ConfirmModal from '../../components/ConfirmModal';
+import { resolveCalendarImageUrl } from '../../services/calendarService';
 
 /**
  * Detailed view modal for calendar work items
@@ -25,6 +26,14 @@ const CalendarWorkDetails = ({
   const [selectedPostingStatus, setSelectedPostingStatus] = useState(work?.postingStatus || '');
   const [postUrl, setPostUrl] = useState('');
   const [postingNotes, setPostingNotes] = useState('');
+  const [statusSaving, setStatusSaving] = useState(false);
+
+  useEffect(() => {
+    setSelectedWorkStatus(work?.workStatus || '');
+    setSelectedPostingStatus(work?.postingStatus || '');
+    setPostUrl('');
+    setPostingNotes('');
+  }, [work]);
 
   if (!isOpen || !work) return null;
 
@@ -153,6 +162,14 @@ const CalendarWorkDetails = ({
                   {work.description}
                 </p>
               )}
+
+              {work.imageUrl && (
+                <img
+                  src={resolveCalendarImageUrl(work.imageUrl)}
+                  alt={work.title || 'Calendar work'}
+                  className="w-full h-28 object-cover rounded-lg border border-slate-700/50 mb-2 mt-4"
+                />
+              )}
             </div>
 
             {/* Content Grid */}
@@ -181,12 +198,29 @@ const CalendarWorkDetails = ({
                   <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${getStatusColor(work.workStatus)}`}>
                     {work.workStatus?.replace(/_/g, ' ')}
                   </span>
-                  <button
-                    onClick={() => setStatusUpdateOpen(true)}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                  <select
+                    value={work.workStatus || selectedWorkStatus || 'draft'}
+                    disabled={loading || statusSaving}
+                    onChange={async (event) => {
+                      const nextStatus = event.target.value;
+                      setSelectedWorkStatus(nextStatus);
+                      if (!onStatusUpdate || nextStatus === work.workStatus) return;
+                      setStatusSaving(true);
+                      try {
+                        await onStatusUpdate(work._id || work.id, nextStatus);
+                      } finally {
+                        setStatusSaving(false);
+                      }
+                    }}
+                    className="px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    aria-label="Update work status"
                   >
-                    Change
-                  </button>
+                    {workStatuses.map((status) => (
+                      <option key={status} value={status}>
+                        {status.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

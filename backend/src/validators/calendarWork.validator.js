@@ -19,6 +19,36 @@ const objectIdSchema = (fieldName) =>
     })
   );
 
+const coerceBooleanSchema = z.preprocess((val) => {
+  if (val === undefined || val === null || val === '') return undefined;
+  if (typeof val === 'boolean') return val;
+  const normalized = String(Array.isArray(val) ? val[0] : val).trim().toLowerCase();
+  if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+  if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  return undefined;
+}, z.boolean().optional());
+
+const coerceTagsSchema = z.preprocess((val) => {
+  if (val === undefined || val === null || val === '') return undefined;
+  if (Array.isArray(val)) {
+    return val.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof val === 'string') {
+    const trimmed = val.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item).trim()).filter(Boolean);
+      }
+    } catch {
+      // comma-separated fallback
+    }
+    return trimmed.split(',').map((item) => item.trim()).filter(Boolean);
+  }
+  return undefined;
+}, z.array(z.string().trim()).optional());
+
 // ============================================================
 // VALID STATUSES
 // ============================================================
@@ -166,9 +196,13 @@ export const createCalendarWorkSchema = z.object({
       .or(z.literal(''))
   ),
 
-  isUrgent: z.boolean().optional(),
-  isPriority: z.boolean().optional(),
-  tags: z.array(z.string().trim()).optional()
+  isUrgent: coerceBooleanSchema,
+  isPriority: coerceBooleanSchema,
+  tags: coerceTagsSchema,
+  imageUrl: preprocessSingleString(
+    z.string().trim().optional().or(z.literal(''))
+  ),
+  removeImage: coerceBooleanSchema
 });
 
 // ============================================================
@@ -273,9 +307,13 @@ export const updateCalendarWorkSchema = z.object({
     z.string().trim().optional().or(z.literal(''))
   ),
 
-  isUrgent: z.boolean().optional(),
-  isPriority: z.boolean().optional(),
-  tags: z.array(z.string().trim()).optional()
+  isUrgent: coerceBooleanSchema,
+  isPriority: coerceBooleanSchema,
+  tags: coerceTagsSchema,
+  imageUrl: preprocessSingleString(
+    z.string().trim().optional().or(z.literal(''))
+  ),
+  removeImage: coerceBooleanSchema
 });
 
 // ============================================================
@@ -283,11 +321,19 @@ export const updateCalendarWorkSchema = z.object({
 // ============================================================
 
 export const updateWorkStatusSchema = z.object({
-  status: z.string()
-    .refine(
-      (val) => WORK_STATUSES.includes(val),
-      { message: `Invalid status. Must be one of: ${WORK_STATUSES.join(', ')}` }
-    ),
+  status: z.preprocess(
+    (val) => {
+      const raw = String(Array.isArray(val) ? val[0] : (val ?? '')).trim();
+      if (!raw) return raw;
+      if (raw.toLowerCase() === 'completed') return 'completed';
+      return raw;
+    },
+    z.string()
+      .refine(
+        (val) => WORK_STATUSES.includes(val),
+        { message: `Invalid status. Must be one of: ${WORK_STATUSES.join(', ')}` }
+      )
+  ),
 
   notes: preprocessSingleString(
     z.string()

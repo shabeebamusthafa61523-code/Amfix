@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import path from 'path';
 import CalendarWork from '../models/calendarWork.model.js';
 import User from '../models/user.model.js';
 import Project from '../models/project.model.js';
@@ -58,6 +59,35 @@ const canEditCalendarWork = (calendarWork, userId, userRole, userDesignation) =>
   return isCreator || isAssignee || isSuperAdminUser;
 };
 
+const resolveUploadedImageUrl = (file) => {
+  if (!file) return '';
+
+  const diskPath = String(file.path || '').replace(/\\/g, '/');
+  const uploadsIndex = diskPath.toLowerCase().lastIndexOf('/uploads/');
+  if (uploadsIndex !== -1) {
+    return diskPath.slice(uploadsIndex);
+  }
+
+  if (file.filename) {
+    const nestedDir = path.basename(String(file.destination || ''));
+    if (nestedDir && nestedDir !== 'uploads') {
+      return `/uploads/tasks/${nestedDir}/${file.filename}`;
+    }
+    return `/uploads/${file.filename}`;
+  }
+
+  return '';
+};
+
+const CALENDAR_WORK_POPULATE = [
+  { path: 'assignedTo', select: 'name email designation' },
+  { path: 'createdBy', select: 'name email' },
+  { path: 'project', select: 'projectName' },
+  { path: 'client', select: 'companyName' },
+  { path: 'task', select: 'title' },
+  { path: 'department', select: 'name' }
+];
+
 // ============================================================
 // CREATE CALENDAR WORK
 // ============================================================
@@ -85,7 +115,8 @@ export const createCalendarWork = async (req, res) => {
       contentUrl,
       isUrgent,
       isPriority,
-      tags
+      tags,
+      imageUrl
     } = req.body;
 
     if (!title || !String(title).trim()) {
@@ -162,7 +193,8 @@ export const createCalendarWork = async (req, res) => {
       assignedDesignation: assignedUser.designation || '',
       department: assignedUser.departmentId || null,
       workStatus: 'draft',
-      postingStatus: 'not_scheduled'
+      postingStatus: 'not_scheduled',
+      imageUrl: resolveUploadedImageUrl(req.file) || (typeof imageUrl === 'string' ? imageUrl.trim() : '')
     };
 
     const newCalendarWork = new CalendarWork(calendarWorkData);
@@ -399,7 +431,9 @@ export const updateCalendarWork = async (req, res) => {
       revisionNotes,
       isUrgent,
       isPriority,
-      tags
+      tags,
+      imageUrl,
+      removeImage
     } = req.body;
 
     if (title !== undefined) calendarWork.title = String(title).trim();
@@ -447,6 +481,15 @@ export const updateCalendarWork = async (req, res) => {
     if (isUrgent !== undefined) calendarWork.isUrgent = Boolean(isUrgent);
     if (isPriority !== undefined) calendarWork.isPriority = Boolean(isPriority);
     if (tags !== undefined) calendarWork.tags = Array.isArray(tags) ? tags : [];
+
+    const uploadedImageUrl = resolveUploadedImageUrl(req.file);
+    if (uploadedImageUrl) {
+      calendarWork.imageUrl = uploadedImageUrl;
+    } else if (removeImage) {
+      calendarWork.imageUrl = '';
+    } else if (imageUrl !== undefined) {
+      calendarWork.imageUrl = typeof imageUrl === 'string' ? imageUrl.trim() : '';
+    }
 
     await calendarWork.save();
 
@@ -504,6 +547,8 @@ export const updateWorkStatus = async (req, res) => {
     });
 
     await calendarWork.save();
+
+    await calendarWork.populate(CALENDAR_WORK_POPULATE);
 
     logger.info(`📅 Calendar work status updated: ${id} from ${previousStatus} to ${status} by ${userId}`);
     return sendSuccess(res, 'Work status updated', calendarWork);

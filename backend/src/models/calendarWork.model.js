@@ -203,6 +203,11 @@ const calendarWorkSchema = new mongoose.Schema(
       default: ''
     },
 
+    imageUrl: {
+      type: String,
+      default: ''
+    },
+
     // ========== COLLABORATION ==========
     approvalNotes: {
       type: String,
@@ -257,6 +262,12 @@ const calendarWorkSchema = new mongoose.Schema(
       transform: (doc, ret) => {
         if (ret._id) {
           ret.id = ret._id.toString();
+        }
+        if (!ret.date) {
+          ret.date = ret.postingDate || ret.workDate || null;
+        }
+        if (!ret.status) {
+          ret.status = ret.workStatus === 'completed' ? 'Completed' : (ret.workStatus || '');
         }
         return ret;
       }

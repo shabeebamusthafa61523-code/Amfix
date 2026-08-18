@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import verifyJWT from '../middleware/auth.middleware.js';
+import upload from '../middleware/upload.middleware.js';
 
 import {
   createCalendarWork,
@@ -24,6 +25,20 @@ import {
 
 const router = Router();
 
+const handleImageUpload = (req, res, next) => {
+  upload.single('image')(req, res, (err) => {
+    if (!err) return next();
+
+    const isTooLarge = err.code === 'LIMIT_FILE_SIZE' || err.message === 'File too large';
+    return res.status(isTooLarge ? 413 : 400).json({
+      success: false,
+      message: isTooLarge
+        ? 'Image is too large. Maximum allowed size is 50MB.'
+        : (err.message || 'Image upload failed')
+    });
+  });
+};
+
 // ============================================================
 // ALL ROUTES REQUIRE AUTHENTICATION
 // ============================================================
@@ -37,6 +52,7 @@ router.use(verifyJWT);
 
 router.post(
   '/',
+  handleImageUpload,
   validateBody(createCalendarWorkSchema),
   createCalendarWork
 );
@@ -80,6 +96,7 @@ router.get(
 router.put(
   '/:id',
   validateParams(calendarWorkIdParamsSchema),
+  handleImageUpload,
   validateBody(updateCalendarWorkSchema),
   updateCalendarWork
 );
@@ -106,6 +123,19 @@ router.patch(
   validateParams(calendarWorkIdParamsSchema),
   validateBody(updatePostingStatusSchema),
   updatePostingStatus
+);
+
+// ============================================================
+// UPDATE CALENDAR WORK (PATCH alias)
+// PATCH /api/calendar-work/:id
+// ============================================================
+
+router.patch(
+  '/:id',
+  validateParams(calendarWorkIdParamsSchema),
+  handleImageUpload,
+  validateBody(updateCalendarWorkSchema),
+  updateCalendarWork
 );
 
 // ============================================================

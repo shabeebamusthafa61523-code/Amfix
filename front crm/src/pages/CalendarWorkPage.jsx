@@ -52,6 +52,7 @@ const CalendarWorkPage = () => {
   // Form state
   const [formError, setFormError] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
+  const [createPrefill, setCreatePrefill] = useState(null);
 
   // Load employees
   useEffect(() => {
@@ -161,13 +162,11 @@ const CalendarWorkPage = () => {
   };
 
   const handleAddWork = (day) => {
-    // Pre-fill with selected date
-    const workDate = new Date(
-      currentDate.getFullYear(),
-      currentDate.getMonth(),
-      day,
-    );
+    const month = String(currentDate.getMonth() + 1).padStart(2, "0");
+    const date = String(day).padStart(2, "0");
+    const workDate = `${currentDate.getFullYear()}-${month}-${date}`;
     setEditingWork(null);
+    setCreatePrefill({ workDate, postingDate: workDate });
     setCreateModalOpen(true);
   };
 
@@ -182,6 +181,7 @@ const CalendarWorkPage = () => {
         showToast("Calendar work created successfully", "success");
         setCreateModalOpen(false);
         setEditingWork(null);
+        setCreatePrefill(null);
         loadCalendarData();
       } else {
         setFormError(response.message || "Failed to create calendar work");
@@ -291,17 +291,42 @@ const CalendarWorkPage = () => {
     }
   };
 
+  const applyWorkUpdate = (id, updatedWork, extraFields = {}) => {
+    const matchId = String(id);
+    const merged = updatedWork && typeof updatedWork === 'object'
+      ? { ...updatedWork, ...extraFields }
+      : extraFields;
+
+    setCalendarItems((prev) =>
+      prev.map((item) =>
+        String(item._id || item.id) === matchId
+          ? { ...item, ...merged }
+          : item
+      )
+    );
+
+    setSelectedWork((prev) =>
+      prev && String(prev._id || prev.id) === matchId
+        ? { ...prev, ...merged }
+        : prev
+    );
+  };
+
   const handleStatusUpdate = async (id, status) => {
     try {
       const response = await updateWorkStatus(id, { status });
 
       if (response.success) {
+        const updated = response.data || {};
+        applyWorkUpdate(id, updated, {
+          workStatus: updated.workStatus || status,
+          status: (updated.workStatus || status) === 'completed' ? 'Completed' : (updated.status || status)
+        });
         showToast("Work status updated", "success");
-        setDetailsOpen(false);
-        loadCalendarData();
-      } else {
-        showToast(response.message || "Failed to update status", "error");
+        return response;
       }
+
+      showToast(response.message || "Failed to update status", "error");
     } catch (err) {
       const errorMsg =
         err.response?.data?.message || err.message || "Failed to update status";
@@ -314,9 +339,10 @@ const CalendarWorkPage = () => {
       const response = await updatePostingStatus(id, data);
 
       if (response.success) {
+        applyWorkUpdate(id, response.data || {}, {
+          postingStatus: data?.status || response.data?.postingStatus
+        });
         showToast("Posting status updated", "success");
-        setDetailsOpen(false);
-        loadCalendarData();
       } else {
         showToast(
           response.message || "Failed to update posting status",
@@ -365,6 +391,7 @@ const CalendarWorkPage = () => {
           <button
             onClick={() => {
               setEditingWork(null);
+              setCreatePrefill(null);
               setCreateModalOpen(true);
             }}
             className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold text-sm transition shadow-lg shadow-indigo-500/20"
@@ -449,6 +476,7 @@ const CalendarWorkPage = () => {
           onToday={handleToday}
           onItemClick={handleItemClick}
           onAddWork={handleAddWork}
+          onStatusChange={handleStatusUpdate}
           loading={loading}
         />
       </motion.div>
@@ -459,10 +487,11 @@ const CalendarWorkPage = () => {
         onClose={() => {
           setCreateModalOpen(false);
           setEditingWork(null);
+          setCreatePrefill(null);
           setFormError(null);
         }}
         onSubmit={handleFormSubmit}
-        initialData={editingWork}
+        initialData={editingWork || createPrefill}
         employees={employees}
         loading={formLoading}
         error={formError}
