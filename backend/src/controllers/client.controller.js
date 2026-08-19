@@ -57,6 +57,7 @@ export const getClients = async (req, res) => {
         { clientId: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
+        { alternativePhone: { $regex: search, $options: 'i' } },
         { industry: { $regex: search, $options: 'i' } }
       ];
     }

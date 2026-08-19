@@ -3,6 +3,7 @@ import { X, Save, ShieldAlert, Loader2, FolderKanban, CheckCircle2 } from 'lucid
 import { updateProject, fetchActiveEmployees, fetchDepartments } from '../services/projectService';
 import { getClients } from '../services/clientService';
 import EmployeeMultiSelect from './EmployeeMultiSelect';
+import ProjectCategoryField from './projects/ProjectCategoryField';
 
 const EditProjectModal = ({ isOpen, onClose, project, onSuccess }) => {
   const [submitting, setSubmitting] = useState(false);
@@ -135,6 +136,8 @@ const EditProjectModal = ({ isOpen, onClose, project, onSuccess }) => {
           : formData.technologyStack
       };
 
+      if (!payload.deadline) payload.deadline = null;
+
       const projId = project._id || project.id;
       const res = await updateProject(projId, payload);
       if (res && (res.success || res.data)) {
@@ -259,7 +262,8 @@ const EditProjectModal = ({ isOpen, onClose, project, onSuccess }) => {
                   setFormData(prev => ({
                     ...prev,
                     departmentId: deptId,
-                    department: selectedDept ? (selectedDept.name || selectedDept.department_name) : ''
+                    department: selectedDept ? (selectedDept.name || selectedDept.department_name) : '',
+                    projectCategory: ''
                   }));
                 }}
                 className="px-4 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold focus:outline-hidden"
@@ -272,6 +276,16 @@ const EditProjectModal = ({ isOpen, onClose, project, onSuccess }) => {
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Category */}
+          <div className="grid grid-cols-1 gap-4">
+            <ProjectCategoryField
+              departmentId={formData.departmentId}
+              value={formData.projectCategory}
+              onChange={(val) => setFormData(prev => ({ ...prev, projectCategory: val }))}
+              selectClassName="px-4 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold focus:outline-hidden disabled:opacity-60"
+            />
           </div>
 
           {/* Status & Priority */}
@@ -339,10 +353,9 @@ const EditProjectModal = ({ isOpen, onClose, project, onSuccess }) => {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Deadline *</label>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Deadline</label>
               <input
                 type="date"
-                required
                 name="deadline"
                 value={formData.deadline}
                 onChange={handleChange}

@@ -171,9 +171,12 @@ const ClientTableView = ({ clients, sortBy, sortOrder, onSort, onDelete }) => {
 
                   {/* Primary Contact */}
                   <td className="py-3.5 px-4">
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                    <Link
+                      to={`/clients/${id}`}
+                      className="font-semibold text-slate-700 dark:text-slate-300 hover:text-indigo-600 transition-colors"
+                    >
                       {client.clientName || client.primaryContact?.name || '-'}
-                    </span>
+                    </Link>
                   </td>
 
                   {/* Client ID */}
