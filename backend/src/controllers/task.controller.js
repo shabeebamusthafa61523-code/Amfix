@@ -1,32 +1,33 @@
-import fs from 'fs/promises';
-import path from 'path';
-import mongoose from 'mongoose';
-import Task from '../models/task.model.js';
-import User from '../models/user.model.js';
-import Project from '../models/project.model.js';
-import { AppError } from '../middleware/errorHandler.js';
+import fs from "fs/promises";
+import path from "path";
+import mongoose from "mongoose";
+import Task from "../models/task.model.js";
+import User from "../models/user.model.js";
+import Project from "../models/project.model.js";
+import Client from "../models/client.model.js"; // registers Client for populate('client')
+import { AppError } from "../middleware/errorHandler.js";
 import {
   sendTaskAssignmentEmail,
   sendTaskStatusUpdateEmail,
-  sendNotification
-} from '../services/notification.service.js';
+  sendNotification,
+} from "../services/notification.service.js";
 
 /* =========================================================
    CONSTANTS
 ========================================================= */
 
 const VALID_STATUSES = [
-  'pending',
-  'in-progress',
-  'in_progress',
-  'completed',
-  'done',
-  'cancelled',
-  'on-hold',
-  'on_hold'
+  "pending",
+  "in-progress",
+  "in_progress",
+  "completed",
+  "done",
+  "cancelled",
+  "on-hold",
+  "on_hold",
 ];
 
-const VALID_PRIORITIES = ['low', 'medium', 'high'];
+const VALID_PRIORITIES = ["low", "medium", "high"];
 
 /* =========================================================
    HELPERS
@@ -36,32 +37,54 @@ const getAuthUserId = (req) => {
   return req.user?.id || req.user?._id || req.user?.userId;
 };
 
-const normalizeId = (value) => {
-  if (!value) return null;
+const isObjectIdLike = (value) => {
+  if (!value || typeof value !== "object") return false;
 
-  if (typeof value === 'object') {
-    return value._id?.toString?.() ||
-      value.id?.toString?.() ||
-      null;
+  return (
+    value instanceof mongoose.Types.ObjectId ||
+    value._bsontype === "ObjectId" ||
+    value._bsontype === "ObjectID" ||
+    value.constructor?.name === "ObjectId"
+  );
+};
+
+const normalizeId = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+
+  if (typeof value === "object") {
+    if (isObjectIdLike(value)) {
+      return value.toString();
+    }
+
+    const nested = value._id || value.id;
+    if (nested && nested !== value) {
+      return normalizeId(nested);
+    }
+
+    if (typeof value.toString === "function") {
+      const asString = value.toString();
+      if (asString && asString !== "[object Object]") return asString;
+    }
+
+    return null;
   }
 
-  return value.toString();
+  return String(value);
 };
 
 const isValidObjectId = (value) => {
-  return mongoose.Types.ObjectId.isValid(String(value || ''));
+  const id = String(value || "").trim();
+  return /^[a-fA-F0-9]{24}$/.test(id);
 };
 
 const getUserRole = (req) => {
-  return String(req.user?.role || '').toLowerCase().trim();
+  return String(req.user?.role || "")
+    .toLowerCase()
+    .trim();
 };
 
 const getRoleId = (req) => {
-  return String(
-    req.user?.role_id ||
-    req.user?.roleId ||
-    ''
-  ).trim();
+  return String(req.user?.role_id || req.user?.roleId || "").trim();
 };
 
 const isSuperAdminUser = (req) => {
@@ -71,18 +94,15 @@ const isSuperAdminUser = (req) => {
   return (
     req.user?.isSuperAdmin === true ||
     req.user?.is_super_admin === true ||
-    role === 'superadmin' ||
-    role === 'super_admin' ||
-    roleId === '0'
+    role === "superadmin" ||
+    role === "super_admin" ||
+    roleId === "0"
   );
 };
 
 const getUserName = (req) => {
   return (
-    req.user?.name ||
-    req.user?.fullName ||
-    req.user?.username ||
-    'Team Member'
+    req.user?.name || req.user?.fullName || req.user?.username || "Team Member"
   );
 };
 
@@ -93,13 +113,13 @@ const getUserName = (req) => {
 const getCurrentUserDetails = async (req) => {
   const userId = getAuthUserId(req);
 
-  if (!userId) {
-    throw new AppError('Authenticated user not found', 401);
+  if (!userId || !isValidObjectId(userId)) {
+    throw new AppError("Authenticated user not found", 401);
   }
 
   const user = await User.findById(userId)
-    .populate('departmentId', 'name')
-    .populate('designationId', 'name')
+    .populate("departmentId", "name")
+    .populate("designationId", "name")
     .lean();
 
   return user;
@@ -110,79 +130,76 @@ const getUserPermissionContext = async (req) => {
 
   const user = await getCurrentUserDetails(req);
 
-  const roleName = String(
-    req.user?.role ||
-    user?.role ||
-    ''
-  ).toLowerCase().trim();
+  const roleName = String(req.user?.role || user?.role || "")
+    .toLowerCase()
+    .trim();
 
   const roleId = String(
     req.user?.role_id ||
-    req.user?.roleId ||
-    user?.role_id ||
-    user?.roleId ||
-    ''
+      req.user?.roleId ||
+      user?.role_id ||
+      user?.roleId ||
+      "",
   ).trim();
 
   const departmentName = String(
-    req.user?.department ||
-    user?.department ||
-    user?.departmentId?.name ||
-    ''
-  ).toLowerCase().trim();
+    req.user?.department || user?.department || user?.departmentId?.name || "",
+  )
+    .toLowerCase()
+    .trim();
 
   const departmentId = normalizeId(
-    req.user?.departmentId ||
-    req.user?.department_id ||
-    user?.departmentId
+    req.user?.departmentId || req.user?.department_id || user?.departmentId,
   );
 
   const designationName = String(
     req.user?.designation ||
-    user?.designation ||
-    user?.designationId?.name ||
-    ''
-  ).toLowerCase().trim();
+      user?.designation ||
+      user?.designationId?.name ||
+      "",
+  )
+    .toLowerCase()
+    .trim();
 
   const isSuperAdmin =
     isSuperAdminUser(req) ||
-    roleName === 'superadmin' ||
-    roleName === 'super_admin' ||
-    roleId === '0';
+    roleName === "superadmin" ||
+    roleName === "super_admin" ||
+    roleId === "0";
 
   const isHrOrAdminDepartment =
-    departmentName.includes('hr') ||
-    departmentName.includes('human resource') ||
-    departmentName.includes('admin') ||
-    departmentName.includes('management');
+    departmentName.includes("hr") ||
+    departmentName.includes("human resource") ||
+    departmentName.includes("admin") ||
+    departmentName.includes("management");
 
   const executiveTitles = [
-    'md',
-    'managing director',
-    'ceo',
-    'chief executive officer',
-    'coo',
-    'chief operating officer',
-    'director',
-    'executive director'
+    "md",
+    "managing director",
+    "ceo",
+    "chief executive officer",
+    "coo",
+    "chief operating officer",
+    "director",
+    "executive director",
   ];
 
   const isExecutive = executiveTitles.some(
-    title =>
+    (title) =>
       designationName === title ||
       designationName.includes(title) ||
       roleName === title ||
-      roleName.includes(title)
+      roleName.includes(title),
   );
 
   const isManagerOrLead =
-    roleName.includes('manager') ||
-    roleName.includes('lead') ||
-    roleName.includes('hod') ||
-    designationName.includes('manager') ||
-    designationName.includes('lead') ||
-    designationName.includes('hod') ||
-    roleId === '2';
+    roleName.includes("manager") ||
+    roleName.includes("lead") ||
+    roleName.includes("hod") ||
+    designationName.includes("manager") ||
+    designationName.includes("lead") ||
+    designationName.includes("hod") ||
+    roleId === "2";
 
   return {
     user,
@@ -196,7 +213,7 @@ const getUserPermissionContext = async (req) => {
     isHrOrAdminDepartment,
     isExecutive,
     isManagerOrLead,
-    isAdminOrHr: isSuperAdmin || isHrOrAdminDepartment || isExecutive
+    isAdminOrHr: isSuperAdmin || isHrOrAdminDepartment || isExecutive,
   };
 };
 
@@ -205,12 +222,12 @@ const getUserPermissionContext = async (req) => {
 ========================================================= */
 
 const getLocalUploadRoot = () =>
-  path.resolve(process.cwd(), 'uploads', 'tasks');
+  path.resolve(process.cwd(), "uploads", "tasks");
 
 const getRelativeUploadUrl = (absoluteFilePath) => {
   const relativePath = path
     .relative(process.cwd(), absoluteFilePath)
-    .replace(/\\/g, '/');
+    .replace(/\\/g, "/");
 
   return `/${relativePath}`;
 };
@@ -222,13 +239,13 @@ const deleteLocalAttachmentFile = async (attachment) => {
 
   if (!candidatePath && attachment.url) {
     try {
-      const url = new URL(attachment.url, 'http://localhost');
-      if (url.pathname.startsWith('/uploads/')) {
-        candidatePath = url.pathname.replace(/^\//, '');
+      const url = new URL(attachment.url, "http://localhost");
+      if (url.pathname.startsWith("/uploads/")) {
+        candidatePath = url.pathname.replace(/^\//, "");
       }
     } catch {
-      candidatePath = String(attachment.url || '')
-        .replace(/^\//, '')
+      candidatePath = String(attachment.url || "")
+        .replace(/^\//, "")
         .trim();
     }
   }
@@ -256,22 +273,22 @@ const processUploadedFiles = async (files, taskId) => {
     if (!file?.path) continue;
 
     const isImage =
-      file.mimetype?.startsWith('image/') ||
+      file.mimetype?.startsWith("image/") ||
       /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif|heic|jfif)$/i.test(
-        file.originalname || ''
+        file.originalname || "",
       );
 
     const relativePath = path
       .relative(process.cwd(), file.path)
-      .replace(/\\/g, '/');
+      .replace(/\\/g, "/");
 
     attachments.push({
       url: `/${relativePath}`,
       path: relativePath,
-      name: file.originalname || 'Attachment',
-      public_id: `${taskId || 'task'}-${Date.now()}-${file.filename || 'attachment'}`,
-      fileType: isImage ? 'image' : 'file',
-      size: Number(file.size) || 0
+      name: file.originalname || "Attachment",
+      public_id: `${taskId || "task"}-${Date.now()}-${file.filename || "attachment"}`,
+      fileType: isImage ? "image" : "file",
+      size: Number(file.size) || 0,
     });
   }
 
@@ -283,7 +300,7 @@ const processUploadedFiles = async (files, taskId) => {
 ========================================================= */
 
 const parseArrayInput = (value) => {
-  if (value === undefined || value === null || value === '') {
+  if (value === undefined || value === null || value === "") {
     return [];
   }
 
@@ -291,7 +308,7 @@ const parseArrayInput = (value) => {
     return value;
   }
 
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
 
@@ -300,8 +317,8 @@ const parseArrayInput = (value) => {
       }
     } catch {
       return value
-        .split(',')
-        .map(item => item.trim())
+        .split(",")
+        .map((item) => item.trim())
         .filter(Boolean);
     }
   }
@@ -313,14 +330,14 @@ const parseAssigneeIds = (value) => {
   const parsed = parseArrayInput(value);
 
   return parsed
-    .map(item => {
-      if (typeof item === 'object' && item !== null) {
+    .map((item) => {
+      if (typeof item === "object" && item !== null) {
         return normalizeId(item);
       }
 
-      return String(item || '').trim();
+      return String(item || "").trim();
     })
-    .filter(id => id && isValidObjectId(id));
+    .filter((id) => id && isValidObjectId(id));
 };
 
 const parseLinks = (value) => {
@@ -328,216 +345,226 @@ const parseLinks = (value) => {
 
   return links
     .filter(Boolean)
-    .map(link => {
-      if (typeof link === 'string') {
+    .map((link) => {
+      if (typeof link === "string") {
         return {
           url: link.trim(),
-          title: link.trim()
+          title: link.trim(),
         };
       }
 
       return {
         ...link,
-        url: String(link.url || '').trim(),
-        title: String(
-          link.title ||
-          link.name ||
-          link.url ||
-          ''
-        ).trim()
+        url: String(link.url || "").trim(),
+        title: String(link.title || link.name || link.url || "").trim(),
       };
     })
-    .filter(link => link.url);
+    .filter((link) => link.url);
 };
 
 const parseSubtasks = (value, userId) => {
   const parsed = parseArrayInput(value);
 
   return parsed
-    .map(st => {
-      if (typeof st === 'string') {
+    .map((st) => {
+      if (typeof st === "string") {
         return {
           title: st.trim(),
           completed: false,
           created_by: userId,
-          completed_by: null
+          completed_by: null,
         };
       }
 
       return {
-        title: String(st?.title || '').trim(),
+        title: String(st?.title || "").trim(),
         completed: Boolean(st?.completed),
-        created_by:
-          normalizeId(st?.created_by) || userId,
-        completed_by:
-          st?.completed
-            ? normalizeId(st?.completed_by) || userId
-            : null
+        created_by: normalizeId(st?.created_by) || userId,
+        completed_by: st?.completed
+          ? normalizeId(st?.completed_by) || userId
+          : null,
       };
     })
-    .filter(st => st.title);
+    .filter((st) => st.title);
 };
 
 /* =========================================================
    FORMAT TASK
 ========================================================= */
 
+const formatUserRef = (user) => {
+  if (!user) return null;
+
+  if (typeof user !== "object" || isObjectIdLike(user)) {
+    return normalizeId(user);
+  }
+
+  const id = normalizeId(user._id || user.id);
+  return {
+    id,
+    _id: id,
+    name: user.name || "",
+    email: user.email || "",
+  };
+};
+
+const formatEntityRef = (entity, extraFields = []) => {
+  if (!entity) return null;
+
+  if (typeof entity !== "object" || isObjectIdLike(entity)) {
+    return normalizeId(entity);
+  }
+
+  const id = normalizeId(entity._id || entity.id);
+  const formatted = { id, _id: id };
+
+  extraFields.forEach((field) => {
+    if (entity[field] !== undefined) formatted[field] = entity[field];
+  });
+
+  return formatted;
+};
+
 const formatLeanTask = (task) => {
   if (!task) return null;
 
   const id = normalizeId(task._id || task.id);
+  const assigneeSource = Array.isArray(task.assigned_to)
+    ? task.assigned_to.filter(Boolean)
+    : task.assigned_to
+      ? [task.assigned_to]
+      : [];
 
   const formatted = {
-    ...task,
-
     id,
-
-    user_id: normalizeId(
-      task.created_by || task.user_id
-    ),
-
-    assigned_to: [],
-
-    file: task.file_url || null,
-
-    image: task.file_url || null,
-
-    attachments:
-      Array.isArray(task.attachments)
-        ? task.attachments
-        : task.file_url
-          ? [
-              {
-                url: task.file_url,
-                name: 'Attachment',
-                public_id: task.file_public_id || null,
-                fileType: 'file'
-              }
-            ]
-          : [],
-
-    links: Array.isArray(task.links)
-      ? task.links
-      : [],
-
+    title: task.title,
+    description: task.description || "",
+    status: task.status,
+    priority: task.priority,
+    designation_id: task.designation_id,
+    dueDate: task.dueDate || null,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    user_id: normalizeId(task.created_by || task.user_id),
+    assigned_to: assigneeSource.map((user) => formatUserRef(user)).filter(Boolean),
+    created_by: formatUserRef(task.created_by) || normalizeId(task.created_by),
+    file: task.file_url || task.file || null,
+    image: task.file_url || task.image || null,
+    file_url: task.file_url || null,
+    attachments: Array.isArray(task.attachments)
+      ? task.attachments.filter(Boolean)
+      : task.file_url
+        ? [
+            {
+              url: task.file_url,
+              name: "Attachment",
+              public_id: task.file_public_id || null,
+              fileType: "file",
+            },
+          ]
+        : [],
+    comments: Array.isArray(task.comments) ? task.comments.filter(Boolean) : [],
+    links: Array.isArray(task.links) ? task.links.filter(Boolean) : [],
     subtasks: Array.isArray(task.subtasks)
-      ? task.subtasks.map(st => ({
-          ...st,
-          id: normalizeId(st?._id || st?.id),
-          created_by:
-            typeof st?.created_by === 'object'
-              ? {
-                  ...st.created_by,
-                  id: normalizeId(
-                    st.created_by._id ||
-                    st.created_by.id
-                  )
-                }
-              : st?.created_by,
-          completed_by:
-            typeof st?.completed_by === 'object'
-              ? {
-                  ...st.completed_by,
-                  id: normalizeId(
-                    st.completed_by._id ||
-                    st.completed_by.id
-                  )
-                }
-              : st?.completed_by
+      ? task.subtasks.filter(Boolean).map((st) => ({
+          title: st.title,
+          completed: Boolean(st.completed),
+          createdAt: st.createdAt,
+          id: normalizeId(st._id || st.id),
+          created_by: formatUserRef(st.created_by) || st.created_by || null,
+          completed_by: formatUserRef(st.completed_by) || st.completed_by || null,
         }))
       : [],
-
     client_id: normalizeId(task.client),
-
-    project_id: normalizeId(task.project)
+    project_id: normalizeId(task.project),
+    client: formatEntityRef(task.client, [
+      "companyName",
+      "clientName",
+      "clientId",
+    ]),
+    project: formatEntityRef(task.project, [
+      "projectName",
+      "projectCode",
+      "status",
+    ]),
   };
 
-  /* Assigned users */
+  return formatted;
+};
 
-  if (Array.isArray(task.assigned_to)) {
-    formatted.assigned_to =
-      task.assigned_to
-        .filter(Boolean)
-        .map(user => {
-          if (typeof user === 'object') {
-            return {
-              ...user,
-              id: normalizeId(
-                user._id || user.id
-              )
-            };
-          }
+const TASK_POPULATE = [
+  { path: "assigned_to", select: "name email", strictPopulate: false },
+  { path: "created_by", select: "name email", strictPopulate: false },
+  { path: "subtasks.created_by", select: "name email", strictPopulate: false },
+  { path: "subtasks.completed_by", select: "name email", strictPopulate: false },
+  {
+    path: "client",
+    select: "companyName clientName clientId",
+    strictPopulate: false,
+  },
+  {
+    path: "project",
+    select: "projectName projectCode status",
+    strictPopulate: false,
+  },
+];
 
-          return String(user);
-        });
-  } else if (task.assigned_to) {
-    formatted.assigned_to = [
-      typeof task.assigned_to === 'object'
-        ? {
-            ...task.assigned_to,
-            id: normalizeId(
-              task.assigned_to._id ||
-              task.assigned_to.id
-            )
-          }
-        : String(task.assigned_to)
-    ];
+const applyTaskPopulates = (query) => {
+  TASK_POPULATE.forEach((spec) => {
+    query.populate(spec);
+  });
+  return query;
+};
+
+const formatTaskList = (tasks) => {
+  if (!Array.isArray(tasks)) return [];
+
+  const formatted = [];
+
+  for (const task of tasks) {
+    try {
+      const safeTask = formatLeanTask(task);
+      if (safeTask) formatted.push(safeTask);
+    } catch (formatError) {
+      console.error(
+        "Skipping unreadable task during format:",
+        task?._id || task?.id,
+        formatError.message,
+      );
+    }
   }
-
-  /* Created by */
-
-  if (
-    formatted.created_by &&
-    typeof formatted.created_by === 'object'
-  ) {
-    formatted.created_by = {
-      ...formatted.created_by,
-      id: normalizeId(
-        formatted.created_by._id ||
-        formatted.created_by.id
-      )
-    };
-  }
-
-  /* Client */
-
-  if (
-    task.client &&
-    typeof task.client === 'object'
-  ) {
-    formatted.client = {
-      ...task.client,
-      id: normalizeId(
-        task.client._id ||
-        task.client.id
-      )
-    };
-  } else {
-    formatted.client = task.client || null;
-  }
-
-  /* Project */
-
-  if (
-    task.project &&
-    typeof task.project === 'object'
-  ) {
-    formatted.project = {
-      ...task.project,
-      id: normalizeId(
-        task.project._id ||
-        task.project.id
-      )
-    };
-  } else {
-    formatted.project = task.project || null;
-  }
-
-  delete formatted._id;
-  delete formatted.__v;
-  delete formatted.file_public_id;
 
   return formatted;
+};
+
+const findTasksSafe = async (filter) => {
+  const query = filter && typeof filter === "object" ? filter : {};
+
+  try {
+    return await applyTaskPopulates(Task.find(query))
+      .select("-file_public_id")
+      .sort({ createdAt: -1 })
+      .lean();
+  } catch (populateError) {
+    console.error(
+      "Task populate failed, retrying without populate:",
+      populateError.message,
+    );
+  }
+
+  try {
+    return await Task.find(query)
+      .select("-file_public_id")
+      .sort({ createdAt: -1 })
+      .lean();
+  } catch (findError) {
+    console.error(
+      "Mongoose Task.find failed, falling back to raw collection:",
+      findError.message,
+    );
+  }
+
+  return Task.collection.find(query).sort({ createdAt: -1 }).toArray();
 };
 
 /* =========================================================
@@ -545,20 +572,15 @@ const formatLeanTask = (task) => {
 ========================================================= */
 
 const getPopulatedTask = async (taskId) => {
-  return Task.findById(taskId)
-    .populate('assigned_to', 'name email')
-    .populate('created_by', 'name email')
-    .populate('subtasks.created_by', 'name email')
-    .populate('subtasks.completed_by', 'name email')
-    .populate(
-      'client',
-      'companyName clientName clientId'
-    )
-    .populate(
-      'project',
-      'projectName projectCode status'
-    )
-    .lean();
+  try {
+    return await applyTaskPopulates(Task.findById(taskId)).lean();
+  } catch (populateError) {
+    console.error(
+      "getPopulatedTask populate failed, returning lean document:",
+      populateError.message,
+    );
+    return Task.findById(taskId).lean();
+  }
 };
 
 /* =========================================================
@@ -569,8 +591,7 @@ export const syncProjectProgress = async (projectId) => {
   if (!projectId) return;
 
   try {
-    const projectIdString =
-      normalizeId(projectId);
+    const projectIdString = normalizeId(projectId);
 
     if (!projectIdString) return;
 
@@ -578,55 +599,36 @@ export const syncProjectProgress = async (projectId) => {
       return;
     }
 
-    const totalTasks =
-      await Task.countDocuments({
-        project: projectIdString
-      });
+    const totalTasks = await Task.countDocuments({
+      project: projectIdString,
+    });
 
     if (totalTasks === 0) {
-      await Project.findByIdAndUpdate(
-        projectIdString,
-        {
-          $set: {
-            progress: 0
-          }
-        }
-      );
+      await Project.findByIdAndUpdate(projectIdString, {
+        $set: {
+          progress: 0,
+        },
+      });
 
       return;
     }
 
-    const completedTasks =
-      await Task.countDocuments({
-        project: projectIdString,
-        status: {
-          $in: [
-            'completed',
-            'done',
-            'Completed',
-            'Done',
-            'DONE'
-          ]
-        }
-      });
+    const completedTasks = await Task.countDocuments({
+      project: projectIdString,
+      status: {
+        $in: ["completed", "done", "Completed", "Done", "DONE"],
+      },
+    });
 
-    const progress = Math.round(
-      (completedTasks / totalTasks) * 100
-    );
+    const progress = Math.round((completedTasks / totalTasks) * 100);
 
-    await Project.findByIdAndUpdate(
-      projectIdString,
-      {
-        $set: {
-          progress
-        }
-      }
-    );
+    await Project.findByIdAndUpdate(projectIdString, {
+      $set: {
+        progress,
+      },
+    });
   } catch (error) {
-    console.error(
-      'Failed to sync project progress:',
-      error.message
-    );
+    console.error("Failed to sync project progress:", error.message);
   }
 };
 
@@ -635,19 +637,12 @@ export const syncProjectProgress = async (projectId) => {
    POST /api/v1/tasks/create
 ========================================================= */
 
-export const createTask = async (
-  req,
-  res,
-  next
-) => {
+export const createTask = async (req, res, next) => {
   try {
     const userId = getAuthUserId(req);
 
     if (!userId) {
-      throw new AppError(
-        'Authentication required',
-        401
-      );
+      throw new AppError("Authentication required", 401);
     }
 
     const {
@@ -659,141 +654,103 @@ export const createTask = async (
       client,
       project,
       priority,
-      status
+      status,
     } = req.body;
 
     if (!title?.trim()) {
-      throw new AppError(
-        'Task title is required',
-        400
-      );
+      throw new AppError("Task title is required", 400);
     }
 
-    const assigneeIds =
-      parseAssigneeIds(assigned_to);
+    const assigneeIds = parseAssigneeIds(assigned_to);
 
     if (assigneeIds.length === 0) {
-      throw new AppError(
-        'At least one assigned user is required',
-        400
-      );
+      throw new AppError("At least one assigned user is required", 400);
     }
 
     /* Verify assignees exist */
 
-    const assigneeCount =
-      await User.countDocuments({
-        _id: {
-          $in: assigneeIds
-        }
-      });
+    const assigneeCount = await User.countDocuments({
+      _id: {
+        $in: assigneeIds,
+      },
+    });
 
     if (assigneeCount !== assigneeIds.length) {
-      throw new AppError(
-        'One or more assigned users do not exist',
-        400
-      );
+      throw new AppError("One or more assigned users do not exist", 400);
     }
 
     /* Files */
 
-    const filesList =
-      Array.isArray(req.files)
-        ? req.files
-        : req.file
-          ? [req.file]
-          : [];
+    const filesList = Array.isArray(req.files)
+      ? req.files
+      : req.file
+        ? [req.file]
+        : [];
 
-    const attachments =
-      await processUploadedFiles(filesList);
+    const attachments = await processUploadedFiles(filesList);
 
-    const fileUrl =
-      attachments[0]?.url || null;
+    const fileUrl = attachments[0]?.url || null;
 
-    const filePublicId =
-      attachments[0]?.public_id || null;
+    const filePublicId = attachments[0]?.public_id || null;
 
     /* Links */
 
-    const links =
-      parseLinks(req.body.links);
+    const links = parseLinks(req.body.links);
 
     /* Subtasks */
 
-    const subtasks =
-      parseSubtasks(
-        req.body.subtasks,
-        userId
-      );
+    const subtasks = parseSubtasks(req.body.subtasks, userId);
 
     /* Client */
 
     const clientId =
-      client &&
-      isValidObjectId(client)
+      client && isValidObjectId(client)
         ? new mongoose.Types.ObjectId(client)
         : null;
 
     /* Project */
 
     const projectId =
-      project &&
-      isValidObjectId(project)
+      project && isValidObjectId(project)
         ? new mongoose.Types.ObjectId(project)
         : null;
 
     /* Status */
 
     const normalizedStatus =
-      status &&
-      VALID_STATUSES.includes(
-        String(status).toLowerCase()
-      )
+      status && VALID_STATUSES.includes(String(status).toLowerCase())
         ? String(status).toLowerCase()
-        : 'pending';
+        : "pending";
 
     /* Priority */
 
     const normalizedPriority =
-      priority &&
-      VALID_PRIORITIES.includes(
-        String(priority).toLowerCase()
-      )
+      priority && VALID_PRIORITIES.includes(String(priority).toLowerCase())
         ? String(priority).toLowerCase()
-        : 'medium';
+        : "medium";
 
     const task = new Task({
       title: title.trim(),
 
-      description:
-        description?.trim() || '',
+      description: description?.trim() || "",
 
-      assigned_to:
-        assigneeIds,
+      assigned_to: assigneeIds,
 
-      designation_id:
-        designation_id || undefined,
+      designation_id: designation_id || undefined,
 
-      dueDate:
-        dueDate || undefined,
+      dueDate: dueDate || undefined,
 
-      client:
-        clientId,
+      client: clientId,
 
-      project:
-        projectId,
+      project: projectId,
 
-      status:
-        normalizedStatus,
+      status: normalizedStatus,
 
-      priority:
-        normalizedPriority,
+      priority: normalizedPriority,
 
-      created_by:
-        userId,
+      created_by: userId,
 
-      user_id:
-        userId,
+      user_id: userId,
 
       attachments,
 
@@ -801,14 +758,11 @@ export const createTask = async (
 
       subtasks,
 
-      file_url:
-        fileUrl,
+      file_url: fileUrl,
 
-      file_public_id:
-        filePublicId,
+      file_public_id: filePublicId,
 
-      image:
-        fileUrl
+      image: fileUrl,
     });
 
     await task.save();
@@ -817,82 +771,62 @@ export const createTask = async (
       await syncProjectProgress(projectId);
     }
 
-    const populatedTask =
-      await getPopulatedTask(task._id);
+    const populatedTask = await getPopulatedTask(task._id);
 
     /* Notifications */
 
     try {
-      const assignees =
-        Array.isArray(
-          populatedTask?.assigned_to
-        )
-          ? populatedTask.assigned_to
-          : [];
+      const assignees = Array.isArray(populatedTask?.assigned_to)
+        ? populatedTask.assigned_to
+        : [];
 
-      const creatorName =
-        populatedTask?.created_by?.name ||
-        getUserName(req);
+      const creatorName = populatedTask?.created_by?.name || getUserName(req);
 
       for (const assignee of assignees) {
-        const assigneeId =
-          normalizeId(assignee);
+        const assigneeId = normalizeId(assignee);
 
         if (!assigneeId) continue;
 
         await sendNotification(
           assigneeId,
           `You have been assigned a new task: "${task.title}". Due date: ${
-            dueDate
-              ? new Date(
-                  dueDate
-                ).toLocaleDateString()
-              : 'No deadline'
+            dueDate ? new Date(dueDate).toLocaleDateString() : "No deadline"
           }`,
-          'task_assigned',
+          "task_assigned",
           `New Task Assigned: ${task.title}`,
           userId,
-          creatorName
+          creatorName,
         );
 
         if (assignee.email) {
           await sendTaskAssignmentEmail({
-            recipientEmail:
-              assignee.email,
+            recipientEmail: assignee.email,
 
-            recipientName:
-              assignee.name || 'Team Member',
+            recipientName: assignee.name || "Team Member",
 
-            taskTitle:
-              task.title,
+            taskTitle: task.title,
 
-            taskDescription:
-              task.description,
+            taskDescription: task.description,
 
-            dueDate:
-              task.dueDate,
+            dueDate: task.dueDate,
 
-            creatorName
+            creatorName,
           });
         }
       }
     } catch (notificationError) {
       console.error(
-        'Task assignment notification failed:',
-        notificationError.message
+        "Task assignment notification failed:",
+        notificationError.message,
       );
     }
 
     return res.status(201).json({
       success: true,
-      task:
-        formatLeanTask(populatedTask)
+      task: formatLeanTask(populatedTask),
     });
   } catch (error) {
-    console.error(
-      'CREATE TASK ERROR:',
-      error
-    );
+    console.error("CREATE TASK ERROR:", error);
 
     next(error);
   }
@@ -903,25 +837,14 @@ export const createTask = async (
    GET /api/v1/tasks/all
 ========================================================= */
 
-export const getAllTasks = async (
-  req,
-  res,
-  next
-) => {
+export const getAllTasks = async (req, res, next) => {
   try {
-    const context =
-      await getUserPermissionContext(req);
+    const context = await getUserPermissionContext(req);
 
-    const {
-      userId,
-      isAdminOrHr,
-      isManagerOrLead
-    } = context;
+    const { userId, isAdminOrHr, isManagerOrLead } = context;
 
     const targetUserId =
-      req.query.user_id ||
-      req.query.userId ||
-      req.query.targetUserId;
+      req.query.user_id || req.query.userId || req.query.targetUserId;
 
     let query = {};
 
@@ -929,10 +852,7 @@ export const getAllTasks = async (
 
     if (targetUserId) {
       if (!isValidObjectId(targetUserId)) {
-        throw new AppError(
-          'Invalid user ID',
-          400
-        );
+        throw new AppError("Invalid user ID", 400);
       }
 
       /*
@@ -944,74 +864,48 @@ export const getAllTasks = async (
       if (
         !isAdminOrHr &&
         !isManagerOrLead &&
-        String(targetUserId) !==
-          String(userId)
+        String(targetUserId) !== String(userId)
       ) {
         throw new AppError(
-          'Forbidden: You cannot view another user tasks',
-          403
+          "Forbidden: You cannot view another user tasks",
+          403,
         );
       }
 
       query = {
         $or: [
           {
-            created_by:
-              targetUserId
+            created_by: targetUserId,
           },
           {
-            assigned_to:
-              targetUserId
+            assigned_to: targetUserId,
           },
           {
-            user_id:
-              targetUserId
-          }
-        ]
+            user_id: targetUserId,
+          },
+        ],
       };
-    }
-
-    /* Admin / HR / Executive */
-
-    else if (isAdminOrHr) {
+    } else if (isAdminOrHr) {
+      /* Admin / HR / Executive */
       query = {};
-    }
+    } else if (isManagerOrLead) {
+      /* Manager / Team Lead */
+      const Department = (
+        await import("../modules/departments/department.model.js")
+      ).default;
 
-    /* Manager / Team Lead */
+      const ledDepartments = await Department.find({
+        managerId: userId,
+      }).select("_id");
 
-    else if (isManagerOrLead) {
-      const Department =
-        (
-          await import(
-            '../modules/departments/department.model.js'
-          )
-        ).default;
+      const departmentIds = ledDepartments.map((department) => department._id);
 
-      const ledDepartments =
-        await Department.find({
-          managerId: userId
-        }).select('_id');
+      const currentUser = await User.findById(userId)
+        .select("departmentId department")
+        .lean();
 
-      const departmentIds =
-        ledDepartments.map(
-          department =>
-            department._id
-        );
-
-      const currentUser =
-        await User.findById(userId)
-          .select(
-            'departmentId department'
-          )
-          .lean();
-
-      if (
-        departmentIds.length === 0 &&
-        currentUser?.departmentId
-      ) {
-        departmentIds.push(
-          currentUser.departmentId
-        );
+      if (departmentIds.length === 0 && currentUser?.departmentId) {
+        departmentIds.push(currentUser.departmentId);
       }
 
       const usersInDepartment =
@@ -1020,17 +914,14 @@ export const getAllTasks = async (
               $or: [
                 {
                   departmentId: {
-                    $in: departmentIds
-                  }
-                }
-              ]
-            }).select('_id')
+                    $in: departmentIds,
+                  },
+                },
+              ],
+            }).select("_id")
           : [];
 
-      const teamUserIds =
-        usersInDepartment.map(
-          user => user._id
-        );
+      const teamUserIds = usersInDepartment.map((user) => user._id);
 
       teamUserIds.push(userId);
 
@@ -1038,67 +929,33 @@ export const getAllTasks = async (
         $or: [
           {
             assigned_to: {
-              $in: teamUserIds
-            }
+              $in: teamUserIds,
+            },
           },
           {
-            created_by: userId
-          }
-        ]
+            created_by: userId,
+          },
+        ],
       };
-    }
-
-    /* Normal user */
-
-    else {
+    } else {
+      /* Normal user */
       query = {
         $or: [
           {
-            assigned_to: userId
+            assigned_to: userId,
           },
           {
-            created_by: userId
-          }
-        ]
+            created_by: userId,
+          },
+        ],
       };
     }
 
-    const tasks =
-      await Task.find(query)
-        .populate(
-          'assigned_to',
-          'name email'
-        )
-        .populate(
-          'created_by',
-          'name email'
-        )
-        .populate(
-          'subtasks.created_by',
-          'name email'
-        )
-        .populate(
-          'subtasks.completed_by',
-          'name email'
-        )
-        .populate(
-          'client',
-          'companyName clientName clientId'
-        )
-        .populate(
-          'project',
-          'projectName projectCode status'
-        )
-        .select('-file_public_id')
-        .sort({
-          createdAt: -1
-        })
-        .lean();
+    const tasks = await findTasksSafe(query);
 
-    return res.status(200).json(
-      tasks.map(formatLeanTask)
-    );
+    return res.status(200).json(formatTaskList(tasks));
   } catch (error) {
+    console.error("GET ALL TASKS ERROR:", error);
     next(error);
   }
 };
@@ -1108,33 +965,19 @@ export const getAllTasks = async (
    GET /api/v1/tasks/user/tasks?user_id=...
 ========================================================= */
 
-export const getUserTasks = async (
-  req,
-  res,
-  next
-) => {
+export const getUserTasks = async (req, res, next) => {
   try {
-    const {
-      userId,
-      isAdminOrHr,
-      isManagerOrLead
-    } =
+    const { userId, isAdminOrHr, isManagerOrLead } =
       await getUserPermissionContext(req);
 
     const { user_id } = req.query;
 
     if (!user_id) {
-      throw new AppError(
-        'user_id is required',
-        400
-      );
+      throw new AppError("user_id is required", 400);
     }
 
     if (!isValidObjectId(user_id)) {
-      throw new AppError(
-        'Invalid user ID',
-        400
-      );
+      throw new AppError("Invalid user ID", 400);
     }
 
     if (
@@ -1142,50 +985,16 @@ export const getUserTasks = async (
       !isManagerOrLead &&
       String(user_id) !== String(userId)
     ) {
-      throw new AppError(
-        'Access denied. Insufficient permissions.',
-        403
-      );
+      throw new AppError("Access denied. Insufficient permissions.", 403);
     }
 
-    const tasks =
-      await Task.find({
-        assigned_to: user_id
-      })
-        .populate(
-          'assigned_to',
-          'name email'
-        )
-        .populate(
-          'created_by',
-          'name email'
-        )
-        .populate(
-          'subtasks.created_by',
-          'name email'
-        )
-        .populate(
-          'subtasks.completed_by',
-          'name email'
-        )
-        .populate(
-          'client',
-          'companyName clientName clientId'
-        )
-        .populate(
-          'project',
-          'projectName projectCode status'
-        )
-        .select('-file_public_id')
-        .sort({
-          createdAt: -1
-        })
-        .lean();
+    const tasks = await findTasksSafe({
+      assigned_to: user_id,
+    });
 
-    return res.status(200).json(
-      tasks.map(formatLeanTask)
-    );
+    return res.status(200).json(formatTaskList(tasks));
   } catch (error) {
+    console.error("GET USER TASKS ERROR:", error);
     next(error);
   }
 };
@@ -1195,67 +1004,28 @@ export const getUserTasks = async (
    GET /api/v1/tasks/current-user/tasks
 ========================================================= */
 
-export const getCurrentUserTasks = async (
-  req,
-  res,
-  next
-) => {
+export const getCurrentUserTasks = async (req, res, next) => {
   try {
-    const userId =
-      getAuthUserId(req);
+    const userId = getAuthUserId(req);
 
-    if (!userId) {
-      throw new AppError(
-        'Authentication required',
-        401
-      );
+    if (!userId || !isValidObjectId(userId)) {
+      throw new AppError("Authentication required", 401);
     }
 
-    const tasks =
-      await Task.find({
-        $or: [
-          {
-            assigned_to: userId
-          },
-          {
-            created_by: userId
-          }
-        ]
-      })
-        .populate(
-          'assigned_to',
-          'name email'
-        )
-        .populate(
-          'created_by',
-          'name email'
-        )
-        .populate(
-          'subtasks.created_by',
-          'name email'
-        )
-        .populate(
-          'subtasks.completed_by',
-          'name email'
-        )
-        .populate(
-          'client',
-          'companyName clientName clientId'
-        )
-        .populate(
-          'project',
-          'projectName projectCode status'
-        )
-        .select('-file_public_id')
-        .sort({
-          createdAt: -1
-        })
-        .lean();
+    const tasks = await findTasksSafe({
+      $or: [
+        {
+          assigned_to: userId,
+        },
+        {
+          created_by: userId,
+        },
+      ],
+    });
 
-    return res.status(200).json(
-      tasks.map(formatLeanTask)
-    );
+    return res.status(200).json(formatTaskList(tasks));
   } catch (error) {
+    console.error("GET CURRENT USER TASKS ERROR:", error);
     next(error);
   }
 };
@@ -1265,54 +1035,34 @@ export const getCurrentUserTasks = async (
    DELETE /api/v1/tasks/delete/:task_id
 ========================================================= */
 
-export const deleteTask = async (
-  req,
-  res,
-  next
-) => {
+export const deleteTask = async (req, res, next) => {
   try {
-    const { task_id } =
-      req.params;
+    const { task_id } = req.params;
 
     if (!isValidObjectId(task_id)) {
-      throw new AppError(
-        'Invalid task ID',
-        400
-      );
+      throw new AppError("Invalid task ID", 400);
     }
 
-    const task =
-      await Task.findById(task_id);
+    const task = await Task.findById(task_id);
 
     if (!task) {
+      throw new AppError("Task not found", 404);
+    }
+
+    const userId = getAuthUserId(req);
+
+    const isCreator = normalizeId(task.created_by) === String(userId);
+
+    const isSuperAdmin = isSuperAdminUser(req);
+
+    if (!isCreator && !isSuperAdmin) {
       throw new AppError(
-        'Task not found',
-        404
+        "Forbidden: Only the task creator or SuperAdmin can delete this task",
+        403,
       );
     }
 
-    const userId =
-      getAuthUserId(req);
-
-    const isCreator =
-      normalizeId(task.created_by) ===
-      String(userId);
-
-    const isSuperAdmin =
-      isSuperAdminUser(req);
-
-    if (
-      !isCreator &&
-      !isSuperAdmin
-    ) {
-      throw new AppError(
-        'Forbidden: Only the task creator or SuperAdmin can delete this task',
-        403
-      );
-    }
-
-    const projectId =
-      task.project;
+    const projectId = task.project;
 
     /* Delete all local task attachments */
     if (Array.isArray(task.attachments)) {
@@ -1321,22 +1071,27 @@ export const deleteTask = async (
       }
     }
 
-    if (task.file_public_id && !task.attachments?.some((attachment) => attachment.public_id === task.file_public_id)) {
-      await deleteLocalAttachmentFile({ path: task.file_url || '', url: task.file_url || '' });
+    if (
+      task.file_public_id &&
+      !task.attachments?.some(
+        (attachment) => attachment.public_id === task.file_public_id,
+      )
+    ) {
+      await deleteLocalAttachmentFile({
+        path: task.file_url || "",
+        url: task.file_url || "",
+      });
     }
 
     await task.deleteOne();
 
     if (projectId) {
-      await syncProjectProgress(
-        projectId
-      );
+      await syncProjectProgress(projectId);
     }
 
     return res.status(200).json({
       success: true,
-      message:
-        'Task and associated resources deleted successfully'
+      message: "Task and associated resources deleted successfully",
     });
   } catch (error) {
     next(error);
@@ -1348,191 +1103,117 @@ export const deleteTask = async (
    PUT /api/v1/tasks/task-status/:task_id
 ========================================================= */
 
-export const updateTaskStatus = async (
-  req,
-  res,
-  next
-) => {
+export const updateTaskStatus = async (req, res, next) => {
   try {
-    const { task_id } =
-      req.params;
+    const { task_id } = req.params;
 
-    const requestedStatus =
-      req.body?.status ??
-      req.query?.status;
+    const requestedStatus = req.body?.status ?? req.query?.status;
 
     if (!requestedStatus) {
+      throw new AppError("Task status is required", 400);
+    }
+
+    const normalizedStatus = String(requestedStatus).trim().toLowerCase();
+
+    if (!VALID_STATUSES.includes(normalizedStatus)) {
       throw new AppError(
-        'Task status is required',
-        400
+        `Invalid task status. Allowed values: ${VALID_STATUSES.join(", ")}`,
+        400,
       );
     }
 
-    const normalizedStatus =
-      String(
-        requestedStatus
-      )
-        .trim()
-        .toLowerCase();
-
-    if (
-      !VALID_STATUSES.includes(
-        normalizedStatus
-      )
-    ) {
-      throw new AppError(
-        `Invalid task status. Allowed values: ${VALID_STATUSES.join(', ')}`,
-        400
-      );
-    }
-
-    const task =
-      await Task.findById(task_id);
+    const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError(
-        'Task not found',
-        404
-      );
+      throw new AppError("Task not found", 404);
     }
 
-    const userId =
-      getAuthUserId(req);
+    const userId = getAuthUserId(req);
 
-    const isCreator =
-      normalizeId(task.created_by) ===
-      String(userId);
+    const isCreator = normalizeId(task.created_by) === String(userId);
 
     const isAssignee =
       Array.isArray(task.assigned_to) &&
-      task.assigned_to.some(
-        id =>
-          normalizeId(id) ===
-          String(userId)
-      );
+      task.assigned_to.some((id) => normalizeId(id) === String(userId));
 
-    const isSuperAdmin =
-      isSuperAdminUser(req);
+    const isSuperAdmin = isSuperAdminUser(req);
 
-    if (
-      !isCreator &&
-      !isAssignee &&
-      !isSuperAdmin
-    ) {
+    if (!isCreator && !isAssignee && !isSuperAdmin) {
       throw new AppError(
-        'Forbidden: You are not allowed to update this task status',
-        403
+        "Forbidden: You are not allowed to update this task status",
+        403,
       );
     }
 
-    const oldStatus =
-      task.status;
+    const oldStatus = task.status;
 
-    task.status =
-      normalizedStatus;
+    task.status = normalizedStatus;
 
     await task.save();
 
     if (task.project) {
-      await syncProjectProgress(
-        task.project
-      );
+      await syncProjectProgress(task.project);
     }
 
-    const populatedTask =
-      await getPopulatedTask(
-        task._id
-      );
+    const populatedTask = await getPopulatedTask(task._id);
 
     try {
       const recipients = [];
 
-      if (
-        populatedTask?.created_by
-      ) {
-        recipients.push(
-          populatedTask.created_by
-        );
+      if (populatedTask?.created_by) {
+        recipients.push(populatedTask.created_by);
       }
 
-      if (
-        Array.isArray(
-          populatedTask?.assigned_to
-        )
-      ) {
-        recipients.push(
-          ...populatedTask.assigned_to
-        );
+      if (Array.isArray(populatedTask?.assigned_to)) {
+        recipients.push(...populatedTask.assigned_to);
       }
 
-      const uniqueRecipients =
-        Array.from(
-          new Map(
-            recipients
-              .filter(Boolean)
-              .map(user => [
-                normalizeId(user),
-                user
-              ])
-          ).values()
-        );
+      const uniqueRecipients = Array.from(
+        new Map(
+          recipients.filter(Boolean).map((user) => [normalizeId(user), user]),
+        ).values(),
+      );
 
-      const updaterName =
-        getUserName(req);
+      const updaterName = getUserName(req);
 
-      for (
-        const recipient
-        of uniqueRecipients
-      ) {
-        const recipientId =
-          normalizeId(recipient);
+      for (const recipient of uniqueRecipients) {
+        const recipientId = normalizeId(recipient);
 
         if (!recipientId) continue;
 
         await sendNotification(
           recipientId,
           `Task "${task.title}" status changed from "${oldStatus}" to "${normalizedStatus}" by ${updaterName}.`,
-          'task_status_changed',
+          "task_status_changed",
           `Task Status Updated: ${task.title}`,
           userId,
-          updaterName
+          updaterName,
         );
 
         if (recipient.email) {
           await sendTaskStatusUpdateEmail({
-            recipientEmail:
-              recipient.email,
+            recipientEmail: recipient.email,
 
-            recipientName:
-              recipient.name ||
-              'Team Member',
+            recipientName: recipient.name || "Team Member",
 
-            taskTitle:
-              task.title,
+            taskTitle: task.title,
 
-            oldStatus:
-              oldStatus,
+            oldStatus: oldStatus,
 
-            newStatus:
-              normalizedStatus,
+            newStatus: normalizedStatus,
 
-            updatedByName:
-              updaterName
+            updatedByName: updaterName,
           });
         }
       }
     } catch (notificationError) {
       console.error(
-        'Task status notification failed:',
-        notificationError.message
+        "Task status notification failed:",
+        notificationError.message,
       );
     }
 
-    return res.status(200).json(
-      formatLeanTask(
-        populatedTask
-      )
-    );
+    return res.status(200).json(formatLeanTask(populatedTask));
   } catch (error) {
     next(error);
   }
@@ -1543,54 +1224,34 @@ export const updateTaskStatus = async (
    PUT /api/v1/tasks/update/:task_id
 ========================================================= */
 
-export const updateTask = async (
-  req,
-  res,
-  next
-) => {
+export const updateTask = async (req, res, next) => {
   try {
-    const { task_id } =
-      req.params;
+    const { task_id } = req.params;
 
     if (!isValidObjectId(task_id)) {
-      throw new AppError(
-        'Invalid task ID',
-        400
-      );
+      throw new AppError("Invalid task ID", 400);
     }
 
-    const task =
-      await Task.findById(task_id);
+    const task = await Task.findById(task_id);
 
     if (!task) {
+      throw new AppError("Task not found", 404);
+    }
+
+    const userId = getAuthUserId(req);
+
+    const isCreator = normalizeId(task.created_by) === String(userId);
+
+    const isSuperAdmin = isSuperAdminUser(req);
+
+    if (!isCreator && !isSuperAdmin) {
       throw new AppError(
-        'Task not found',
-        404
+        "Forbidden: Only the task creator or SuperAdmin can edit this task",
+        403,
       );
     }
 
-    const userId =
-      getAuthUserId(req);
-
-    const isCreator =
-      normalizeId(task.created_by) ===
-      String(userId);
-
-    const isSuperAdmin =
-      isSuperAdminUser(req);
-
-    if (
-      !isCreator &&
-      !isSuperAdmin
-    ) {
-      throw new AppError(
-        'Forbidden: Only the task creator or SuperAdmin can edit this task',
-        403
-      );
-    }
-
-    const oldProjectId =
-      normalizeId(task.project);
+    const oldProjectId = normalizeId(task.project);
 
     const {
       title,
@@ -1601,328 +1262,200 @@ export const updateTask = async (
       project,
       priority,
       dueDate,
-      status
+      status,
     } = req.body;
 
     /* Basic fields */
 
     if (title !== undefined) {
       if (!String(title).trim()) {
-        throw new AppError(
-          'Task title cannot be empty',
-          400
-        );
+        throw new AppError("Task title cannot be empty", 400);
       }
 
-      task.title =
-        String(title).trim();
+      task.title = String(title).trim();
     }
 
     if (description !== undefined) {
-      task.description =
-        String(description);
+      task.description = String(description);
     }
 
     /* Assignees */
 
-    if (
-      assigned_to !== undefined
-    ) {
-      const assigneeIds =
-        parseAssigneeIds(
-          assigned_to
-        );
+    if (assigned_to !== undefined) {
+      const assigneeIds = parseAssigneeIds(assigned_to);
 
-      if (
-        assigneeIds.length === 0
-      ) {
-        throw new AppError(
-          'At least one assigned user is required',
-          400
-        );
+      if (assigneeIds.length === 0) {
+        throw new AppError("At least one assigned user is required", 400);
       }
 
-      const assigneeCount =
-        await User.countDocuments({
-          _id: {
-            $in: assigneeIds
-          }
-        });
+      const assigneeCount = await User.countDocuments({
+        _id: {
+          $in: assigneeIds,
+        },
+      });
 
-      if (
-        assigneeCount !==
-        assigneeIds.length
-      ) {
-        throw new AppError(
-          'One or more assigned users do not exist',
-          400
-        );
+      if (assigneeCount !== assigneeIds.length) {
+        throw new AppError("One or more assigned users do not exist", 400);
       }
 
-      task.assigned_to =
-        assigneeIds;
+      task.assigned_to = assigneeIds;
     }
 
     /* Status */
 
     if (status !== undefined) {
-      const normalizedStatus =
-        String(status)
-          .trim()
-          .toLowerCase();
+      const normalizedStatus = String(status).trim().toLowerCase();
 
-      if (
-        !VALID_STATUSES.includes(
-          normalizedStatus
-        )
-      ) {
-        throw new AppError(
-          'Invalid task status',
-          400
-        );
+      if (!VALID_STATUSES.includes(normalizedStatus)) {
+        throw new AppError("Invalid task status", 400);
       }
 
-      task.status =
-        normalizedStatus;
+      task.status = normalizedStatus;
     }
 
     /* Priority */
 
-    if (
-      priority !== undefined
-    ) {
-      const normalizedPriority =
-        String(priority)
-          .trim()
-          .toLowerCase();
+    if (priority !== undefined) {
+      const normalizedPriority = String(priority).trim().toLowerCase();
 
-      if (
-        !VALID_PRIORITIES.includes(
-          normalizedPriority
-        )
-      ) {
-        throw new AppError(
-          'Invalid task priority',
-          400
-        );
+      if (!VALID_PRIORITIES.includes(normalizedPriority)) {
+        throw new AppError("Invalid task priority", 400);
       }
 
-      task.priority =
-        normalizedPriority;
+      task.priority = normalizedPriority;
     }
 
     /* Due date */
 
-    if (
-      dueDate !== undefined
-    ) {
-      task.dueDate =
-        dueDate || null;
+    if (dueDate !== undefined) {
+      task.dueDate = dueDate || null;
     }
 
     /* Client */
 
-    if (
-      client !== undefined
-    ) {
+    if (client !== undefined) {
       task.client =
-        client &&
-        isValidObjectId(client)
-          ? new mongoose.Types.ObjectId(
-              client
-            )
+        client && isValidObjectId(client)
+          ? new mongoose.Types.ObjectId(client)
           : null;
     }
 
     /* Project */
 
-    if (
-      project !== undefined
-    ) {
+    if (project !== undefined) {
       task.project =
-        project &&
-        isValidObjectId(project)
-          ? new mongoose.Types.ObjectId(
-              project
-            )
+        project && isValidObjectId(project)
+          ? new mongoose.Types.ObjectId(project)
           : null;
     }
 
     /* Designation */
 
-    if (
-      designation_id !== undefined
-    ) {
-      task.designation_id =
-        designation_id ||
-        undefined;
+    if (designation_id !== undefined) {
+      task.designation_id = designation_id || undefined;
     }
 
     /* New attachments */
 
-    const filesList =
-      Array.isArray(req.files)
-        ? req.files
-        : req.file
-          ? [req.file]
-          : [];
+    const filesList = Array.isArray(req.files)
+      ? req.files
+      : req.file
+        ? [req.file]
+        : [];
 
     if (filesList.length > 0) {
-      const newAttachments =
-        await processUploadedFiles(
-          filesList
-        );
+      const newAttachments = await processUploadedFiles(filesList);
 
       if (!Array.isArray(task.attachments)) {
         task.attachments = [];
       }
 
-      task.attachments.push(
-        ...newAttachments
-      );
+      task.attachments.push(...newAttachments);
 
-      if (
-        !task.file_url &&
-        newAttachments.length > 0
-      ) {
-        task.file_url =
-          newAttachments[0].url;
+      if (!task.file_url && newAttachments.length > 0) {
+        task.file_url = newAttachments[0].url;
 
-        task.file_public_id =
-          newAttachments[0].public_id;
+        task.file_public_id = newAttachments[0].public_id;
       }
 
-      if (
-        task.file_url
-      ) {
-        task.image =
-          task.file_url;
+      if (task.file_url) {
+        task.image = task.file_url;
       }
     }
 
     /* Links */
 
-    if (
-      req.body.links !== undefined
-    ) {
-      task.links =
-        parseLinks(
-          req.body.links
-        );
+    if (req.body.links !== undefined) {
+      task.links = parseLinks(req.body.links);
     }
 
     /* Subtasks */
 
-    if (
-      req.body.subtasks !== undefined
-    ) {
-      task.subtasks =
-        parseSubtasks(
-          req.body.subtasks,
-          userId
-        );
+    if (req.body.subtasks !== undefined) {
+      task.subtasks = parseSubtasks(req.body.subtasks, userId);
     }
 
     await task.save();
 
     /* Project progress */
 
-    const newProjectId =
-      normalizeId(task.project);
+    const newProjectId = normalizeId(task.project);
 
-    if (
-      oldProjectId &&
-      oldProjectId !== newProjectId
-    ) {
-      await syncProjectProgress(
-        oldProjectId
-      );
+    if (oldProjectId && oldProjectId !== newProjectId) {
+      await syncProjectProgress(oldProjectId);
     }
 
     if (newProjectId) {
-      await syncProjectProgress(
-        newProjectId
-      );
+      await syncProjectProgress(newProjectId);
     }
 
-    const populatedTask =
-      await getPopulatedTask(
-        task._id
-      );
+    const populatedTask = await getPopulatedTask(task._id);
 
     /* Notifications */
 
     try {
       const recipients = [];
 
-      if (
-        populatedTask?.created_by
-      ) {
-        recipients.push(
-          populatedTask.created_by
-        );
+      if (populatedTask?.created_by) {
+        recipients.push(populatedTask.created_by);
       }
 
-      if (
-        Array.isArray(
-          populatedTask?.assigned_to
-        )
-      ) {
-        recipients.push(
-          ...populatedTask.assigned_to
-        );
+      if (Array.isArray(populatedTask?.assigned_to)) {
+        recipients.push(...populatedTask.assigned_to);
       }
 
-      const uniqueRecipients =
-        Array.from(
-          new Map(
-            recipients
-              .filter(Boolean)
-              .map(user => [
-                normalizeId(user),
-                user
-              ])
-          ).values()
-        );
+      const uniqueRecipients = Array.from(
+        new Map(
+          recipients.filter(Boolean).map((user) => [normalizeId(user), user]),
+        ).values(),
+      );
 
-      const updaterName =
-        getUserName(req);
+      const updaterName = getUserName(req);
 
-      for (
-        const recipient
-        of uniqueRecipients
-      ) {
-        const recipientId =
-          normalizeId(recipient);
+      for (const recipient of uniqueRecipients) {
+        const recipientId = normalizeId(recipient);
 
         if (!recipientId) continue;
 
         await sendNotification(
           recipientId,
           `Task "${task.title}" was updated by ${updaterName}.`,
-          'task_updated',
+          "task_updated",
           `Task Updated: ${task.title}`,
           userId,
-          updaterName
+          updaterName,
         );
       }
     } catch (notificationError) {
       console.error(
-        'Task update notification failed:',
-        notificationError.message
+        "Task update notification failed:",
+        notificationError.message,
       );
     }
 
-    return res.status(200).json(
-      formatLeanTask(
-        populatedTask
-      )
-    );
+    return res.status(200).json(formatLeanTask(populatedTask));
   } catch (error) {
-    console.error(
-      'UPDATE TASK ERROR:',
-      error
-    );
+    console.error("UPDATE TASK ERROR:", error);
 
     next(error);
   }
@@ -1933,63 +1466,36 @@ export const updateTask = async (
    POST /api/v1/tasks/:task_id/subtasks
 ========================================================= */
 
-export const addSubtask = async (
-  req,
-  res,
-  next
-) => {
+export const addSubtask = async (req, res, next) => {
   try {
-    const { task_id } =
-      req.params;
+    const { task_id } = req.params;
 
-    const { title } =
-      req.body;
+    const { title } = req.body;
 
     if (!title?.trim()) {
-      throw new AppError(
-        'Subtask title is required',
-        400
-      );
+      throw new AppError("Subtask title is required", 400);
     }
 
-    const task =
-      await Task.findById(task_id);
+    const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError(
-        'Task not found',
-        404
-      );
+      throw new AppError("Task not found", 404);
     }
 
-    const userId =
-      getAuthUserId(req);
+    const userId = getAuthUserId(req);
 
-    const isCreator =
-      normalizeId(task.created_by) ===
-      String(userId);
+    const isCreator = normalizeId(task.created_by) === String(userId);
 
     const isAssignee =
-      Array.isArray(
-        task.assigned_to
-      ) &&
-      task.assigned_to.some(
-        id =>
-          normalizeId(id) ===
-          String(userId)
-      );
+      Array.isArray(task.assigned_to) &&
+      task.assigned_to.some((id) => normalizeId(id) === String(userId));
 
-    const isSuperAdmin =
-      isSuperAdminUser(req);
+    const isSuperAdmin = isSuperAdminUser(req);
 
-    if (
-      !isCreator &&
-      !isAssignee &&
-      !isSuperAdmin
-    ) {
+    if (!isCreator && !isAssignee && !isSuperAdmin) {
       throw new AppError(
-        'Forbidden: Only the task creator, assignee, or SuperAdmin can add subtasks',
-        403
+        "Forbidden: Only the task creator, assignee, or SuperAdmin can add subtasks",
+        403,
       );
     }
 
@@ -2001,15 +1507,12 @@ export const addSubtask = async (
       title: title.trim(),
       completed: false,
       created_by: userId,
-      completed_by: null
+      completed_by: null,
     });
 
     await task.save();
 
-    const populatedTask =
-      await getPopulatedTask(
-        task._id
-      );
+    const populatedTask = await getPopulatedTask(task._id);
 
     /* Notify creator/assignees */
 
@@ -2017,62 +1520,36 @@ export const addSubtask = async (
       const recipients = [];
 
       if (isCreator) {
-        if (
-          Array.isArray(
-            populatedTask?.assigned_to
-          )
-        ) {
-          recipients.push(
-            ...populatedTask.assigned_to
-          );
+        if (Array.isArray(populatedTask?.assigned_to)) {
+          recipients.push(...populatedTask.assigned_to);
         }
-      } else if (
-        populatedTask?.created_by
-      ) {
-        recipients.push(
-          populatedTask.created_by
-        );
+      } else if (populatedTask?.created_by) {
+        recipients.push(populatedTask.created_by);
       }
 
-      const updaterName =
-        getUserName(req);
+      const updaterName = getUserName(req);
 
-      for (
-        const recipient
-        of recipients
-      ) {
-        const recipientId =
-          normalizeId(recipient);
+      for (const recipient of recipients) {
+        const recipientId = normalizeId(recipient);
 
-        if (
-          !recipientId ||
-          recipientId ===
-            String(userId)
-        ) {
+        if (!recipientId || recipientId === String(userId)) {
           continue;
         }
 
         await sendNotification(
           recipientId,
           `New subtask "${title.trim()}" was added to task "${task.title}" by ${updaterName}.`,
-          'subtask_added',
+          "subtask_added",
           `Subtask Added: ${task.title}`,
           userId,
-          updaterName
+          updaterName,
         );
       }
     } catch (notificationError) {
-      console.error(
-        'Subtask notification failed:',
-        notificationError.message
-      );
+      console.error("Subtask notification failed:", notificationError.message);
     }
 
-    return res.status(201).json(
-      formatLeanTask(
-        populatedTask
-      )
-    );
+    return res.status(201).json(formatLeanTask(populatedTask));
   } catch (error) {
     next(error);
   }
@@ -2083,129 +1560,68 @@ export const addSubtask = async (
    PUT /api/v1/tasks/:task_id/subtasks/:subtask_id
 ========================================================= */
 
-export const toggleSubtask = async (
-  req,
-  res,
-  next
-) => {
+export const toggleSubtask = async (req, res, next) => {
   try {
-    const {
-      task_id,
-      subtask_id
-    } = req.params;
+    const { task_id, subtask_id } = req.params;
 
-    if (
-      !isValidObjectId(task_id)
-    ) {
-      throw new AppError(
-        'Invalid task ID',
-        400
-      );
+    if (!isValidObjectId(task_id)) {
+      throw new AppError("Invalid task ID", 400);
     }
 
-    const task =
-      await Task.findById(task_id);
+    const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError(
-        'Task not found',
-        404
-      );
+      throw new AppError("Task not found", 404);
     }
 
-    const userId =
-      getAuthUserId(req);
+    const userId = getAuthUserId(req);
 
-    const isCreator =
-      normalizeId(task.created_by) ===
-      String(userId);
+    const isCreator = normalizeId(task.created_by) === String(userId);
 
     const isAssignee =
-      Array.isArray(
-        task.assigned_to
-      ) &&
-      task.assigned_to.some(
-        id =>
-          normalizeId(id) ===
-          String(userId)
-      );
+      Array.isArray(task.assigned_to) &&
+      task.assigned_to.some((id) => normalizeId(id) === String(userId));
 
-    const isSuperAdmin =
-      isSuperAdminUser(req);
+    const isSuperAdmin = isSuperAdminUser(req);
 
-    if (
-      !isCreator &&
-      !isAssignee &&
-      !isSuperAdmin
-    ) {
+    if (!isCreator && !isAssignee && !isSuperAdmin) {
       throw new AppError(
-        'Forbidden: Only the task creator, assignee, or SuperAdmin can update subtasks',
-        403
+        "Forbidden: Only the task creator, assignee, or SuperAdmin can update subtasks",
+        403,
       );
     }
 
     const subtask =
-      task.subtasks?.id?.(
-        subtask_id
-      ) ||
+      task.subtasks?.id?.(subtask_id) ||
       task.subtasks?.find(
-        st =>
-          normalizeId(
-            st?._id || st?.id
-          ) ===
-          String(subtask_id)
+        (st) => normalizeId(st?._id || st?.id) === String(subtask_id),
       );
 
     if (!subtask) {
-      throw new AppError(
-        'Subtask not found',
-        404
-      );
+      throw new AppError("Subtask not found", 404);
     }
 
-    const {
-      completed,
-      title
-    } = req.body;
+    const { completed, title } = req.body;
 
-    if (
-      completed !== undefined
-    ) {
-      subtask.completed =
-        Boolean(completed);
+    if (completed !== undefined) {
+      subtask.completed = Boolean(completed);
 
-      subtask.completed_by =
-        subtask.completed
-          ? userId
-          : null;
+      subtask.completed_by = subtask.completed ? userId : null;
     }
 
-    if (
-      title !== undefined
-    ) {
+    if (title !== undefined) {
       if (!String(title).trim()) {
-        throw new AppError(
-          'Subtask title cannot be empty',
-          400
-        );
+        throw new AppError("Subtask title cannot be empty", 400);
       }
 
-      subtask.title =
-        String(title).trim();
+      subtask.title = String(title).trim();
     }
 
     await task.save();
 
-    const populatedTask =
-      await getPopulatedTask(
-        task._id
-      );
+    const populatedTask = await getPopulatedTask(task._id);
 
-    return res.status(200).json(
-      formatLeanTask(
-        populatedTask
-      )
-    );
+    return res.status(200).json(formatLeanTask(populatedTask));
   } catch (error) {
     next(error);
   }
@@ -2216,98 +1632,54 @@ export const toggleSubtask = async (
    DELETE /api/v1/tasks/:task_id/subtasks/:subtask_id
 ========================================================= */
 
-export const deleteSubtask = async (
-  req,
-  res,
-  next
-) => {
+export const deleteSubtask = async (req, res, next) => {
   try {
-    const {
-      task_id,
-      subtask_id
-    } = req.params;
+    const { task_id, subtask_id } = req.params;
 
-    const task =
-      await Task.findById(task_id);
+    const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError(
-        'Task not found',
-        404
-      );
+      throw new AppError("Task not found", 404);
     }
 
-    const userId =
-      getAuthUserId(req);
+    const userId = getAuthUserId(req);
 
-    const isCreator =
-      normalizeId(task.created_by) ===
-      String(userId);
+    const isCreator = normalizeId(task.created_by) === String(userId);
 
     const isAssignee =
-      Array.isArray(
-        task.assigned_to
-      ) &&
-      task.assigned_to.some(
-        id =>
-          normalizeId(id) ===
-          String(userId)
-      );
+      Array.isArray(task.assigned_to) &&
+      task.assigned_to.some((id) => normalizeId(id) === String(userId));
 
-    const isSuperAdmin =
-      isSuperAdminUser(req);
+    const isSuperAdmin = isSuperAdminUser(req);
 
-    if (
-      !isCreator &&
-      !isAssignee &&
-      !isSuperAdmin
-    ) {
+    if (!isCreator && !isAssignee && !isSuperAdmin) {
       throw new AppError(
-        'Forbidden: Only the task creator, assignee, or SuperAdmin can delete subtasks',
-        403
+        "Forbidden: Only the task creator, assignee, or SuperAdmin can delete subtasks",
+        403,
       );
     }
 
-    const originalLength =
-      task.subtasks?.length || 0;
+    const originalLength = task.subtasks?.length || 0;
 
-    task.subtasks =
-      (task.subtasks || []).filter(
-        st =>
-          normalizeId(
-            st?._id || st?.id
-          ) !==
-          String(subtask_id)
-      );
+    task.subtasks = (task.subtasks || []).filter(
+      (st) => normalizeId(st?._id || st?.id) !== String(subtask_id),
+    );
 
-    if (
-      task.subtasks.length ===
-      originalLength
-    ) {
-      throw new AppError(
-        'Subtask not found',
-        404
-      );
+    if (task.subtasks.length === originalLength) {
+      throw new AppError("Subtask not found", 404);
     }
 
     await task.save();
 
-    const populatedTask =
-      await getPopulatedTask(
-        task._id
-      );
+    const populatedTask = await getPopulatedTask(task._id);
 
-    return res.status(200).json(
-      formatLeanTask(
-        populatedTask
-      )
-    );
+    return res.status(200).json(formatLeanTask(populatedTask));
   } catch (error) {
     next(error);
   }
 };
 
-  /* =========================================================
+/* =========================================================
    TASK COLLABORATION - COMMENTS
 ========================================================= */
 
@@ -2326,51 +1698,48 @@ const addTaskCommentLegacy = async (req, res, next) => {
     const { task_id } = req.params;
 
     if (!isValidObjectId(task_id)) {
-      throw new AppError('Invalid task ID', 400);
+      throw new AppError("Invalid task ID", 400);
     }
 
     const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError('Task not found', 404);
+      throw new AppError("Task not found", 404);
     }
 
     const userId = getAuthUserId(req);
 
     if (!userId) {
-      throw new AppError('Authentication required', 401);
+      throw new AppError("Authentication required", 401);
     }
 
     /*
      * User must be creator or assignee.
      * SuperAdmin can always comment.
      */
-    const isCreator =
-      normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by) === String(userId);
 
     const isAssignee =
       Array.isArray(task.assigned_to) &&
-      task.assigned_to.some(
-        id => normalizeId(id) === String(userId)
-      );
+      task.assigned_to.some((id) => normalizeId(id) === String(userId));
 
     const isSuperAdmin = isSuperAdminUser(req);
 
     if (!isCreator && !isAssignee && !isSuperAdmin) {
       throw new AppError(
-        'Forbidden: You do not have access to comment on this task',
-        403
+        "Forbidden: You do not have access to comment on this task",
+        403,
       );
     }
 
     const commentText =
-      typeof req.body?.comment === 'string'
+      typeof req.body?.comment === "string"
         ? req.body.comment.trim()
-        : typeof req.body?.text === 'string'
+        : typeof req.body?.text === "string"
           ? req.body.text.trim()
-          : typeof req.body?.content === 'string'
+          : typeof req.body?.content === "string"
             ? req.body.content.trim()
-            : '';
+            : "";
 
     const filesList = Array.isArray(req.files)
       ? req.files
@@ -2380,16 +1749,15 @@ const addTaskCommentLegacy = async (req, res, next) => {
 
     if (!commentText && filesList.length === 0) {
       throw new AppError(
-        'Comment text or at least one attachment is required',
-        400
+        "Comment text or at least one attachment is required",
+        400,
       );
     }
 
     /*
      * Upload attachments
      */
-    const attachments =
-      await processUploadedFiles(filesList);
+    const attachments = await processUploadedFiles(filesList);
 
     /*
      * Make sure comments array exists.
@@ -2417,13 +1785,12 @@ const addTaskCommentLegacy = async (req, res, next) => {
       attachments,
 
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
 
     await task.save();
 
-    const populatedTask =
-      await getPopulatedTask(task._id);
+    const populatedTask = await getPopulatedTask(task._id);
 
     /*
      * Notify creator and assignees
@@ -2432,62 +1799,41 @@ const addTaskCommentLegacy = async (req, res, next) => {
       const recipients = [];
 
       if (populatedTask?.created_by) {
-        recipients.push(
-          populatedTask.created_by
-        );
+        recipients.push(populatedTask.created_by);
       }
 
-      if (
-        Array.isArray(
-          populatedTask?.assigned_to
-        )
-      ) {
-        recipients.push(
-          ...populatedTask.assigned_to
-        );
+      if (Array.isArray(populatedTask?.assigned_to)) {
+        recipients.push(...populatedTask.assigned_to);
       }
 
-      const uniqueRecipients =
-        Array.from(
-          new Map(
-            recipients
-              .filter(Boolean)
-              .map(user => [
-                normalizeId(user),
-                user
-              ])
-          ).values()
-        );
+      const uniqueRecipients = Array.from(
+        new Map(
+          recipients.filter(Boolean).map((user) => [normalizeId(user), user]),
+        ).values(),
+      );
 
-      const commenterName =
-        getUserName(req);
+      const commenterName = getUserName(req);
 
-      for (
-        const recipient of uniqueRecipients
-      ) {
-        const recipientId =
-          normalizeId(recipient);
+      for (const recipient of uniqueRecipients) {
+        const recipientId = normalizeId(recipient);
 
-        if (
-          !recipientId ||
-          recipientId === String(userId)
-        ) {
+        if (!recipientId || recipientId === String(userId)) {
           continue;
         }
 
         await sendNotification(
           recipientId,
           `${commenterName} added a comment to task "${task.title}".`,
-          'task_comment_added',
+          "task_comment_added",
           `New Comment: ${task.title}`,
           userId,
-          commenterName
+          commenterName,
         );
       }
     } catch (notificationError) {
       console.error(
-        'Task comment notification failed:',
-        notificationError.message
+        "Task comment notification failed:",
+        notificationError.message,
       );
     }
 
@@ -2495,36 +1841,23 @@ const addTaskCommentLegacy = async (req, res, next) => {
      * Return only the newly created comment
      * plus the updated task.
      */
-    const latestComment =
-      task.comments[
-        task.comments.length - 1
-      ];
+    const latestComment = task.comments[task.comments.length - 1];
 
     return res.status(201).json({
       success: true,
-      message: 'Comment added successfully',
+      message: "Comment added successfully",
       comment: {
-        ...latestComment.toObject?.() ||
-          latestComment,
-        id: normalizeId(
-          latestComment._id ||
-          latestComment.id
-        )
+        ...(latestComment.toObject?.() || latestComment),
+        id: normalizeId(latestComment._id || latestComment.id),
       },
-      task: formatLeanTask(
-        populatedTask
-      )
+      task: formatLeanTask(populatedTask),
     });
   } catch (error) {
-    console.error(
-      'ADD TASK COMMENT ERROR:',
-      error
-    );
+    console.error("ADD TASK COMMENT ERROR:", error);
 
     next(error);
   }
 };
-
 
 /**
  * UPDATE TASK COMMENT
@@ -2534,257 +1867,158 @@ const addTaskCommentLegacy = async (req, res, next) => {
  * - Editing comment text
  * - Adding new attachments
  */
-const updateTaskCommentLegacy = async (
-  req,
-  res,
-  next
-) => {
+const updateTaskCommentLegacy = async (req, res, next) => {
   try {
-    const {
-      task_id,
-      comment_id
-    } = req.params;
+    const { task_id, comment_id } = req.params;
 
     if (!isValidObjectId(task_id)) {
-      throw new AppError(
-        'Invalid task ID',
-        400
-      );
+      throw new AppError("Invalid task ID", 400);
     }
 
     if (!isValidObjectId(comment_id)) {
-      throw new AppError(
-        'Invalid comment ID',
-        400
-      );
+      throw new AppError("Invalid comment ID", 400);
     }
 
-    const task =
-      await Task.findById(task_id);
+    const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError(
-        'Task not found',
-        404
-      );
+      throw new AppError("Task not found", 404);
     }
 
-    const userId =
-      getAuthUserId(req);
+    const userId = getAuthUserId(req);
 
     if (!userId) {
-      throw new AppError(
-        'Authentication required',
-        401
-      );
+      throw new AppError("Authentication required", 401);
     }
 
     if (!Array.isArray(task.comments)) {
-      throw new AppError(
-        'Comment not found',
-        404
-      );
+      throw new AppError("Comment not found", 404);
     }
 
-    const comment =
-      task.comments.id(comment_id) ||
-      task.comments.find(
-        item =>
-          normalizeId(
-            item?._id ||
-            item?.id
-          ) === String(comment_id)
-      );
+    const comment = task.comments?.id
+      ? task.comments.id(comment_id)
+      : task.comments?.find((c) => String(c._id) === String(comment_id));
 
     if (!comment) {
-      throw new AppError(
-        'Comment not found',
-        404
-      );
+      throw new AppError("Comment not found", 404);
     }
 
     const isCommentOwner =
-      normalizeId(
-        comment.user ||
-        comment.user_id ||
-        comment.created_by
-      ) === String(userId);
+      normalizeId(comment.user || comment.user_id || comment.created_by) ===
+      String(userId);
 
-    const isSuperAdmin =
-      isSuperAdminUser(req);
+    const isSuperAdmin = isSuperAdminUser(req);
 
-    if (
-      !isCommentOwner &&
-      !isSuperAdmin
-    ) {
+    if (!isCommentOwner && !isSuperAdmin) {
       throw new AppError(
-        'Forbidden: Only the comment author or SuperAdmin can edit this comment',
-        403
+        "Forbidden: Only the comment author or SuperAdmin can edit this comment",
+        403,
       );
     }
 
     const newText =
-      typeof req.body?.comment === 'string'
+      typeof req.body?.comment === "string"
         ? req.body.comment.trim()
-        : typeof req.body?.text === 'string'
+        : typeof req.body?.text === "string"
           ? req.body.text.trim()
-          : typeof req.body?.content === 'string'
+          : typeof req.body?.content === "string"
             ? req.body.content.trim()
             : undefined;
 
     /*
      * Add new attachments if supplied.
      */
-    const filesList =
-      Array.isArray(req.files)
-        ? req.files
-        : req.file
-          ? [req.file]
-          : [];
+    const filesList = Array.isArray(req.files)
+      ? req.files
+      : req.file
+        ? [req.file]
+        : [];
 
-    if (
-      newText !== undefined
-    ) {
+    if (newText !== undefined) {
       comment.text = newText;
       comment.comment = newText;
     }
 
     if (filesList.length > 0) {
-      const newAttachments =
-        await processUploadedFiles(
-          filesList
-        );
+      const newAttachments = await processUploadedFiles(filesList);
 
       if (!Array.isArray(comment.attachments)) {
         comment.attachments = [];
       }
 
-      comment.attachments.push(
-        ...newAttachments
-      );
+      comment.attachments.push(...newAttachments);
     }
 
-    comment.updatedAt =
-      new Date();
+    comment.updatedAt = new Date();
 
     await task.save();
 
-    const populatedTask =
-      await getPopulatedTask(
-        task._id
-      );
+    const populatedTask = await getPopulatedTask(task._id);
 
     return res.status(200).json({
       success: true,
-      message: 'Comment updated successfully',
-      task: formatLeanTask(
-        populatedTask
-      )
+      message: "Comment updated successfully",
+      task: formatLeanTask(populatedTask),
     });
   } catch (error) {
-    console.error(
-      'UPDATE TASK COMMENT ERROR:',
-      error
-    );
+    console.error("UPDATE TASK COMMENT ERROR:", error);
 
     next(error);
   }
 };
 
-
 /**
  * DELETE TASK COMMENT
  * DELETE /api/v1/tasks/:task_id/comments/:comment_id
  */
-const deleteTaskCommentLegacy = async (
-  req,
-  res,
-  next
-) => {
+const deleteTaskCommentLegacy = async (req, res, next) => {
   try {
-    const {
-      task_id,
-      comment_id
-    } = req.params;
+    const { task_id, comment_id } = req.params;
 
     if (!isValidObjectId(task_id)) {
-      throw new AppError(
-        'Invalid task ID',
-        400
-      );
+      throw new AppError("Invalid task ID", 400);
     }
 
     if (!isValidObjectId(comment_id)) {
-      throw new AppError(
-        'Invalid comment ID',
-        400
-      );
+      throw new AppError("Invalid comment ID", 400);
     }
 
-    const task =
-      await Task.findById(task_id);
+    const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError(
-        'Task not found',
-        404
-      );
+      throw new AppError("Task not found", 404);
     }
 
-    const userId =
-      getAuthUserId(req);
+    const userId = getAuthUserId(req);
 
     if (!userId) {
-      throw new AppError(
-        'Authentication required',
-        401
-      );
+      throw new AppError("Authentication required", 401);
     }
 
     if (!Array.isArray(task.comments)) {
-      throw new AppError(
-        'Comment not found',
-        404
-      );
+      throw new AppError("Comment not found", 404);
     }
 
-    const comment =
-      task.comments.id(comment_id) ||
-      task.comments.find(
-        item =>
-          normalizeId(
-            item?._id ||
-            item?.id
-          ) === String(comment_id)
-      );
+    const comment = task.comments?.id
+      ? task.comments.id(comment_id)
+      : task.comments?.find((c) => String(c._id) === String(comment_id));
 
     if (!comment) {
-      throw new AppError(
-        'Comment not found',
-        404
-      );
+      throw new AppError("Comment not found", 404);
     }
 
-    const commentOwner =
-      normalizeId(
-        comment.user ||
-        comment.user_id ||
-        comment.created_by
-      );
+    const commentOwner = normalizeId(
+      comment.user || comment.user_id || comment.created_by,
+    );
 
-    const isCommentOwner =
-      commentOwner === String(userId);
+    const isCommentOwner = commentOwner === String(userId);
 
-    const isSuperAdmin =
-      isSuperAdminUser(req);
+    const isSuperAdmin = isSuperAdminUser(req);
 
-    if (
-      !isCommentOwner &&
-      !isSuperAdmin
-    ) {
+    if (!isCommentOwner && !isSuperAdmin) {
       throw new AppError(
-        'Forbidden: Only the comment author or SuperAdmin can delete this comment',
-        403
+        "Forbidden: Only the comment author or SuperAdmin can delete this comment",
+        403,
       );
     }
 
@@ -2800,49 +2034,29 @@ const deleteTaskCommentLegacy = async (
     /*
      * Remove comment.
      */
-    if (
-      typeof task.comments.id ===
-      'function'
-    ) {
-      const commentSubdocument =
-        task.comments.id(
-          comment_id
-        );
+    if (typeof task.comments.id === "function") {
+      const commentSubdocument = task.comments.id(comment_id);
 
       if (commentSubdocument) {
         commentSubdocument.deleteOne();
       }
     } else {
-      task.comments =
-        task.comments.filter(
-          item =>
-            normalizeId(
-              item?._id ||
-              item?.id
-            ) !== String(comment_id)
-        );
+      task.comments = task.comments.filter(
+        (item) => normalizeId(item?._id || item?.id) !== String(comment_id),
+      );
     }
 
     await task.save();
 
-    const populatedTask =
-      await getPopulatedTask(
-        task._id
-      );
+    const populatedTask = await getPopulatedTask(task._id);
 
     return res.status(200).json({
       success: true,
-      message:
-        'Comment deleted successfully',
-      task: formatLeanTask(
-        populatedTask
-      )
+      message: "Comment deleted successfully",
+      task: formatLeanTask(populatedTask),
     });
   } catch (error) {
-    console.error(
-      'DELETE TASK COMMENT ERROR:',
-      error
-    );
+    console.error("DELETE TASK COMMENT ERROR:", error);
 
     next(error);
   }
@@ -2852,66 +2066,42 @@ const deleteTaskCommentLegacy = async (
    POST /api/v1/tasks/:task_id/comments
 ========================================================= */
 
-export const addTaskComment = async (
-  req,
-  res,
-  next
-) => {
+export const addTaskComment = async (req, res, next) => {
   try {
     const { task_id } = req.params;
 
     if (!isValidObjectId(task_id)) {
-      throw new AppError(
-        'Invalid task ID',
-        400
-      );
+      throw new AppError("Invalid task ID", 400);
     }
 
     const userId = getAuthUserId(req);
 
     if (!userId) {
-      throw new AppError(
-        'Authentication required',
-        401
-      );
+      throw new AppError("Authentication required", 401);
     }
 
     const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError(
-        'Task not found',
-        404
-      );
+      throw new AppError("Task not found", 404);
     }
 
     /* ---------------------------------------------------------
        PERMISSION
     --------------------------------------------------------- */
 
-    const isCreator =
-      normalizeId(task.created_by) ===
-      String(userId);
+    const isCreator = normalizeId(task.created_by) === String(userId);
 
     const isAssignee =
       Array.isArray(task.assigned_to) &&
-      task.assigned_to.some(
-        id =>
-          normalizeId(id) ===
-          String(userId)
-      );
+      task.assigned_to.some((id) => normalizeId(id) === String(userId));
 
-    const isSuperAdmin =
-      isSuperAdminUser(req);
+    const isSuperAdmin = isSuperAdminUser(req);
 
-    if (
-      !isCreator &&
-      !isAssignee &&
-      !isSuperAdmin
-    ) {
+    if (!isCreator && !isAssignee && !isSuperAdmin) {
       throw new AppError(
-        'Forbidden: Only the task creator, assignee, or SuperAdmin can comment on this task',
-        403
+        "Forbidden: Only the task creator, assignee, or SuperAdmin can comment on this task",
+        403,
       );
     }
 
@@ -2919,39 +2109,26 @@ export const addTaskComment = async (
        COMMENT TEXT
     --------------------------------------------------------- */
 
-    const commentText =
-      String(
-        req.body?.comment ||
-        req.body?.text ||
-        ''
-      ).trim();
+    const commentText = String(
+      req.body?.comment || req.body?.text || "",
+    ).trim();
 
     /* ---------------------------------------------------------
        FILES
     --------------------------------------------------------- */
 
-    const filesList =
-      Array.isArray(req.files)
-        ? req.files
-        : req.file
-          ? [req.file]
-          : [];
+    const filesList = Array.isArray(req.files)
+      ? req.files
+      : req.file
+        ? [req.file]
+        : [];
 
-    if (
-      !commentText &&
-      filesList.length === 0
-    ) {
-      throw new AppError(
-        'Comment text or attachment is required',
-        400
-      );
+    if (!commentText && filesList.length === 0) {
+      throw new AppError("Comment text or attachment is required", 400);
     }
 
     if (commentText.length > 5000) {
-      throw new AppError(
-        'Comment cannot exceed 5000 characters',
-        400
-      );
+      throw new AppError("Comment cannot exceed 5000 characters", 400);
     }
 
     /* ---------------------------------------------------------
@@ -2965,22 +2142,22 @@ export const addTaskComment = async (
         if (!file?.path) continue;
 
         const isImage =
-          file.mimetype?.startsWith('image/') ||
+          file.mimetype?.startsWith("image/") ||
           /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif|heic|jfif)$/i.test(
-            file.originalname || ''
+            file.originalname || "",
           );
 
         const relativePath = path
           .relative(process.cwd(), file.path)
-          .replace(/\\/g, '/');
+          .replace(/\\/g, "/");
 
         uploadedAttachments.push({
           url: `/${relativePath}`,
           path: relativePath,
-          name: file.originalname || 'Attachment',
-          public_id: `task-comment-${Date.now()}-${file.filename || 'attachment'}`,
-          fileType: isImage ? 'image' : 'file',
-          size: Number(file.size) || 0
+          name: file.originalname || "Attachment",
+          public_id: `task-comment-${Date.now()}-${file.filename || "attachment"}`,
+          fileType: isImage ? "image" : "file",
+          size: Number(file.size) || 0,
         });
       }
     }
@@ -2996,10 +2173,9 @@ export const addTaskComment = async (
     task.comments.push({
       author: userId,
       comment: commentText,
-      attachments:
-        uploadedAttachments,
+      attachments: uploadedAttachments,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
 
     await task.save();
@@ -3008,8 +2184,7 @@ export const addTaskComment = async (
        GET POPULATED TASK
     --------------------------------------------------------- */
 
-    const populatedTask =
-      await getPopulatedTask(task._id);
+    const populatedTask = await getPopulatedTask(task._id);
 
     /* ---------------------------------------------------------
        NOTIFICATIONS
@@ -3018,173 +2193,103 @@ export const addTaskComment = async (
     try {
       const recipients = [];
 
-      if (
-        populatedTask?.created_by
-      ) {
-        recipients.push(
-          populatedTask.created_by
-        );
+      if (populatedTask?.created_by) {
+        recipients.push(populatedTask.created_by);
       }
 
-      if (
-        Array.isArray(
-          populatedTask?.assigned_to
-        )
-      ) {
-        recipients.push(
-          ...populatedTask.assigned_to
-        );
+      if (Array.isArray(populatedTask?.assigned_to)) {
+        recipients.push(...populatedTask.assigned_to);
       }
 
-      const uniqueRecipients =
-        Array.from(
-          new Map(
-            recipients
-              .filter(Boolean)
-              .map(user => [
-                normalizeId(user),
-                user
-              ])
-          ).values()
-        );
+      const uniqueRecipients = Array.from(
+        new Map(
+          recipients.filter(Boolean).map((user) => [normalizeId(user), user]),
+        ).values(),
+      );
 
-      const commenterName =
-        getUserName(req);
+      const commenterName = getUserName(req);
 
-      for (
-        const recipient
-        of uniqueRecipients
-      ) {
-        const recipientId =
-          normalizeId(recipient);
+      for (const recipient of uniqueRecipients) {
+        const recipientId = normalizeId(recipient);
 
-        if (
-          !recipientId ||
-          recipientId ===
-            String(userId)
-        ) {
+        if (!recipientId || recipientId === String(userId)) {
           continue;
         }
 
         await sendNotification(
           recipientId,
           `${commenterName} added a comment to task "${task.title}".`,
-          'task_comment_added',
+          "task_comment_added",
           `New Comment: ${task.title}`,
           userId,
-          commenterName
+          commenterName,
         );
       }
     } catch (notificationError) {
-      console.error(
-        'Comment notification failed:',
-        notificationError.message
-      );
+      console.error("Comment notification failed:", notificationError.message);
     }
 
     return res.status(201).json({
       success: true,
-      message:
-        'Comment added successfully',
-      task:
-        formatLeanTask(
-          populatedTask
-        )
+      message: "Comment added successfully",
+      task: formatLeanTask(populatedTask),
     });
   } catch (error) {
-    console.error(
-      'ADD TASK COMMENT ERROR:',
-      error
-    );
+    console.error("ADD TASK COMMENT ERROR:", error);
 
     next(error);
   }
 };
-
 
 /* =========================================================
    TASK COLLABORATION - UPDATE COMMENT
    PUT /api/v1/tasks/:task_id/comments/:comment_id
 ========================================================= */
 
-export const updateTaskComment = async (
-  req,
-  res,
-  next
-) => {
+export const updateTaskComment = async (req, res, next) => {
   try {
-    const {
-      task_id,
-      comment_id
-    } = req.params;
+    const { task_id, comment_id } = req.params;
 
     if (!isValidObjectId(task_id)) {
-      throw new AppError(
-        'Invalid task ID',
-        400
-      );
+      throw new AppError("Invalid task ID", 400);
     }
 
     if (!isValidObjectId(comment_id)) {
-      throw new AppError(
-        'Invalid comment ID',
-        400
-      );
+      throw new AppError("Invalid comment ID", 400);
     }
 
     const userId = getAuthUserId(req);
 
     if (!userId) {
-      throw new AppError(
-        'Authentication required',
-        401
-      );
+      throw new AppError("Authentication required", 401);
     }
 
-    const task =
-      await Task.findById(task_id);
+    const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError(
-        'Task not found',
-        404
-      );
+      throw new AppError("Task not found", 404);
     }
 
-    const comment =
-      task.comments?.id(comment_id);
+    const comment = task.comments?.id
+      ? task.comments.id(comment_id)
+      : task.comments?.find((c) => String(c._id) === String(comment_id));
 
     if (!comment) {
-      throw new AppError(
-        'Comment not found',
-        404
-      );
+      throw new AppError("Comment not found", 404);
     }
 
     /* ---------------------------------------------------------
        PERMISSION
     --------------------------------------------------------- */
 
-    const isCommentAuthor =
-      normalizeId(comment.author) ===
-      String(userId);
+    const isCommentAuthor = normalizeId(comment.author) === String(userId);
 
-    const isTaskCreator =
-      normalizeId(task.created_by) ===
-      String(userId);
+    const isTaskCreator = normalizeId(task.created_by) === String(userId);
 
-    const isSuperAdmin =
-      isSuperAdminUser(req);
+    const isSuperAdmin = isSuperAdminUser(req);
 
-    if (
-      !isCommentAuthor &&
-      !isTaskCreator &&
-      !isSuperAdmin
-    ) {
-      throw new AppError(
-        'Forbidden: You can only edit your own comments',
-        403
-      );
+    if (!isCommentAuthor && !isTaskCreator && !isSuperAdmin) {
+      throw new AppError("Forbidden: You can only edit your own comments", 403);
     }
 
     /* ---------------------------------------------------------
@@ -3193,19 +2298,11 @@ export const updateTaskComment = async (
 
     const commentText =
       req.body?.comment !== undefined
-        ? String(
-            req.body.comment
-          ).trim()
+        ? String(req.body.comment).trim()
         : undefined;
 
-    if (
-      commentText !== undefined &&
-      commentText.length > 5000
-    ) {
-      throw new AppError(
-        'Comment cannot exceed 5000 characters',
-        400
-      );
+    if (commentText !== undefined && commentText.length > 5000) {
+      throw new AppError("Comment cannot exceed 5000 characters", 400);
     }
 
     /* ---------------------------------------------------------
@@ -3214,35 +2311,30 @@ export const updateTaskComment = async (
 
     if (commentText !== undefined) {
       if (!commentText) {
-        throw new AppError(
-          'Comment cannot be empty',
-          400
-        );
+        throw new AppError("Comment cannot be empty", 400);
       }
 
-      comment.comment =
-        commentText;
+      comment.comment = commentText;
     }
 
     /* ---------------------------------------------------------
        NEW ATTACHMENTS
     --------------------------------------------------------- */
 
-    const filesList =
-      Array.isArray(req.files)
-        ? req.files
-        : req.file
-          ? [req.file]
-          : [];
+    const filesList = Array.isArray(req.files)
+      ? req.files
+      : req.file
+        ? [req.file]
+        : [];
 
     if (filesList.length > 0) {
       for (const file of filesList) {
         if (!file?.path) continue;
 
         const isImage =
-          file.mimetype?.startsWith('image/') ||
+          file.mimetype?.startsWith("image/") ||
           /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif|heic|jfif)$/i.test(
-            file.originalname || ''
+            file.originalname || "",
           );
 
         if (!Array.isArray(comment.attachments)) {
@@ -3251,131 +2343,92 @@ export const updateTaskComment = async (
 
         const relativePath = path
           .relative(process.cwd(), file.path)
-          .replace(/\\/g, '/');
+          .replace(/\\/g, "/");
 
         comment.attachments.push({
           url: `/${relativePath}`,
           path: relativePath,
-          name: file.originalname || 'Attachment',
-          public_id: `task-comment-update-${Date.now()}-${file.filename || 'attachment'}`,
-          fileType: isImage ? 'image' : 'file',
-          size: Number(file.size) || 0
+          name: file.originalname || "Attachment",
+          public_id: `task-comment-update-${Date.now()}-${file.filename || "attachment"}`,
+          fileType: isImage ? "image" : "file",
+          size: Number(file.size) || 0,
         });
       }
     }
 
-    comment.updatedAt =
-      new Date();
+    comment.updatedAt = new Date();
 
     await task.save();
 
-    const populatedTask =
-      await getPopulatedTask(
-        task._id
-      );
+    const populatedTask = await getPopulatedTask(task._id);
 
     return res.status(200).json({
       success: true,
-      message:
-        'Comment updated successfully',
-      task:
-        formatLeanTask(
-          populatedTask
-        )
+      message: "Comment updated successfully",
+      task: formatLeanTask(populatedTask),
     });
   } catch (error) {
-    console.error(
-      'UPDATE TASK COMMENT ERROR:',
-      error
-    );
+    console.error("UPDATE TASK COMMENT ERROR:", error);
 
     next(error);
   }
 };
-
 
 /* =========================================================
    TASK COLLABORATION - DELETE COMMENT
    DELETE /api/v1/tasks/:task_id/comments/:comment_id
 ========================================================= */
 
-export const deleteTaskComment = async (
-  req,
-  res,
-  next
-) => {
+export const deleteTaskComment = async (req, res, next) => {
   try {
-    const {
-      task_id,
-      comment_id
-    } = req.params;
+    const { task_id, comment_id } = req.params;
 
     if (!isValidObjectId(task_id)) {
-      throw new AppError(
-        'Invalid task ID',
-        400
-      );
+      throw new AppError("Invalid task ID", 400);
     }
 
     if (!isValidObjectId(comment_id)) {
-      throw new AppError(
-        'Invalid comment ID',
-        400
-      );
+      throw new AppError("Invalid comment ID", 400);
     }
 
     const userId = getAuthUserId(req);
 
     if (!userId) {
-      throw new AppError(
-        'Authentication required',
-        401
-      );
+      throw new AppError("Authentication required", 401);
     }
 
-    const task =
-      await Task.findById(task_id);
+    const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError(
-        'Task not found',
-        404
+      throw new AppError("Task not found", 404);
+    }
+
+    if (typeof task.comments.pull === "function") {
+      task.comments.pull(comment_id);
+    } else {
+      task.comments = task.comments.filter(
+        (c) => String(c._id) !== String(comment_id),
       );
     }
 
-    const comment =
-      task.comments?.id(comment_id);
-
     if (!comment) {
-      throw new AppError(
-        'Comment not found',
-        404
-      );
+      throw new AppError("Comment not found", 404);
     }
 
     /* ---------------------------------------------------------
        PERMISSION
     --------------------------------------------------------- */
 
-    const isCommentAuthor =
-      normalizeId(comment.author) ===
-      String(userId);
+    const isCommentAuthor = normalizeId(comment.author) === String(userId);
 
-    const isTaskCreator =
-      normalizeId(task.created_by) ===
-      String(userId);
+    const isTaskCreator = normalizeId(task.created_by) === String(userId);
 
-    const isSuperAdmin =
-      isSuperAdminUser(req);
+    const isSuperAdmin = isSuperAdminUser(req);
 
-    if (
-      !isCommentAuthor &&
-      !isTaskCreator &&
-      !isSuperAdmin
-    ) {
+    if (!isCommentAuthor && !isTaskCreator && !isSuperAdmin) {
       throw new AppError(
-        'Forbidden: You can only delete your own comments',
-        403
+        "Forbidden: You can only delete your own comments",
+        403,
       );
     }
 
@@ -3393,31 +2446,19 @@ export const deleteTaskComment = async (
        REMOVE COMMENT
     --------------------------------------------------------- */
 
-    task.comments.pull(
-      comment_id
-    );
+    task.comments.pull(comment_id);
 
     await task.save();
 
-    const populatedTask =
-      await getPopulatedTask(
-        task._id
-      );
+    const populatedTask = await getPopulatedTask(task._id);
 
     return res.status(200).json({
       success: true,
-      message:
-        'Comment deleted successfully',
-      task:
-        formatLeanTask(
-          populatedTask
-        )
+      message: "Comment deleted successfully",
+      task: formatLeanTask(populatedTask),
     });
   } catch (error) {
-    console.error(
-      'DELETE TASK COMMENT ERROR:',
-      error
-    );
+    console.error("DELETE TASK COMMENT ERROR:", error);
 
     next(error);
   }
@@ -3430,40 +2471,48 @@ export const deleteTaskComment = async (
 export const getTaskComments = async (req, res, next) => {
   try {
     const { task_id } = req.params;
+
+    if (!isValidObjectId(task_id)) {
+      throw new AppError("Invalid task ID", 400);
+    }
+
     const userId = getAuthUserId(req);
 
     if (!userId) {
-      throw new AppError('Authentication required', 401);
+      throw new AppError("Authentication required", 401);
     }
 
     const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError('Task not found', 404);
+      throw new AppError("Task not found", 404);
     }
 
-    const isCreator =
-      normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by) === String(userId);
     const isAssignee =
       Array.isArray(task.assigned_to) &&
       task.assigned_to.some(
-        assignee => normalizeId(assignee) === String(userId)
+        (assignee) => normalizeId(assignee) === String(userId),
       );
 
     if (!isCreator && !isAssignee && !isSuperAdminUser(req)) {
       throw new AppError(
-        'Forbidden: You do not have access to this task\'s comments',
-        403
+        "Forbidden: You do not have access to this task's comments",
+        403,
       );
     }
 
-    await task.populate('comments.author', 'name email');
+    await task.populate("comments.author", "name email");
 
     return res.status(200).json({
       success: true,
       comments: Array.isArray(task.comments)
-        ? task.comments.map(comment => comment.toObject())
-        : []
+        ? task.comments.map((comment) =>
+            typeof comment.toObject === "function"
+              ? comment.toObject()
+              : comment,
+          )
+        : [],
     });
   } catch (error) {
     next(error);
@@ -3473,30 +2522,34 @@ export const getTaskComments = async (req, res, next) => {
 export const addTaskAttachments = async (req, res, next) => {
   try {
     const { task_id } = req.params;
+
+    if (!isValidObjectId(task_id)) {
+      throw new AppError("Invalid task ID", 400);
+    }
+
     const userId = getAuthUserId(req);
 
     if (!userId) {
-      throw new AppError('Authentication required', 401);
+      throw new AppError("Authentication required", 401);
     }
 
     const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError('Task not found', 404);
+      throw new AppError("Task not found", 404);
     }
 
-    const isCreator =
-      normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by) === String(userId);
     const isAssignee =
       Array.isArray(task.assigned_to) &&
       task.assigned_to.some(
-        assignee => normalizeId(assignee) === String(userId)
+        (assignee) => normalizeId(assignee) === String(userId),
       );
 
     if (!isCreator && !isAssignee && !isSuperAdminUser(req)) {
       throw new AppError(
-        'Forbidden: You do not have access to add attachments to this task',
-        403
+        "Forbidden: You do not have access to add attachments to this task",
+        403,
       );
     }
 
@@ -3507,27 +2560,26 @@ export const addTaskAttachments = async (req, res, next) => {
         : [];
 
     if (files.length === 0) {
-      throw new AppError('At least one attachment is required', 400);
+      throw new AppError("At least one attachment is required", 400);
     }
 
     const attachments = await processUploadedFiles(files, task_id);
 
     if (attachments.length === 0) {
-      throw new AppError('No attachments could be uploaded', 400);
+      throw new AppError("No attachments could be uploaded", 400);
     }
 
     task.attachments ??= [];
     task.attachments.push(
-      ...attachments.map(attachment => ({
+      ...attachments.map((attachment) => ({
         ...attachment,
-        size: Number(
-          files.find(file =>
-            file.originalname === attachment.name
-          )?.size
-        ) || 0,
+        size:
+          Number(
+            files.find((file) => file.originalname === attachment.name)?.size,
+          ) || 0,
         uploaded_by: userId,
-        uploadedAt: new Date()
-      }))
+        uploadedAt: new Date(),
+      })),
     );
 
     await task.save();
@@ -3536,11 +2588,11 @@ export const addTaskAttachments = async (req, res, next) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Attachments added successfully',
-      task: formatLeanTask(populatedTask)
+      message: "Attachments added successfully",
+      task: formatLeanTask(populatedTask),
     });
   } catch (error) {
-    console.error('ADD TASK ATTACHMENTS ERROR:', error);
+    console.error("ADD TASK ATTACHMENTS ERROR:", error);
     next(error);
   }
 };
@@ -3548,50 +2600,68 @@ export const addTaskAttachments = async (req, res, next) => {
 export const deleteTaskAttachment = async (req, res, next) => {
   try {
     const { task_id, attachment_id } = req.params;
+
+    if (!isValidObjectId(task_id)) {
+      throw new AppError("Invalid task ID", 400);
+    }
+
+    if (!isValidObjectId(attachment_id)) {
+      throw new AppError("Invalid attachment ID", 400);
+    }
+
     const userId = getAuthUserId(req);
 
     if (!userId) {
-      throw new AppError('Authentication required', 401);
+      throw new AppError("Authentication required", 401);
     }
 
     const task = await Task.findById(task_id);
 
     if (!task) {
-      throw new AppError('Task not found', 404);
+      throw new AppError("Task not found", 404);
     }
 
-    const attachment = task.attachments?.id(attachment_id);
+    const attachment = task.attachments?.id
+      ? task.attachments.id(attachment_id)
+      : task.attachments?.find((a) => String(a._id) === String(attachment_id));
 
     if (!attachment) {
-      throw new AppError('Attachment not found', 404);
+      throw new AppError("Attachment not found", 404);
     }
 
-    const isCreator =
-      normalizeId(task.created_by) === String(userId);
-    const isUploader =
-      normalizeId(attachment.uploaded_by) === String(userId);
+    const isCreator = normalizeId(task.created_by) === String(userId);
+    const isUploader = normalizeId(attachment.uploaded_by) === String(userId);
 
     if (!isCreator && !isUploader && !isSuperAdminUser(req)) {
       throw new AppError(
-        'Forbidden: You can only delete attachments you uploaded',
-        403
+        "Forbidden: You can only delete attachments you uploaded",
+        403,
       );
     }
 
     await deleteLocalAttachmentFile(attachment);
 
-    attachment.deleteOne();
+    if (typeof attachment.deleteOne === "function") {
+      attachment.deleteOne();
+    } else if (typeof task.attachments.pull === "function") {
+      task.attachments.pull(attachment_id);
+    } else {
+      task.attachments = task.attachments.filter(
+        (a) => String(a._id) !== String(attachment_id),
+      );
+    }
+
     await task.save();
 
     const populatedTask = await getPopulatedTask(task._id);
 
     return res.status(200).json({
       success: true,
-      message: 'Attachment deleted successfully',
-      task: formatLeanTask(populatedTask)
+      message: "Attachment deleted successfully",
+      task: formatLeanTask(populatedTask),
     });
   } catch (error) {
-    console.error('DELETE TASK ATTACHMENT ERROR:', error);
+    console.error("DELETE TASK ATTACHMENT ERROR:", error);
     next(error);
   }
 };

@@ -103,12 +103,12 @@ const Navbar = ({ isSidebarCollapsed, toggleMobileSidebar }) => {
   const fetchMyNotifications = useCallback(async () => {
     try {
       const rawToken = localStorage.getItem('token');
-      if (!rawToken) return;
+      if (!rawToken) return true;
 
       const res = await fetch(`${API_BASE}/v1/notifications/my-notifications`, {
         headers: getAuthHeaders()
       });
-      if (!res.ok) return;
+      if (!res.ok) return false;
 
       const contentType = res.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
@@ -118,16 +118,47 @@ const Navbar = ({ isSidebarCollapsed, toggleMobileSidebar }) => {
           setUnreadCount(data.unreadCount || data.data.filter(n => !n.isRead).length);
         }
       }
+      return true;
     } catch (err) {
       console.error("Failed to fetch my notifications in Navbar:", err);
+      return false;
     }
   }, [getAuthHeaders]);
 
   useEffect(() => {
-    fetchMyNotifications();
-    // Poll for notifications every 30 seconds
-    const interval = setInterval(fetchMyNotifications, 30000);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    let timeoutId = null;
+    let inFlight = false;
+    let consecutiveFailures = 0;
+    const BASE_INTERVAL_MS = 30000;
+    const MAX_BACKOFF_MS = 5 * 60 * 1000;
+
+    const scheduleNext = (delay) => {
+      if (cancelled) return;
+      timeoutId = setTimeout(runCheck, delay);
+    };
+
+    const runCheck = async () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      const ok = await fetchMyNotifications();
+      inFlight = false;
+
+      if (ok) {
+        consecutiveFailures = 0;
+        scheduleNext(BASE_INTERVAL_MS);
+        return;
+      }
+
+      consecutiveFailures += 1;
+      scheduleNext(Math.min(BASE_INTERVAL_MS * 2 ** consecutiveFailures, MAX_BACKOFF_MS));
+    };
+
+    runCheck();
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [fetchMyNotifications]);
 
   const handleMarkAsRead = async (id) => {
