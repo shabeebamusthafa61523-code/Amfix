@@ -3,6 +3,7 @@ import ExpenseCategory from '../models/expenseCategory.model.js';
 import Expense from '../models/expense.model.js';
 import SalaryPayment from '../models/salaryPayment.model.js';
 import User from '../models/user.model.js';
+import { sendEmail } from '../services/emailService.js';
 
 const DEFAULT_CATEGORIES = [
   'Salary',
@@ -227,7 +228,23 @@ export const createExpense = async (req, res) => {
     }
 
     const expAmount = Number(amount);
-    const initialStatus = expAmount > 1000 ? 'PENDING' : 'APPROVED';
+    const userRole = String(req.user?.role || '').toLowerCase();
+    const isMdUser = req.user?.isSuperAdmin === true ||
+      ['0', 'superadmin', 'md', 'coo', 'executive_director'].includes(userRole);
+    const isSalary = catObj.name.toLowerCase() === 'salary';
+
+    // Rule:
+    // 1. Any Expense > 1,000 INR requires MD approval -> PENDING
+    // 2. Any Salary Expense requires MD approval -> PENDING
+    // 3. Any non-MD staff submission requires MD approval -> PENDING
+    // 4. Expenses <= 1,000 INR created directly by MD are APPROVED
+    let initialStatus = 'PENDING';
+    if (expAmount <= 1000 && !isSalary && isMdUser) {
+      initialStatus = 'APPROVED';
+    }
+    if (req.body.status && isMdUser) {
+      initialStatus = req.body.status;
+    }
 
     const expense = await Expense.create({
       date: date ? new Date(date) : new Date(),
@@ -240,14 +257,16 @@ export const createExpense = async (req, res) => {
       attachment: attachmentUrl,
       addedBy: req.user?.id || null,
       addedByName,
-      type: catObj.name.toLowerCase() === 'salary' ? 'Salary' : 'Expense',
+      type: isSalary ? 'Salary' : 'Expense',
       status: initialStatus
     });
 
     return res.status(201).json({
       success: true,
       message: initialStatus === 'PENDING'
-        ? 'Expense recorded successfully (Submitted for Managing Director approval because amount exceeds ₹1,000).'
+        ? (expAmount > 1000 
+            ? 'Expense recorded successfully (Submitted for MD approval because amount exceeds ₹1,000).' 
+            : 'Expense recorded successfully (Submitted for Managing Director approval).')
         : 'Expense added successfully.',
       data: expense
     });
@@ -554,7 +573,7 @@ export const deleteSalaryPayment = async (req, res) => {
 
 export const getCashBook = async (req, res) => {
   try {
-    const { startDate, endDate, type, category } = req.query;
+    const { startDate, endDate, type, category, paymentMode } = req.query;
     const query = {};
 
     if (type) {
@@ -563,6 +582,14 @@ export const getCashBook = async (req, res) => {
 
     if (category) {
       query.category = category;
+    }
+
+    if (paymentMode) {
+      if (paymentMode === 'UPI_BANK' || paymentMode === 'UPI/BANK') {
+        query.paymentMode = { $in: ['UPI', 'Bank', 'upi', 'bank'] };
+      } else {
+        query.paymentMode = paymentMode;
+      }
     }
 
     if (startDate || endDate) {
@@ -783,6 +810,20 @@ export const approveOrRejectSalaryPayment = async (req, res) => {
 
     await salaryPayment.save();
 
+    // Sync status change to synced expense record in expenses collection
+    await Expense.updateMany(
+      { $or: [{ salaryPaymentId: id }, { _id: salaryPayment.expenseId }] },
+      {
+        $set: {
+          status: action,
+          actionBy: actorId || null,
+          actionByName: actorName,
+          actionAt: new Date(),
+          rejectionReason: action === 'REJECTED' ? (rejectionReason ? rejectionReason.trim() : '') : ''
+        }
+      }
+    );
+
     return res.status(200).json({
       success: true,
       message: `Salary payment ${action.toLowerCase()} successfully.`,
@@ -807,8 +848,24 @@ export const approveAllSalaryPayments = async (req, res) => {
       if (u) actorName = u.name;
     }
 
+    const pendingSalaries = await SalaryPayment.find({ status: 'PENDING' });
+    const pendingIds = pendingSalaries.map(s => s._id);
+
     const result = await SalaryPayment.updateMany(
-      { status: 'PENDING' },
+      { _id: { $in: pendingIds } },
+      {
+        $set: {
+          status: 'APPROVED',
+          actionBy: actorId || null,
+          actionByName: actorName,
+          actionAt: new Date(),
+          rejectionReason: ''
+        }
+      }
+    );
+
+    await Expense.updateMany(
+      { salaryPaymentId: { $in: pendingIds } },
       {
         $set: {
           status: 'APPROVED',
@@ -876,6 +933,96 @@ export const approveOrRejectExpense = async (req, res) => {
     });
   } catch (error) {
     console.error('approveOrRejectExpense Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Send official Salary Payslip to employee via email
+ * POST /api/v1/accounts/salary-payments/:id/send-email
+ */
+export const sendSalaryPayslipEmail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+
+    const payment = await SalaryPayment.findById(id).populate('employee', 'name email designation employeeId');
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Salary payment record not found.' });
+    }
+
+    const recipientEmail = (email && email.trim()) || payment.employee?.email;
+    if (!recipientEmail) {
+      return res.status(400).json({ success: false, message: 'Recipient email address is required.' });
+    }
+
+    const empName = payment.employeeName || payment.employee?.name || 'Employee';
+    const month = payment.month || 'Current Month';
+    const netPay = (payment.paidAmount || 0).toLocaleString('en-IN');
+    const empId = payment.kbEmployeeId || payment.employee?.employeeId || 'KB-EMP-001';
+    const payDate = payment.paymentDate ? new Date(payment.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background-color: #ffffff;">
+        <div style="background-color: #4f46e5; color: #ffffff; padding: 24px; text-align: center;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">KOD.BRAND</h2>
+          <p style="margin: 4px 0 0 0; font-size: 12px; opacity: 0.9;">Official Employee Salary Payslip — ${month}</p>
+        </div>
+
+        <div style="padding: 24px; color: #334155;">
+          <p style="font-size: 14px; margin-top: 0;">Dear <strong>${empName}</strong>,</p>
+          <p style="font-size: 13px; color: #64748b; line-height: 1.5;">
+            Your salary payslip statement for <strong>${month}</strong> has been generated. Please find the disbursal details below:
+          </p>
+
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px;">
+            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px; font-weight: bold; color: #475569;">Employee Name</td>
+              <td style="padding: 10px; text-align: right; font-weight: bold; color: #0f172a;">${empName}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px; font-weight: bold; color: #475569;">Employee ID</td>
+              <td style="padding: 10px; text-align: right; color: #0f172a;">${empId}</td>
+            </tr>
+            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px; font-weight: bold; color: #475569;">Pay Period</td>
+              <td style="padding: 10px; text-align: right; color: #0f172a;">${payment.payPeriod || month}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px; font-weight: bold; color: #475569;">Disbursal Date</td>
+              <td style="padding: 10px; text-align: right; color: #0f172a;">${payDate}</td>
+            </tr>
+            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 10px; font-weight: bold; color: #475569;">Payment Mode</td>
+              <td style="padding: 10px; text-align: right; color: #0f172a;">${payment.paymentMode || 'Bank'}</td>
+            </tr>
+            <tr style="background-color: #e0e7ff; border-top: 2px solid #6366f1;">
+              <td style="padding: 12px; font-weight: bold; color: #3730a3; font-size: 14px;">Net Salary Disbursed</td>
+              <td style="padding: 12px; text-align: right; font-weight: bold; color: #3730a3; font-size: 16px;">₹${netPay}</td>
+            </tr>
+          </table>
+
+          <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+            This is an official computer-generated salary advice statement issued by KOD.BRAND HR & Payroll Department.
+          </p>
+        </div>
+      </div>
+    `;
+
+    const emailResult = await sendEmail({
+      to: recipientEmail,
+      subject: `Official Salary Payslip Statement — ${month} | ${empName}`,
+      htmlContent,
+      senderName: 'KOD.BRAND Payroll'
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Payslip email sent successfully to ${recipientEmail}.`,
+      data: emailResult
+    });
+  } catch (error) {
+    console.error('sendSalaryPayslipEmail Error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
