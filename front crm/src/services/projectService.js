@@ -67,6 +67,19 @@ export const deleteProject = async (id) => {
   return response.data;
 };
 
+export const getProjectCategories = async (departmentId) => {
+  const response = await axios.get(`${getBaseUrl()}/categories`, {
+    ...getAuthHeaders(),
+    params: { departmentId }
+  });
+  return response.data;
+};
+
+export const createProjectCategory = async (categoryData) => {
+  const response = await axios.post(`${getBaseUrl()}/categories`, categoryData, getAuthHeaders());
+  return response.data;
+};
+
 export const fetchActiveEmployees = async (params = {}) => {
   const host = import.meta.env.VITE_API_URL || '/api';
   const cleanHost = host.replace(/\/+$/, '');
