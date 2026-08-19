@@ -169,6 +169,11 @@ export const deleteSalaryPayment = async (id) => {
   return response.data;
 };
 
+export const sendSalaryPayslipEmail = async (id, data = {}) => {
+  const response = await safePost(`/salary-payments/${id}/send-email`, data);
+  return response.data;
+};
+
 // ── Cash Book Service ──
 export const getCashBook = async (params = {}) => {
   const response = await safeGet('/cash-book', params);
