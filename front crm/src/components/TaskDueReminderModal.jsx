@@ -115,30 +115,42 @@ const TaskDueReminderModal = () => {
     try {
       const currentUserId = getCurrentUserId();
       const rawToken = localStorage.getItem('token');
-      if (!currentUserId || !rawToken) return;
+      if (!currentUserId || !rawToken) return true;
 
       const cleanToken = rawToken.replace(/"/g, '').trim();
       const authHeader = cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`;
 
-      const res = await fetch(`${API_BASE}/tasks/all`, {
-        headers: { 'Authorization': authHeader }
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
-      if (!res.ok) return;
+      const res = await fetch(`${API_BASE}/tasks/all`, {
+        headers: { 'Authorization': authHeader },
+        signal: controller.signal
+      }).finally(() => clearTimeout(timeoutId));
+
+      if (!res.ok) {
+        console.warn(`Error checking task due times: HTTP ${res.status}`);
+        return false;
+      }
 
       const data = await res.json();
       const tasksList = Array.isArray(data) ? data : (data.tasks || data.data || []);
       const now = Date.now();
 
+      const matchesAssignee = (assigned, userId) => {
+        const list = Array.isArray(assigned) ? assigned : (assigned ? [assigned] : []);
+        return list.some((item) => {
+          const assigneeId = (typeof item === 'object' && item)
+            ? String(item._id || item.id || '').trim()
+            : String(item || '').trim();
+          return assigneeId === userId;
+        });
+      };
+
       for (const t of tasksList) {
         if (!t.dueDate || t.status === 'done') continue;
 
-        // Check assigned person
-        const assigneeId = (typeof t.assigned_to === 'object' && t.assigned_to) 
-          ? (t.assigned_to._id || t.assigned_to.id || '').toString().trim()
-          : String(t.assigned_to || '').trim();
-
-        if (assigneeId !== currentUserId) continue;
+        if (!matchesAssignee(t.assigned_to, currentUserId)) continue;
 
         const dueTimestamp = new Date(t.dueDate).getTime();
         if (isNaN(dueTimestamp)) continue;
@@ -161,16 +173,49 @@ const TaskDueReminderModal = () => {
           }
         }
       }
+
+      return true;
     } catch (err) {
       console.warn("Error checking task due times:", err.message);
+      return false;
     }
   }, [dispatchNotifications]);
 
   useEffect(() => {
-    checkTaskDueTimes();
-    // Check every 30 seconds
-    const interval = setInterval(checkTaskDueTimes, 30000);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    let timeoutId = null;
+    let inFlight = false;
+    let consecutiveFailures = 0;
+    const BASE_INTERVAL_MS = 30000;
+    const MAX_BACKOFF_MS = 5 * 60 * 1000;
+
+    const scheduleNext = (delay) => {
+      if (cancelled) return;
+      timeoutId = setTimeout(runCheck, delay);
+    };
+
+    const runCheck = async () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      const ok = await checkTaskDueTimes();
+      inFlight = false;
+
+      if (ok) {
+        consecutiveFailures = 0;
+        scheduleNext(BASE_INTERVAL_MS);
+        return;
+      }
+
+      consecutiveFailures += 1;
+      const backoff = Math.min(BASE_INTERVAL_MS * 2 ** consecutiveFailures, MAX_BACKOFF_MS);
+      scheduleNext(backoff);
+    };
+
+    runCheck();
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [checkTaskDueTimes]);
 
   const handleGoToTask = () => {

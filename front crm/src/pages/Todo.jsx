@@ -221,6 +221,11 @@ const fetchData = useCallback(async () => {
       })
     ]);
 
+    if (!tRes.ok) {
+      console.error("Fetch Error: failed to load tasks", tRes.status);
+      return;
+    }
+
     const responseText = await tRes.text();
     const tData = JSON.parse(responseText);
     const uData = await uRes.json();
