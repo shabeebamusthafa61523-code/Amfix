@@ -57,6 +57,7 @@ import LeavesPage from './pages/LeavesPage';
 import ApprovalsPage from './pages/ApprovalsPage';
 import PayslipsPage from './pages/PayslipsPage';
 import PersonalPayslipPage from './pages/PersonalPayslipPage';
+import RecruitmentPage from './pages/RecruitmentPage';
 
 
 
@@ -74,8 +75,14 @@ import ProjectReportsPage from './pages/ProjectReportsPage';
 
 
 // Route Guards
+const getStoredToken = () => {
+  const rawToken = localStorage.getItem('token');
+  const token = rawToken ? rawToken.replace(/^"(.*)"$/, '$1').replace(/"/g, '').replace(/^Bearer\s+/i, '').trim() : '';
+  return ['undefined', 'null'].includes(token.toLowerCase()) ? '' : token;
+};
+
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem('token');
+  const token = getStoredToken();
   if (!token) {
     return <Navigate to="/login" replace />;
   }
@@ -87,7 +94,7 @@ const RestrictedRoute = ({ children }) => {
 };
 
 const PublicRoute = ({ children }) => {
-  const token = localStorage.getItem('token');
+  const token = getStoredToken();
   if (token) {
     try {
       const userStr = localStorage.getItem('user');
@@ -116,7 +123,7 @@ const PublicRoute = ({ children }) => {
 };
 
 const LandingRoute = () => {
-  const token = localStorage.getItem('token');
+  const token = getStoredToken();
   if (!token) return <Navigate to="/login" replace />;
 
   try {
@@ -202,6 +209,7 @@ function App() {
         <Route path="/approvals" element={<ProtectedRoute><MainLayout><ApprovalsPage /></MainLayout></ProtectedRoute>} />
         <Route path="/payslips" element={<ProtectedRoute><MainLayout><PayslipsPage /></MainLayout></ProtectedRoute>} />
         <Route path="/my-payslip" element={<ProtectedRoute><MainLayout><PersonalPayslipPage /></MainLayout></ProtectedRoute>} />
+        <Route path="/recruitment" element={<ProtectedRoute><MainLayout><RecruitmentPage /></MainLayout></ProtectedRoute>} />
 
         {/* Accounts Department Module Routes */}
         <Route path="/accounts" element={<ProtectedRoute><MainLayout><AccountsPage /></MainLayout></ProtectedRoute>} />

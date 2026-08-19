@@ -1,23 +1,35 @@
+const getAuthHeader = () => {
+  const rawToken = localStorage.getItem('token');
+  const token = rawToken ? rawToken.replace(/^"(.*)"$/, '$1').replace(/"/g, '').replace(/^Bearer\s+/i, '').trim() : '';
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const extractTasks = data => {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.tasks)) return data.tasks;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.data?.tasks)) return data.data.tasks;
+  return [];
+};
+
+const getTasksUrl = () => {
+  const base = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+  return base.endsWith('/v1') ? `${base}/tasks/all` : `${base}/v1/tasks/all`;
+};
+
 export const fetchCompletedTasks = async (userId, dateStr) => {
   if (!userId || !dateStr) return [];
-  const API_BASE = import.meta.env.VITE_API_URL || '/api';
   try {
-    const rawToken = localStorage.getItem('token') || '';
-    const cleanToken = rawToken.replace(/^"(.*)"$/, '$1').replace(/"/g, '').trim();
-    const authHeader = cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`;
-    const cleanBase = API_BASE.replace(/\/+$/, '');
-    const url = cleanBase.endsWith('/v1') ? `${cleanBase}/tasks/all` : `${cleanBase}/v1/tasks/all`;
-
-    const res = await fetch(url, {
+    const res = await fetch(getTasksUrl(), {
       headers: {
-        'Authorization': authHeader,
+        ...getAuthHeader(),
         'Content-Type': 'application/json'
       }
     });
     if (!res.ok) return [];
     
     const data = await res.json();
-    const tasks = Array.isArray(data) ? data : (data.tasks || data.data || []);
+    const tasks = extractTasks(data);
     
     // Filter for tasks assigned to the user matching the selected report date.
     const filteredTasks = tasks.filter(t => {
@@ -78,7 +90,7 @@ export const fetchCompletedTasks = async (userId, dateStr) => {
         preview: 'Preview',
         done: 'Done'
       };
-      const statusText = statusMap[String(t.status).toLowerCase()] || 'Pending';
+      const statusText = statusMap[String(t.status).toLowerCase()] || (t.status ? String(t.status) : 'N/A');
 
       const formatTime = (dateObjOrStr) => {
         if (!dateObjOrStr) return '';
@@ -145,7 +157,7 @@ export const fetchCompletedTasks = async (userId, dateStr) => {
         startDateTimeLocal,
         endDateTimeLocal,
         dueDate: formattedDueDate,
-        title: `${t.title} [${statusText.toUpperCase()}]`
+        title: t.title ? `${t.title} [${statusText.toUpperCase()}]` : 'N/A'
       };
     });
   } catch (error) {
@@ -164,16 +176,14 @@ const extractUserId = (userField) => {
 
 export const fetchDelegatedTasks = async (userId, dateStr) => {
   if (!userId || !dateStr) return [];
-  const API_BASE = import.meta.env.VITE_API_URL;
   try {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${API_BASE}/tasks/all`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+    const res = await fetch(getTasksUrl(), {
+      headers: getAuthHeader()
     });
     if (!res.ok) return [];
     
     const data = await res.json();
-    const tasks = Array.isArray(data) ? data : (data.tasks || data.data || []);
+    const tasks = extractTasks(data);
     
     const matchesDate = (d) => {
       if (!d) return false;
@@ -235,9 +245,9 @@ export const fetchDelegatedTasks = async (userId, dateStr) => {
         preview: 'Preview',
         done: 'Done'
       };
-      const statusText = statusMap[String(t.status).toLowerCase()] || 'Pending';
+      const statusText = statusMap[String(t.status).toLowerCase()] || (t.status ? String(t.status) : 'N/A');
       
-      const assignedName = t.assigned_to?.name || t.assigned_to?.username || t.assigned_to?.employeeName || t.assignedTo?.name || t.assignedTo?.username || 'Staff';
+      const assignedName = t.assigned_to?.name || t.assigned_to?.username || t.assigned_to?.employeeName || t.assignedTo?.name || t.assignedTo?.username || 'N/A';
 
       let formattedDueDate = '';
       if (t.dueDate) {
@@ -252,7 +262,7 @@ export const fetchDelegatedTasks = async (userId, dateStr) => {
 
       return {
         project: assignedName,
-        kpi: t.title,
+        kpi: t.title || 'N/A',
         target: formattedDueDate,
         achieved: statusText
       };

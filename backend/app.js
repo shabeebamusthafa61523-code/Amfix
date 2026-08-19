@@ -28,9 +28,21 @@ import accountRoutes from './src/routes/account.routes.js';
 import academyRoutes from './src/routes/academy.routes.js';
 import notificationRoutes from './src/routes/notification.routes.js';
 import leaveRoutes from './src/routes/leave.routes.js';
+import recruitmentRoutes from './src/routes/recruitment.routes.js';
 import Designation from './src/models/designation.model.js';
 import Department from './src/modules/departments/department.model.js';
 const app = express();
+
+const cloudinaryEnvWarnings = [];
+if (!process.env.CLOUDINARY_CLOUD_NAME) cloudinaryEnvWarnings.push('CLOUDINARY_CLOUD_NAME');
+if (!process.env.CLOUDINARY_API_KEY) cloudinaryEnvWarnings.push('CLOUDINARY_API_KEY');
+if (!process.env.CLOUDINARY_API_SECRET) cloudinaryEnvWarnings.push('CLOUDINARY_API_SECRET');
+
+if (cloudinaryEnvWarnings.length > 0) {
+  console.warn(`Cloudinary configuration is incomplete: missing ${cloudinaryEnvWarnings.join(', ')}`);
+} else {
+  console.info('Cloudinary configuration loaded successfully.');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,7 +74,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // 3. Specific/Dedicated API Routers
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/attendance', attendanceRoutes); 
 app.use('/api/user', userRoutes); 
@@ -78,11 +94,14 @@ app.use('/api/v1/academy', academyRoutes);
 app.use('/api/academy', academyRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/v1/recruitment', recruitmentRoutes);
+app.use('/api/recruitment', recruitmentRoutes);
 
 // 4. Broad, Versioned, & Catch-all Fallbacks (Broadest matching paths go lower)
 app.use('/api/v1', studentRoutes);
 app.use('/api/v1', crmRoutes);
 app.use('/api', studentRoutes); 
+app.use('/api', crmRoutes);
 app.use('/api', apiRoutes);      // Legacy base fallback route handler
 
 // Welcome / Root Health Check Route

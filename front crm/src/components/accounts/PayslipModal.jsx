@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Printer, Download, FileText, Pencil, Check, XCircle, Loader2 } from 'lucide-react';
+import { X, Printer, Download, FileText, Pencil, Check, XCircle, Loader2, Mail, Send } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
-import { updateSalaryPayment } from '../../services/accountsService';
+import { updateSalaryPayment, sendSalaryPayslipEmail } from '../../services/accountsService';
 import { useToast } from '../ToastProvider';
 import { useUser } from '../../contexts/UserContext';
 
@@ -12,6 +12,9 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
   const { user } = useUser();
   const [downloading, setDownloading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [targetEmail, setTargetEmail] = useState('');
   const [editMode, setEditMode] = useState(false);
 
   // ── Role checks for editing capability ─────────────────────
@@ -183,6 +186,33 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
     }
   };
 
+  const handleSendEmail = async (emailToUse) => {
+    const finalEmail = emailToUse || targetEmail;
+    if (!salaryRecord?._id) {
+      showToast('Salary payment record ID missing.', 'error');
+      return;
+    }
+    if (!finalEmail || !finalEmail.trim()) {
+      showToast('Please provide a valid recipient email address.', 'error');
+      return;
+    }
+    setSendingEmail(true);
+    try {
+      const res = await sendSalaryPayslipEmail(salaryRecord._id, { email: finalEmail.trim() });
+      if (res?.success !== false) {
+        showToast(`Payslip email sent successfully to ${finalEmail.trim()}!`, 'success');
+        setShowEmailModal(false);
+      } else {
+        showToast(res?.message || 'Failed to send email.', 'error');
+      }
+    } catch (err) {
+      console.error('Error sending payslip email:', err);
+      showToast(err?.response?.data?.message || 'Error sending payslip email.', 'error');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   // ── Reusable editable text cell ─────────────────────────────
   const EditCell = ({ field, type = 'text' }) =>
     editMode ? (
@@ -280,6 +310,19 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
               >
                 {downloading ? <Loader2 size={11} className="animate-spin" /> : <Download size={12} />}
                 {downloading ? 'Generating...' : 'Download PDF'}
+              </button>
+              <button
+                onClick={() => {
+                  const empEmail = salaryRecord?.employee?.email || salaryRecord?.email || '';
+                  setTargetEmail(empEmail);
+                  setShowEmailModal(true);
+                }}
+                disabled={sendingEmail || editMode}
+                className="px-2.5 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-xs disabled:opacity-50 transition flex items-center gap-1 cursor-pointer"
+                title={editMode ? 'Save edits first' : 'Share via Email'}
+              >
+                {sendingEmail ? <Loader2 size={11} className="animate-spin" /> : <Mail size={12} />}
+                <span>{sendingEmail ? 'Sending...' : 'Email Payslip'}</span>
               </button>
               <button
                 onClick={onClose}
@@ -490,6 +533,72 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
           </div>
         </motion.div>
       </div>
+
+      {/* ── Share via Email Dialog ──────────────────────── */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white text-slate-900 rounded-2xl p-5 w-full max-w-md shadow-2xl space-y-4 border border-slate-200"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                  <Mail size={18} />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Email Payslip Statement</h4>
+                  <p className="text-[11px] text-slate-500">{edited.month} — {edited.empName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEmailModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+                Recipient Email Address
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. employee@company.com"
+                value={targetEmail}
+                onChange={(e) => setTargetEmail(e.target.value)}
+                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs outline-none focus:border-indigo-600 font-semibold text-slate-900"
+              />
+              <p className="text-[10px] text-slate-400 font-normal">
+                The official KOD.BRAND salary statement will be emailed to this recipient.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowEmailModal(false)}
+                disabled={sendingEmail}
+                className="px-3.5 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSendEmail()}
+                disabled={sendingEmail}
+                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                {sendingEmail ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+                <span>{sendingEmail ? 'Sending Email...' : 'Send Email'}</span>
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </AnimatePresence>
   );
 };

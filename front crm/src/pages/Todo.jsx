@@ -11,6 +11,7 @@ import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
 import { useUser } from '../contexts/UserContext';
 import { sendEmail } from '../services/emailService';
+import TaskCollaboration from '../components/TaskCollaboration';
 
 const API_BASE = import.meta.env.VITE_API_URL;// --- UTILS & CONSTANTS ---
 const getTaskImageUrl = (path) => {
@@ -307,8 +308,6 @@ const fetchData = useCallback(async () => {
       <p className="mt-6 text-[10px] font-black uppercase tracking-[0.5em] text-indigo-500/50">Syncing Nexus</p>
     </div>
   );
-console.log("TOKEN:", localStorage.getItem("token"));
-console.log("HEADERS:", getAuthHeaders());
   return (
     <div className="text-slate-700 dark:text-slate-200 font-sans selection:bg-white-500/30 selection:text-white">
       <style>{`.no-scrollbar::-webkit-scrollbar { display: none; }`}</style>
@@ -798,47 +797,7 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
             )}
           </div>
 
-          {/* Subtasks Section in Create Modal */}
-          <div className="space-y-2 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-200 dark:border-slate-800">
-            <span className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] flex items-center gap-1.5">
-              <ListTodo size={12} /> Initial Subtasks ({initialSubtasks.length})
-            </span>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="Add a subtask (e.g. Prepare design draft)..."
-                value={subtaskInput}
-                onChange={e => setSubtaskInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddInitialSubtask(e);
-                  }
-                }}
-                className="flex-1 px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs outline-none text-slate-900 dark:text-slate-100 font-medium"
-              />
-              <button
-                type="button"
-                onClick={handleAddInitialSubtask}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold rounded-xl uppercase tracking-wider cursor-pointer flex items-center gap-1 shrink-0"
-              >
-                <PlusCircle size={12} /> Add
-              </button>
-            </div>
-            {initialSubtasks.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {initialSubtasks.map((stTitle, idx) => (
-                  <div key={idx} className="flex items-center gap-1.5 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs text-xs">
-                    <CheckSquare size={12} className="text-indigo-500" />
-                    <span className="text-[10px] font-bold text-slate-700 dark:text-slate-200 truncate max-w-[160px]">{stTitle}</span>
-                    <button type="button" onClick={() => removeInitialSubtask(idx)} className="text-slate-400 hover:text-rose-500 p-0.5 cursor-pointer">
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
@@ -1874,6 +1833,12 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
               getAuthHeaders={getAuthHeaders} 
               onUpdate={onUpdate} 
               users={users} 
+            />
+
+            <TaskCollaboration
+              task={task}
+              currentUserId={currentUserId}
+              onTaskUpdate={onUpdate}
             />
           </div>
 

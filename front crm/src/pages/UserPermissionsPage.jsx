@@ -11,37 +11,51 @@ import { useUser } from '../contexts/UserContext';
 const API_BASE = import.meta.env.VITE_API_URL;
 
 const ALL_SIDEBAR_ITEMS = [
-  { label: 'Approvals', path: '/approvals', category: 'Management', desc: 'MD Executive approvals for leaves & salary payments' },
+  // Dashboards
   { label: 'Dashboard', path: '/dashboard', category: 'Dashboards', desc: 'Main CRM overview & key metrics' },
   { label: 'Admin Dashboard', path: '/dashboard', category: 'Dashboards', desc: 'Admin panel with full CRM overview & controls' },
   { label: 'MD Dashboard', path: '/md-dashboard', category: 'Dashboards', desc: 'Managing Director executive overview & analytics' },
-  { label: 'Clients', path: '/clients', category: 'Management', desc: 'Client directory & profiles' },
-  { label: 'Projects', path: '/projects', category: 'Management', desc: 'Project tracking & progress' },
-  { label: 'Client Leads', path: '/client-leads', category: 'Leads', desc: 'Client lead pipeline' },
-  { label: 'Telecaller Leads', path: '/leads-telecaller', category: 'Leads', desc: 'Telecaller leads & assignments' },
-  { label: 'Lead Counselor', path: '/lead-counselor', category: 'Leads', desc: 'Academic counselor lead management' },
-  { label: 'Leads Directory', path: '/leads', category: 'Leads', desc: 'Full leads directory & pipeline' },
+  { label: 'HR Dashboard', path: '/hr-dashboard', category: 'Dashboards', desc: 'HR overview dashboard & attendance stats' },
+  { label: 'Lead Dashboard', path: '/lead-dashboard', category: 'Dashboards', desc: 'Lead generation & conversion metrics' },
+  { label: 'Marketing Dashboard', path: '/marketing-dashboard', category: 'Dashboards', desc: 'Marketing campaigns & lead channels' },
+  { label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Dashboards', desc: 'Academic counselor dashboard & student conversions' },
+  { label: 'Dev Dashboard', path: '/developer-dashboard', category: 'Dashboards', desc: 'Developer task tracking & commit status' },
+  { label: 'GD Dashboard', path: '/graphic-designer-dashboard', category: 'Dashboards', desc: 'Graphic design project & asset tracker' },
+  { label: 'Video Dashboard', path: '/videographer-dashboard', category: 'Dashboards', desc: 'Videography project & editing status' },
+
+  // Management & Operations
+  { label: 'Approvals', path: '/approvals', category: 'Management', desc: 'MD Executive approvals for leaves & salary payments' },
+  { label: 'Clients', path: '/clients', category: 'Management', desc: 'Client directory & company profiles' },
+  { label: 'Projects', path: '/projects', category: 'Management', desc: 'Project tracking & milestones' },
   { label: 'Users', path: '/users', category: 'Management', desc: 'Employee & user account management' },
-  { label: 'Departments', path: '/departments', category: 'Management', desc: 'Department hierarchy & managers' },
+  { label: 'Departments', path: '/departments', category: 'Management', desc: 'Department hierarchy & manager assignments' },
+  { label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'Management', desc: 'Custom user menu permission configuration' },
   { label: 'Task Assign', path: '/todo', category: 'Operations', desc: 'Task assignment & attachment view' },
-  { label: 'KPI Analytics', path: '/performance-dashboard', category: 'Analytics', desc: 'Quantitative KPI score & performance' },
-  { label: 'AI Reports', path: '/ai-report', category: 'Analytics', desc: 'Automated AI reports & summary' },
-  { label: 'Attendance', path: '/attendance', category: 'HR', desc: 'Daily attendance clock-in/out' },
-  { label: 'Leave Requests', path: '/leaves', category: 'HR', desc: 'Leave request application & joint approvals' },
+
+  // HR & Recruitment
+  { label: 'Attendance', path: '/attendance', category: 'HR', desc: 'Daily attendance clock-in/out logs' },
+  { label: 'Leave Requests', path: '/leaves', category: 'HR', desc: 'Leave request application & approvals' },
+  { label: 'Recruitment', path: '/recruitment', category: 'HR', desc: 'Recruitment directory, candidate pipeline & offer letters' },
   { label: 'Student Attendance', path: '/student-attendance', category: 'HR', desc: 'Student batch attendance logs' },
+
+  // Leads & Sales
+  { label: 'Leads Directory', path: '/leads', category: 'Leads', desc: 'Full leads directory & sales pipeline' },
+  { label: 'Client Leads', path: '/client-leads', category: 'Leads', desc: 'Client lead pipeline & inquiries' },
+  { label: 'Telecaller Leads', path: '/leads-telecaller', category: 'Leads', desc: 'Telecaller assigned lead calls' },
+  { label: 'Lead Counselor', path: '/lead-counselor', category: 'Leads', desc: 'Academic counselor lead assignments' },
+
+  // LMS / Academy
+  { label: 'Course Management', path: '/academy/courses', category: 'LMS / Academy', desc: 'Course catalog & curriculum management' },
+  { label: 'Batches', path: '/academy/batches', category: 'LMS / Academy', desc: 'Student batch creation & schedule tracking' },
+  { label: 'Enrollment Tracking', path: '/academy/enrollments', category: 'LMS / Academy', desc: 'Student course enrollment & fee status' },
+  { label: 'My LMS Learning', path: '/academy/learning', category: 'LMS / Academy', desc: 'Student LMS portal & course materials' },
+
+  // Analytics & Reports
+  { label: 'KPI Analytics', path: '/performance-dashboard', category: 'Analytics', desc: 'Quantitative KPI score & performance' },
+  { label: 'AI Reports', path: '/ai-report', category: 'Analytics', desc: 'Automated AI reports & summaries' },
   { label: 'Employee Reports', path: '/employee-reports', category: 'Reports', desc: 'Employee activity & performance logs' },
   { label: 'Daily Report', path: '/basic-report', category: 'Reports', desc: 'Common daily shift activity & report view' },
   { label: 'Team Reports', path: '/team-reports', category: 'Reports', desc: 'Team lead department reports' },
-  { label: 'HR Dashboard', path: '/hr-dashboard', category: 'Dashboards', desc: 'HR overview dashboard' },
-  { label: 'Lead Dashboard', path: '/lead-dashboard', category: 'Dashboards', desc: 'Lead generation metrics' },
-  { label: 'Marketing Dashboard', path: '/marketing-dashboard', category: 'Dashboards', desc: 'Marketing campaigns & leads' },
-  { label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Dashboards', desc: 'Academic counselor dashboard' },
-  { label: 'Dev Dashboard', path: '/developer-dashboard', category: 'Dashboards', desc: 'Developer tasks & status' },
-  { label: 'GD Dashboard', path: '/graphic-designer-dashboard', category: 'Dashboards', desc: 'Graphic design task dashboard' },
-  { label: 'Video Dashboard', path: '/videographer-dashboard', category: 'Dashboards', desc: 'Videography project dashboard' },
-  { label: 'Accounts', path: '/accounts', category: 'Finance', desc: 'Expense management, salary & cash book' },
-  { label: 'Payslips', path: '/payslips', category: 'Finance', desc: 'Employee payslip generation & disbursal records' },
-  { label: 'Personal Payslip', path: '/my-payslip', category: 'Finance', desc: 'Personal salary slip portal for individual employees' },
   { label: 'Developer Report', path: '/developer-report', category: 'Reports', desc: 'Developer daily shift reports' },
   { label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports', desc: 'Graphic design shift reports' },
   { label: 'Videographer Report', path: '/videographer-report', category: 'Reports', desc: 'Videography shift reports' },
@@ -51,6 +65,18 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Ops Shift Report', path: '/ops-report', category: 'Reports', desc: 'Operations shift reports' },
   { label: 'Accountant Shift Report', path: '/accountant-report', category: 'Reports', desc: 'Accountant shift reports' },
   { label: 'Marketing Shift Report', path: '/marketing-report', category: 'Reports', desc: 'Marketing shift reports' },
+
+  // Finance & Accounts
+  { label: 'Accounts', path: '/accounts', category: 'Finance', desc: 'Expense management, salary & cash book overview' },
+  { label: 'Expense Categories', path: '/accounts/categories', category: 'Finance', desc: 'Account expense categories' },
+  { label: 'Add Expense', path: '/accounts/expenses', category: 'Finance', desc: 'Record & upload expense vouchers' },
+  { label: 'Salary Payment', path: '/accounts/salary', category: 'Finance', desc: 'Salary payment processing & disbursal' },
+  { label: 'Cash Book', path: '/accounts/cash-book', category: 'Finance', desc: 'Cash book ledger & transaction history' },
+  { label: 'Expense Report', path: '/accounts/reports', category: 'Finance', desc: 'Financial expense analytics & summaries' },
+  { label: 'Payslips', path: '/payslips', category: 'Finance', desc: 'Employee payslip generation & disbursal records' },
+  { label: 'Personal Payslip', path: '/my-payslip', category: 'Finance', desc: 'Personal salary slip portal for individual employees' },
+
+  // General
   { label: 'Notifications', path: '/notifications', category: 'General', desc: 'System alerts & messages' }
 ];
 
