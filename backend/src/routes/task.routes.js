@@ -44,24 +44,17 @@ import {
 
 const router = Router();
 
-
 // ============================================================
 // GLOBAL AUTHENTICATION
 // ============================================================
-
 router.use(verifyJWT);
 
-
 // ============================================================
-// TASK ROUTES
+// STATIC / GENERIC TASK ROUTES (MUST BE DEFINED BEFORE PARAMETERIZED ROUTES)
 // ============================================================
 
-
-// ------------------------------------------------------------
 // CREATE TASK
 // POST /api/v1/tasks/create
-// ------------------------------------------------------------
-
 router.post(
   '/create',
   upload.any(),
@@ -69,58 +62,38 @@ router.post(
   createTask
 );
 
-
-// ------------------------------------------------------------
 // GET ALL TASKS
 // GET /api/v1/tasks/all
-// ------------------------------------------------------------
-
 router.get(
   '/all',
   getAllTasks
 );
 
-
-// ------------------------------------------------------------
 // GET USER TASKS
 // GET /api/v1/tasks/user/tasks?user_id=...
-// ------------------------------------------------------------
-
 router.get(
   '/user/tasks',
   validateQuery(userTasksQuerySchema),
   getUserTasks
 );
 
-
-// ------------------------------------------------------------
 // GET CURRENT USER TASKS
 // GET /api/v1/tasks/current-user/tasks
-// ------------------------------------------------------------
-
 router.get(
   '/current-user/tasks',
   getCurrentUserTasks
 );
 
-
-// ------------------------------------------------------------
 // DELETE TASK
 // DELETE /api/v1/tasks/delete/:task_id
-// ------------------------------------------------------------
-
 router.delete(
   '/delete/:task_id',
   validateParams(taskIdParamsSchema),
   deleteTask
 );
 
-
-// ------------------------------------------------------------
 // UPDATE TASK STATUS
 // PUT /api/v1/tasks/task-status/:task_id?status=...
-// ------------------------------------------------------------
-
 router.put(
   '/task-status/:task_id',
   validateParams(taskIdParamsSchema),
@@ -128,12 +101,8 @@ router.put(
   updateTaskStatus
 );
 
-
-// ------------------------------------------------------------
 // UPDATE TASK
 // PUT /api/v1/tasks/update/:task_id
-// ------------------------------------------------------------
-
 router.put(
   '/update/:task_id',
   upload.any(),
@@ -142,63 +111,48 @@ router.put(
   updateTask
 );
 
-
 // ============================================================
 // SUBTASK ROUTES
 // ============================================================
 
-
-// ------------------------------------------------------------
 // ADD SUBTASK
 // POST /api/v1/tasks/:task_id/subtasks
-// ------------------------------------------------------------
-
 router.post(
   '/:task_id/subtasks',
   validateParams(taskIdParamsSchema),
   addSubtask
 );
 
-
-// ------------------------------------------------------------
 // UPDATE / TOGGLE SUBTASK
 // PUT /api/v1/tasks/:task_id/subtasks/:subtask_id
-// ------------------------------------------------------------
-
 router.put(
   '/:task_id/subtasks/:subtask_id',
   validateParams(subtaskParamsSchema),
   toggleSubtask
 );
 
-
-// ------------------------------------------------------------
 // DELETE SUBTASK
 // DELETE /api/v1/tasks/:task_id/subtasks/:subtask_id
-// ------------------------------------------------------------
-
 router.delete(
   '/:task_id/subtasks/:subtask_id',
   validateParams(subtaskParamsSchema),
   deleteSubtask
 );
 
-
 // ============================================================
 // TASK COLLABORATION - COMMENTS
 // ============================================================
 
+// GET COMMENTS FOR TASK
+// GET /api/v1/tasks/:task_id/comments
 router.get(
   '/:task_id/comments',
   validateParams(taskIdParamsSchema),
   getTaskComments
 );
 
-// ------------------------------------------------------------
 // ADD COMMENT
 // POST /api/v1/tasks/:task_id/comments
-// ------------------------------------------------------------
-
 router.post(
   '/:task_id/comments',
   upload.any(),
@@ -207,11 +161,8 @@ router.post(
   addTaskComment
 );
 
-// ------------------------------------------------------------
 // UPDATE COMMENT
 // PUT /api/v1/tasks/:task_id/comments/:comment_id
-// ------------------------------------------------------------
-
 router.put(
   '/:task_id/comments/:comment_id',
   upload.any(),
@@ -220,11 +171,8 @@ router.put(
   updateTaskComment
 );
 
-// ------------------------------------------------------------
 // DELETE COMMENT
 // DELETE /api/v1/tasks/:task_id/comments/:comment_id
-// ------------------------------------------------------------
-
 router.delete(
   '/:task_id/comments/:comment_id',
   validateParams(commentParamsSchema),
@@ -235,6 +183,8 @@ router.delete(
 // TASK COLLABORATION - ATTACHMENTS
 // ============================================================
 
+// ADD ATTACHMENTS
+// POST /api/v1/tasks/:task_id/attachments
 router.post(
   '/:task_id/attachments',
   upload.any(),
@@ -242,6 +192,8 @@ router.post(
   addTaskAttachments
 );
 
+// DELETE ATTACHMENT
+// DELETE /api/v1/tasks/:task_id/attachments/:attachment_id
 router.delete(
   '/:task_id/attachments/:attachment_id',
   validateParams(attachmentParamsSchema),
