@@ -1,6 +1,7 @@
 // server.js
 import app from './app.js';
 import mongoose from 'mongoose';
+import { schedulerService } from './src/services/scheduler.service.js';
 
 const PORT = process.env.PORT || 5000;
 
@@ -27,6 +28,16 @@ const startServer = () => {
     console.log(`  🚀 Staff Management & CRM Server is active!`);
     console.log(`  Port: ${PORT}`);
     console.log(`==================================================`);
+
+    // Initialize scheduler only once after server starts
+    if (!global.schedulerStarted) {
+      global.schedulerStarted = true;
+      try {
+        schedulerService.start();
+      } catch (err) {
+        console.error('❌ Failed to start scheduler:', err.message);
+      }
+    }
   });
 
   server.on('error', (err) => {

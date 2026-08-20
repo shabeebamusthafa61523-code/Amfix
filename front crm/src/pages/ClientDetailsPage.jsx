@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   Building, ArrowLeft, Mail, Phone, Globe, MapPin, Calendar, 
-  ShieldCheck, FolderKanban, FileText, Clock, Plus, ChevronRight, User as UserIcon
+  ShieldCheck, FolderKanban, FileText, Clock, Plus, ChevronRight, User as UserIcon, Edit
 } from 'lucide-react';
 import { getClientById } from '../services/clientService';
 import { useToast } from '../components/ToastProvider';
 import { formatApiError } from '../utils/errorUtils';
+import EditClientModal from '../components/clients/EditClientModal';
 
 const ClientDetailsPage = () => {
   const { id } = useParams();
@@ -15,6 +16,7 @@ const ClientDetailsPage = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
     fetchClientDetails();
@@ -98,6 +100,13 @@ const ClientDetailsPage = () => {
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+          <button
+            onClick={() => setEditOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-all cursor-pointer"
+          >
+            <Edit className="w-4 h-4" />
+            <span>Edit Client</span>
+          </button>
           <Link
             to={`/projects/new?clientId=${client._id || client.id}&clientName=${encodeURIComponent(client.companyName || '')}`}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/20 transition-all hover:scale-[1.02]"
@@ -190,6 +199,12 @@ const ClientDetailsPage = () => {
                 <Phone className="w-4 h-4 text-indigo-500" />
                 <span>{client.phone}</span>
               </div>
+              {client.alternativePhone && (
+                <div className="flex items-center gap-3">
+                  <Phone className="w-4 h-4 text-slate-400" />
+                  <span className="text-slate-500">{client.alternativePhone} <span className="text-[10px] text-slate-400">(Alt)</span></span>
+                </div>
+              )}
               {client.website && (
                 <div className="flex items-center gap-3">
                   <Globe className="w-4 h-4 text-indigo-500" />
@@ -263,6 +278,15 @@ const ClientDetailsPage = () => {
           </div>
         </div>
       )}
+      <EditClientModal
+        isOpen={editOpen}
+        onClose={() => setEditOpen(false)}
+        client={client}
+        onSuccess={() => {
+          fetchClientDetails();
+          showToast('Client profile updated successfully!', 'success');
+        }}
+      />
     </div>
   );
 };

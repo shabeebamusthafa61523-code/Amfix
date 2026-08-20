@@ -59,9 +59,11 @@ const ClientGridView = ({ clients, onDelete }) => {
                     </div>
                   )}
                   <div className="overflow-hidden">
-                    <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 transition-colors truncate">
-                      {client.companyName}
-                    </h3>
+                    <Link to={`/clients/${id}`} className="block">
+                      <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 transition-colors truncate">
+                        {client.companyName}
+                      </h3>
+                    </Link>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
                         {client.clientId}
@@ -127,10 +129,10 @@ const ClientGridView = ({ clients, onDelete }) => {
               {/* Contact Information */}
               <div className="flex flex-col gap-1.5 my-3 text-xs text-slate-600 dark:text-slate-400">
                 {client.clientName && (
-                  <div className="flex items-center gap-2">
+                  <Link to={`/clients/${id}`} className="flex items-center gap-2 hover:text-indigo-600 transition-colors">
                     <UserCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span className="font-semibold text-slate-700 dark:text-slate-300 truncate">{client.clientName}</span>
-                  </div>
+                    <span className="font-semibold text-slate-700 dark:text-slate-300 truncate hover:text-indigo-600">{client.clientName}</span>
+                  </Link>
                 )}
                 <div className="flex items-center gap-2">
                   <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />

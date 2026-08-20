@@ -48,6 +48,11 @@ const clientSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  alternativePhone: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   whatsapp: {
     type: String,
     trim: true,

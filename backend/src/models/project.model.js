@@ -24,8 +24,8 @@ const projectSchema = new mongoose.Schema({
   },
   projectCategory: {
     type: String,
-    enum: ['Web Development', 'Mobile App', 'UI/UX Design', 'Digital Marketing', 'Cloud Infrastructure', 'Maintenance & Support', 'Consulting'],
-    default: 'Web Development'
+    trim: true,
+    default: ''
   },
   priority: {
     type: String,
@@ -63,7 +63,7 @@ const projectSchema = new mongoose.Schema({
   },
   deadline: {
     type: Date,
-    required: true
+    default: null
   },
   expectedDelivery: {
     type: Date
