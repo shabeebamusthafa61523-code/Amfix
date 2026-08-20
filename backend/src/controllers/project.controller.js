@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Project from '../models/project.model.js';
+import ProjectCategory from '../models/projectCategory.model.js';
 import Client from '../models/client.model.js';
 import Task from '../models/task.model.js';
 import ProjectActivity from '../models/projectActivity.model.js';
@@ -223,6 +224,35 @@ export const getProjectById = async (req, res) => {
   }
 };
 
+const sanitizeProjectPayload = (body) => {
+  const sanitized = { ...body };
+  if (Object.prototype.hasOwnProperty.call(sanitized, 'deadline')) {
+    sanitized.deadline = sanitized.deadline ? sanitized.deadline : null;
+  }
+  return sanitized;
+};
+
+const assertCategoryBelongsToDepartment = async (departmentId, categoryName) => {
+  const name = String(categoryName || '').trim();
+  if (!name) return { ok: true };
+
+  if (!departmentId || !mongoose.Types.ObjectId.isValid(departmentId)) {
+    return { ok: false, message: 'Please select a department before choosing a project category' };
+  }
+
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const category = await ProjectCategory.findOne({
+    departmentId,
+    name: { $regex: new RegExp(`^${escaped}$`, 'i') }
+  });
+
+  if (!category) {
+    return { ok: false, message: 'Selected category does not belong to the chosen department' };
+  }
+
+  return { ok: true, name: category.name };
+};
+
 export const createProject = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -262,8 +292,10 @@ export const createProject = async (req, res) => {
 
     const projectCode = await generateProjectCode();
 
+    const sanitized = sanitizeProjectPayload(req.body);
+
     const newProject = new Project({
-      ...req.body,
+      ...sanitized,
       departmentId: (deptId && mongoose.Types.ObjectId.isValid(deptId)) ? new mongoose.Types.ObjectId(deptId) : null,
       department: deptName,
       projectCode,
@@ -310,10 +342,12 @@ export const updateProject = async (req, res) => {
       return sendError(res, 'Project not found', 404);
     }
 
+    const sanitizedUpdate = sanitizeProjectPayload(req.body);
+
     const updatedProject = await Project.findByIdAndUpdate(
       id,
       {
-        ...req.body,
+        ...sanitizedUpdate,
         updatedBy: req.user.id
       },
       { new: true, runValidators: true }

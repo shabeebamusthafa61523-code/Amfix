@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { getExpenseCategories, getExpenses, createExpense, deleteExpense } from '../../services/accountsService';
-import { PlusCircle, Search, Calendar, CreditCard, UserCheck, FileText, Paperclip, Trash2, Eye, X, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { getExpenseCategories, getExpenses, createExpense, deleteExpense, approveOrRejectExpense } from '../../services/accountsService';
+import { PlusCircle, Search, Calendar, CreditCard, UserCheck, FileText, Paperclip, Trash2, Eye, X, CheckCircle, AlertCircle, RefreshCw, Clock, XCircle } from 'lucide-react';
 import { useToast } from '../ToastProvider';
 
 const AddExpenseTab = () => {
@@ -25,6 +25,7 @@ const AddExpenseTab = () => {
   // Filter State
   const [filterCategory, setFilterCategory] = useState('');
   const [filterMode, setFilterMode] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
   // View Attachment Modal
@@ -32,10 +33,13 @@ const AddExpenseTab = () => {
 
   const currentUserStr = localStorage.getItem('user');
   let currentUserName = 'Current User';
+  let isApprover = false;
   try {
     if (currentUserStr) {
       const u = JSON.parse(currentUserStr);
       currentUserName = u.name || u.email || 'Current User';
+      const roleStr = String(u.role || '').toLowerCase();
+      isApprover = u.isSuperAdmin === true || ['0', '1', '2', 'admin', 'superadmin', 'md', 'coo', 'executive_director'].includes(roleStr);
     }
   } catch (e) {}
 
@@ -45,7 +49,7 @@ const AddExpenseTab = () => {
     try {
       const [catRes, expRes] = await Promise.all([
         getExpenseCategories(),
-        getExpenses({ category: filterCategory, paymentMode: filterMode, search: searchTerm })
+        getExpenses({ category: filterCategory, paymentMode: filterMode, status: filterStatus, search: searchTerm })
       ]);
       if (catRes.success) setCategories(catRes.data || []);
       if (expRes.success) setExpenses(expRes.data || []);
@@ -59,7 +63,25 @@ const AddExpenseTab = () => {
 
   useEffect(() => {
     loadData();
-  }, [filterCategory, filterMode]);
+  }, [filterCategory, filterMode, filterStatus]);
+
+  const handleExpenseAction = async (id, action) => {
+    let rejectionReason = '';
+    if (action === 'REJECTED') {
+      const input = window.prompt('Enter rejection reason (Optional):');
+      if (input === null) return; // user cancelled prompt
+      rejectionReason = input;
+    }
+    try {
+      const res = await approveOrRejectExpense(id, { action, rejectionReason });
+      if (res.success) {
+        showToast(`Expense ${action.toLowerCase()} successfully!`, 'success');
+        loadData();
+      }
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to update expense status.', 'error');
+    }
+  };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -307,17 +329,28 @@ const AddExpenseTab = () => {
             <select
               value={filterMode}
               onChange={(e) => setFilterMode(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 text-xs"
+              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 text-xs font-medium cursor-pointer"
             >
               <option value="">All Payment Modes</option>
-              <option value="Cash">Cash</option>
-              <option value="Bank">Bank</option>
-              <option value="UPI">UPI</option>
+              <option value="Cash">💵 CASH</option>
+              <option value="UPI_BANK">📱 / 🏦 UPI / BANK</option>
+            </select>
+
+            {/* Filter Status */}
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 text-xs font-medium"
+            >
+              <option value="">All Approval Statuses</option>
+              <option value="PENDING">⏳ Waiting for Approval</option>
+              <option value="APPROVED">✓ Approved</option>
+              <option value="REJECTED">✕ Rejected</option>
             </select>
 
             <button
               onClick={loadData}
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
+              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
               title="Refresh List"
             >
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
@@ -356,7 +389,7 @@ const AddExpenseTab = () => {
                 </tr>
               ) : (
                 expenses.map((exp) => {
-                  const status = exp.status || 'APPROVED';
+                  const status = exp.status || 'PENDING';
                   return (
                     <tr key={exp._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
                       <td className="py-3 px-3 whitespace-nowrap font-medium">
@@ -383,16 +416,16 @@ const AddExpenseTab = () => {
                       </td>
                       <td className="py-3 px-3">
                         {status === 'APPROVED' ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80">
-                            Approved
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80 inline-flex items-center gap-1">
+                            <CheckCircle size={11} /> Approved
                           </span>
                         ) : status === 'REJECTED' ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80" title={exp.rejectionReason}>
-                            Rejected
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200/80 inline-flex items-center gap-1" title={exp.rejectionReason}>
+                            <XCircle size={11} /> Rejected
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80">
-                            Pending MD
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/80 inline-flex items-center gap-1">
+                            <Clock size={11} /> Waiting for Approval
                           </span>
                         )}
                       </td>
@@ -403,7 +436,7 @@ const AddExpenseTab = () => {
                         {exp.attachment ? (
                           <button
                             onClick={() => setPreviewFile(exp.attachment)}
-                            className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-semibold text-[11px]"
+                            className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-semibold text-[11px] cursor-pointer"
                           >
                             <Eye size={14} /> View
                           </button>
@@ -411,14 +444,34 @@ const AddExpenseTab = () => {
                           <span className="text-slate-400 text-[11px]">—</span>
                         )}
                       </td>
-                      <td className="py-3 px-3 text-right">
-                        <button
-                          onClick={() => handleDeleteExpense(exp._id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
-                          title="Delete Record"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          {isApprover && status === 'PENDING' && (
+                            <>
+                              <button
+                                onClick={() => handleExpenseAction(exp._id, 'APPROVED')}
+                                className="p-1 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition cursor-pointer"
+                                title="Approve Expense"
+                              >
+                                <CheckCircle size={15} />
+                              </button>
+                              <button
+                                onClick={() => handleExpenseAction(exp._id, 'REJECTED')}
+                                className="p-1 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                                title="Reject Expense"
+                              >
+                                <XCircle size={15} />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => handleDeleteExpense(exp._id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                            title="Delete Record"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

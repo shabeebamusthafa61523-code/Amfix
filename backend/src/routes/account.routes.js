@@ -15,6 +15,7 @@ import {
   deleteSalaryPayment,
   approveOrRejectSalaryPayment,
   approveAllSalaryPayments,
+  sendSalaryPayslipEmail,
   getCashBook,
   getDailyReport,
   getMonthlyReport,
@@ -45,6 +46,7 @@ router.delete('/expenses/:id', deleteExpense);
 // ── Salary Payments Routes ──
 router.get('/salary-payments', getSalaryPayments);
 router.post('/salary-payments', createSalaryPayment);
+router.post('/salary-payments/:id/send-email', sendSalaryPayslipEmail);
 router.put('/salary-payments/approve-all', approveAllSalaryPayments);
 router.put('/salary-payments/:id/action', approveOrRejectSalaryPayment);
 router.put('/salary-payments/:id', updateSalaryPayment);

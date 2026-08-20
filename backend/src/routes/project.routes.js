@@ -1,16 +1,27 @@
 import { Router } from 'express';
 import protectRoute, { requireRole } from '../middleware/auth.middleware.js';
 import * as projectController from '../controllers/project.controller.js';
+import * as projectCategoryController from '../controllers/projectCategory.controller.js';
 import { createProjectValidator, updateProjectValidator } from '../validators/project.validator.js';
+import { createProjectCategoryValidator } from '../validators/projectCategory.validator.js';
 
 const router = Router();
 
 // Apply standard authentication middleware to all project endpoints
 router.use(protectRoute);
 
+const projectMutateRoles = ['admin', '1', '2', '3', '10', 'md', 'hr', 'manager', 'team_lead', 'employee'];
+
 // Read Endpoints
 router.get('/', projectController.getProjects);
 router.get('/reports', projectController.getProjectReports);
+router.get('/categories', projectCategoryController.getProjectCategories);
+router.post(
+  '/categories',
+  requireRole(projectMutateRoles),
+  createProjectCategoryValidator,
+  projectCategoryController.createProjectCategory
+);
 router.get('/:id', projectController.getProjectById);
 router.get('/:id/visible-work', projectController.getVisibleWork);
 

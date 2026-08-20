@@ -4,6 +4,7 @@ import { FolderKanban, ArrowLeft, Save, ShieldAlert, Code, Bookmark, X, Loader2,
 import { createProject, fetchActiveEmployees, fetchDepartments } from '../services/projectService';
 import { getClients } from '../services/clientService';
 import EmployeeMultiSelect from '../components/EmployeeMultiSelect';
+import ProjectCategoryField from '../components/projects/ProjectCategoryField';
 
 const CreateProjectPage = () => {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ const CreateProjectPage = () => {
     projectName: '',
     client: '',
     description: '',
-    projectCategory: 'Web Development',
+    projectCategory: '',
     priority: 'Medium',
     status: 'Planning',
     estimatedBudget: 0,
@@ -119,6 +120,8 @@ const CreateProjectPage = () => {
           ? formData.technologyStack.split(',').map(s => s.trim()).filter(Boolean)
           : formData.technologyStack
       };
+
+      if (!payload.deadline) delete payload.deadline;
 
       const res = await createProject(payload);
       if (res && res.success) {
@@ -272,7 +275,8 @@ const CreateProjectPage = () => {
                     setFormData(prev => ({
                       ...prev,
                       departmentId: deptId,
-                      department: selectedDept ? (selectedDept.name || selectedDept.department_name) : ''
+                      department: selectedDept ? (selectedDept.name || selectedDept.department_name) : '',
+                      projectCategory: ''
                     }));
                   }}
                   className="px-4 py-2.5 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold focus:outline-hidden"
@@ -302,21 +306,12 @@ const CreateProjectPage = () => {
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Project Category</label>
-                <select
-                  name="projectCategory"
-                  value={formData.projectCategory}
-                  onChange={handleChange}
-                  className="px-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold focus:outline-hidden"
-                >
-                  <option value="Web Development">Web Development</option>
-                  <option value="Mobile App">Mobile App</option>
-                  {/* <option value="UI/UX Design">UI/UX Design</option> */}
-                  <option value="Digital Marketing">Digital Marketing</option>
-                  {/* <option value="Cloud Infrastructure">Cloud Infrastructure</option> */}
-                </select>
-              </div>
+              <ProjectCategoryField
+                departmentId={formData.departmentId}
+                value={formData.projectCategory}
+                onChange={(val) => setFormData(prev => ({ ...prev, projectCategory: val }))}
+                selectClassName="px-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold focus:outline-hidden disabled:opacity-60"
+              />
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Priority</label>
@@ -356,10 +351,9 @@ const CreateProjectPage = () => {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Project Deadline *</label>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Project Deadline</label>
                 <input
                   type="date"
-                  required
                   name="deadline"
                   value={formData.deadline}
                   onChange={handleChange}

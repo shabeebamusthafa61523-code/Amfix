@@ -4,6 +4,7 @@ import { Building, ArrowLeft, Save, ShieldAlert } from 'lucide-react';
 import { createClient } from '../services/clientService';
 import { useToast } from '../components/ToastProvider';
 import { formatApiError } from '../utils/errorUtils';
+import { CLIENT_INDUSTRIES } from '../constants/clientIndustries';
 
 const CreateClientPage = () => {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ const CreateClientPage = () => {
     gstNumber: '',
     email: '',
     phone: '',
+    alternativePhone: '',
     whatsapp: '',
     country: 'India',
     state: '',
@@ -175,15 +177,29 @@ const CreateClientPage = () => {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Industry</label>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Alternative Phone Number</label>
               <input
                 type="text"
+                name="alternativePhone"
+                value={formData.alternativePhone}
+                onChange={handleChange}
+                placeholder="+91 98765 43211"
+                className="px-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Industry</label>
+              <select
                 name="industry"
                 value={formData.industry}
                 onChange={handleChange}
-                placeholder="EdTech / FinTech / E-Commerce"
-                className="px-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
-              />
+                className="px-3.5 py-2.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-semibold focus:outline-hidden"
+              >
+                {CLIENT_INDUSTRIES.map(ind => (
+                  <option key={ind} value={ind}>{ind}</option>
+                ))}
+              </select>
             </div>
 
             <div className="flex flex-col gap-1.5">

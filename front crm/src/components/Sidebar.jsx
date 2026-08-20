@@ -12,8 +12,10 @@ import {
   Settings, 
   LogOut,
   Building,
+  Building2,
   TrendingUp,
   BarChart3,
+  BarChart2,
   FileText,
   Sparkles,
   Award,
@@ -33,6 +35,31 @@ import {
   CheckCircle2,
   Receipt,
   CreditCard,
+  Target,
+  Megaphone,
+  Magnet,
+  PhoneCall,
+  Contact,
+  Code2,
+  Palette,
+  FileCode,
+  Lightbulb,
+  Paintbrush,
+  BookOpenCheck,
+  Video,
+  FileVideo,
+  ClipboardCheck,
+  Sliders,
+  Calculator,
+  PieChart,
+  ClipboardList,
+  Clock,
+  Clipboard,
+  Layers,
+  School,
+  UsersRound,
+  UserCog,
+  BookCheck,
   X
 } from 'lucide-react';
 
@@ -50,8 +77,8 @@ const menuItems = [
     label: 'Leave Requests',
     path: '/leaves'
   },
-   {
-    icon: LayoutDashboard,
+  {
+    icon: UserCog,
     label: 'HR Dashboard',
     path: '/hr-dashboard',
     allowedDesignationNames: ['hr', 'recruiter'],
@@ -64,7 +91,7 @@ const menuItems = [
     allowedDesignationNames: ['hr', 'recruiter', 'admin', 'manager']
   },
   {
-    icon: BarChart3,
+    icon: Target,
     label: 'Lead Dashboard',
     path: '/lead-dashboard',
     allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'],
@@ -72,16 +99,14 @@ const menuItems = [
     allowedDesignationNames: ['counselor', 'telecaller', 'ops']
   },
   {
-    icon: BarChart3,
+    icon: Megaphone,
     label: 'Marketing Dashboard',
     path: '/marketing-dashboard',
     allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'marketing', 'manager', 'team_lead', 'teamlead', 'tl'],
     allowedDepartmentNames: ['marketing', 'digital']
   },
-  
-  
   {
-    icon: Building,
+    icon: Building2,
     label: 'Clients',
     path: '/clients',
     allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead']
@@ -105,8 +130,6 @@ const menuItems = [
     path: '/client-leads',
     allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead']
   },
- 
-
   { 
     icon: Users, 
     label: 'Users', 
@@ -122,14 +145,14 @@ const menuItems = [
     allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin']
   },
   { 
-    icon: TrendingUp, 
+    icon: Magnet, 
     label: 'Leads Directory', 
     path: '/leads',
     allowedDepartmentNames: ['marketing', 'digital', 'counselor', 'sales'],
     allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'],
   },
   { 
-    icon: TrendingUp, 
+    icon: PhoneCall, 
     label: 'Telecaller Leads', 
     path: '/leads-telecaller',
     allowedDesignationNames: ['counselor', 'telecaller', 'ops'],
@@ -137,69 +160,68 @@ const menuItems = [
     allowedDepartmentNames: ['hr', 'admin']
   },
   { 
-    icon: TrendingUp, 
+    icon: Contact, 
     label: 'Lead Counselor', 
     path: '/lead-counselor',
     allowedDesignationNames: ['ops', 'counselor', 'sales'],
     allowedRoles: ['1', '2', '3', 'hr', 'admin', 'superadmin']
   },
   {
-    icon: BarChart3,
+    icon: Code2,
     label: 'Dev Dashboard',
     path: '/developer-dashboard',
     allowedDepartmentNames: ['r&d', 'dev', 'developer', 'development'],
   },
   {
-    icon: BarChart3,
+    icon: Palette,
     label: 'GD Dashboard',
     path: '/graphic-designer-dashboard',
     allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'],
   },
   {
-    icon: FileText,
+    icon: FileCode,
     label: 'Developer Report',
     path: '/developer-report',
     allowedDesignationNames: ['developer', 'dev'],
   },
   {
-    icon: FileText,
+    icon: Lightbulb,
     label: 'HOD R&D Report',
     path: '/hod-rd-report',
     allowedDesignationNames: ['hod', 'r&d', 'research'],
   },
   {
-    icon: FileText,
+    icon: Paintbrush,
     label: 'Graphic Designer Report',
     path: '/graphic-designer-report',
     allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'],
   },
   {
-    icon: FileText,
+    icon: BookOpenCheck,
     label: 'Academic Counselor Report',
     path: '/academic-counselor-report',
     allowedDesignationNames: ['counselor', 'academic', 'tele'],
   },
   {
-    icon: BarChart3,
+    icon: GraduationCap,
     label: 'Counselor Dashboard',
     path: '/counselor-dashboard',
     allowedDesignationNames: ['counselor', 'academic', 'tele'],
   },
   {
-    icon: LayoutDashboard,
+    icon: Video,
     label: 'Video Dashboard',
     path: '/videographer-dashboard',
     allowedDesignationNames: ['video', 'editor', 'media'],
   },
   {
-    icon: FileText,
+    icon: FileVideo,
     label: 'Videographer Report',
     path: '/videographer-report',
     allowedDesignationNames: ['video', 'editor', 'media'],
   },
- 
   {
-    icon: FileText,
+    icon: ClipboardCheck,
     label: 'HR Shift Report',
     path: '/hr-report',
     allowedDesignationNames: ['hr', 'recruiter'],
@@ -216,7 +238,7 @@ const menuItems = [
     allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl']
   },
   {
-    icon: FileText,
+    icon: Sliders,
     label: 'Ops Shift Report',
     path: '/ops-report',
     allowedDesignationNames: ['ops', 'operation', 'sales'],
@@ -229,7 +251,7 @@ const menuItems = [
       { icon: Tag, label: 'Expense Categories', path: '/accounts/categories' },
       { icon: PlusCircle, label: 'Add Expense', path: '/accounts/expenses' },
       { icon: DollarSign, label: 'Salary Payment', path: '/accounts/salary' },
-      { icon: BookOpen, label: 'Cash Book', path: '/accounts/cash-book' },
+      { icon: BookCheck, label: 'Cash Book', path: '/accounts/cash-book' },
       { icon: BarChart3, label: 'Expense Report', path: '/accounts/reports' }
     ]
   },
@@ -247,13 +269,13 @@ const menuItems = [
     path: '/my-payslip'
   },
   {
-    icon: FileText,
+    icon: Calculator,
     label: 'Accountant Shift Report',
     path: '/accountant-report',
     allowedDesignationNames: ['accountant', 'accounts', 'finance'],
   },
   {
-    icon: FileText,
+    icon: PieChart,
     label: 'Marketing Shift Report',
     path: '/marketing-report',
     allowedDesignationNames: ['marketing', 'marketer', 'digital'],
@@ -265,22 +287,22 @@ const menuItems = [
     isCommonDashboardFallback: true
   },
   {
-    icon: FileText,
+    icon: ClipboardList,
     label: 'Daily Report',
     path: '/basic-report',
     isBasicReportFallback: true
   },
-  { icon: UserCheck, label: 'Attendance', path: '/attendance', excludeRoles: ['1', '2', 'hr', 'admin'] },
+  { icon: Clock, label: 'Attendance', path: '/attendance', excludeRoles: ['1', '2', 'hr', 'admin'] },
   { icon: ListCheck, label: 'Task Assign', path: '/todo' },
-  { icon: Users, label: 'Student Attendance', path: '/student-attendance', allowedRoles: ['1', '2', 'hr', 'admin'] },
+  { icon: Clipboard, label: 'Student Attendance', path: '/student-attendance', allowedRoles: ['1', '2', 'hr', 'admin'] },
   { icon: BookOpen, label: 'Course Management', path: '/academy/courses', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
-  { icon: FolderKanban, label: 'Batches', path: '/academy/batches', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
-  { icon: GraduationCap, label: 'Enrollment Tracking', path: '/academy/enrollments', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
+  { icon: Layers, label: 'Batches', path: '/academy/batches', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
+  { icon: School, label: 'Enrollment Tracking', path: '/academy/enrollments', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
   { icon: GraduationCap, label: 'My LMS Learning', path: '/academy/learning', allowedRoles: ['10', 'student', '1', '2', 'admin', 'superadmin'] },
   { icon: Building, label: 'Departments', path: '/departments', allowedRoles: ['1', '2', 'hr', 'admin'] },
-  { icon: Users, label: 'Employee Reports', path: '/employee-reports', allowedRoles: [ 'hr', 'admin'] },
+  { icon: BarChart2, label: 'Employee Reports', path: '/employee-reports', allowedRoles: [ 'hr', 'admin'] },
 
-  { icon: Users, label: 'Team Reports', path: '/team-reports', isTeamLeadOnly: true },
+  { icon: UsersRound, label: 'Team Reports', path: '/team-reports', isTeamLeadOnly: true },
   { icon: Bell, label: 'Notifications', path: '/notifications' },
 ];
 
@@ -349,12 +371,33 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
           }
         }
         
-        let customVisible = menuItems.filter(item => {
-          return item.path === '/leaves' ||
-                 allowedSet.includes(item.label.toLowerCase().trim()) || 
-                 allowedSet.includes(item.path.toLowerCase().trim()) ||
-                 extraAllowedPaths.includes(item.path.toLowerCase().trim());
-        });
+        let customVisible = menuItems
+          .map(item => {
+            const itemLabelLower = item.label.toLowerCase().trim();
+            const itemPathLower = item.path ? item.path.toLowerCase().trim() : '';
+
+            const isParentAllowed = 
+              item.path === '/leaves' ||
+              allowedSet.includes(itemLabelLower) || 
+              allowedSet.includes(itemPathLower) ||
+              extraAllowedPaths.includes(itemPathLower);
+
+            if (item.children) {
+              const allowedChildren = item.children.filter(child => {
+                const childLabelLower = child.label.toLowerCase().trim();
+                const childPathLower = child.path ? child.path.toLowerCase().trim() : '';
+                return isParentAllowed || allowedSet.includes(childLabelLower) || allowedSet.includes(childPathLower);
+              });
+
+              if (allowedChildren.length > 0) {
+                return { ...item, children: allowedChildren };
+              }
+              return isParentAllowed ? item : null;
+            }
+
+            return isParentAllowed ? item : null;
+          })
+          .filter(Boolean);
 
         // If MD Dashboard permission is granted, override Dashboard path to /md-dashboard
         if (allowedSet.includes('md dashboard') && !allowedSet.includes('dashboard') && !allowedSet.includes('admin dashboard')) {

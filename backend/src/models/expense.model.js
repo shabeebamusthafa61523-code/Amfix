@@ -59,7 +59,7 @@ const expenseSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['APPROVED', 'PENDING', 'REJECTED'],
-    default: 'APPROVED'
+    default: 'PENDING'
   },
   actionBy: {
     type: mongoose.Schema.Types.ObjectId,

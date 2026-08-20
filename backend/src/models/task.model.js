@@ -23,21 +23,25 @@ const taskSchema = new mongoose.Schema(
     // TASK USERS
     // ============================================================
 
-    assigned_to: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-      }
-    ],
+    // Mixed so legacy string IDs and invalid values do not CastError on find/populate
+    assigned_to: {
+      type: [
+        {
+          type: mongoose.Schema.Types.Mixed,
+          ref: 'User'
+        }
+      ],
+      default: []
+    },
 
     created_by: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       ref: 'User',
       required: true
     },
 
     user_id: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       ref: 'User',
       required: true
     },
@@ -48,7 +52,18 @@ const taskSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ['pending', 'current', 'preview', 'done'],
+      enum: [
+        'pending',
+        'current',
+        'preview',
+        'done',
+        'in-progress',
+        'in_progress',
+        'completed',
+        'cancelled',
+        'on-hold',
+        'on_hold'
+      ],
       default: 'pending'
     },
 
@@ -83,13 +98,13 @@ const taskSchema = new mongoose.Schema(
     // ============================================================
 
     client: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       ref: 'Client',
       default: null
     },
 
     project: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       ref: 'Project',
       default: null
     },
