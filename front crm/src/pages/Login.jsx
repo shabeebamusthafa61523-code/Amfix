@@ -371,7 +371,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, defaultEmail, showToast, onSucce
     const apiBaseUrl = import.meta.env.VITE_API_URL || '';
 
     try {
-      const response = await fetch(`${apiBaseUrl}/v1/auth/forgot-password/verify`, {
+      const response = await fetch(`${apiBaseUrl}/auth/forgot-password/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email, phone: formData.phone }),
@@ -400,7 +400,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, defaultEmail, showToast, onSucce
     const apiBaseUrl = import.meta.env.VITE_API_URL || '';
 
     try {
-      const response = await fetch(`${apiBaseUrl}/v1/auth/forgot-password/reset`, {
+      const response = await fetch(`${apiBaseUrl}/auth/forgot-password/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email, phone: formData.phone, newPassword: formData.newPassword }),

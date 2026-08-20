@@ -91,7 +91,8 @@ export const batchController = {
       const [batches, total] = await Promise.all([
         Batch.find(query)
           .populate('courseId', 'courseName courseCode category durationValue durationUnit')
-          .populate('instructorId', 'name email phone role profile_image avatar')
+          .populate('instructorId', 'name email phone role designation profile_image avatar')
+          .populate('instructors', 'name email phone role designation profile_image avatar')
           .populate('students', 'name email phone studentId profile_image coursePreference status')
           .sort({ createdAt: -1 })
           .skip(skip)
@@ -133,7 +134,8 @@ export const batchController = {
 
       const batch = await Batch.findById(id)
         .populate('courseId')
-        .populate('instructorId', 'name email phone role profile_image avatar')
+        .populate('instructorId', 'name email phone role designation profile_image avatar')
+        .populate('instructors', 'name email phone role designation profile_image avatar')
         .populate('students', 'name email phone studentId profile_image coursePreference status qualification institution')
         .lean();
 
@@ -175,7 +177,9 @@ export const batchController = {
         endTime,
         timezone,
         capacity,
-        instructorId
+        instructorId,
+        instructors,
+        instructorIds
       } = req.body;
 
       const finalBatchName = (batchName || name || '').trim();
@@ -201,9 +205,19 @@ export const batchController = {
         throw new AppError('Associated course was not found.', 404);
       }
 
-      if (instructorId && !mongoose.Types.ObjectId.isValid(instructorId)) {
-        throw new AppError('Invalid instructor ID format provided.', 400);
+      // Process multi-instructor array
+      let rawInstructors = [];
+      if (Array.isArray(instructors) && instructors.length > 0) {
+        rawInstructors = instructors;
+      } else if (Array.isArray(instructorIds) && instructorIds.length > 0) {
+        rawInstructors = instructorIds;
+      } else if (instructorId) {
+        rawInstructors = Array.isArray(instructorId) ? instructorId : [instructorId];
       }
+
+      const validInstructorIds = rawInstructors
+        .map(id => String(id).trim())
+        .filter(id => mongoose.Types.ObjectId.isValid(id));
 
       // Validate that all assigned students are registered in Student Attendance registry
       const validatedStudentIds = await validateRegisteredStudents(rawStudents);
@@ -222,16 +236,8 @@ export const batchController = {
         batchCode: finalBatchCode,
         batchName: finalBatchName,
         courseId: finalCourseId,
-        instructorId: instructorId && mongoose.Types.ObjectId.isValid(instructorId) ? instructorId : undefined,
-        startDate: startDate ? new Date(startDate) : undefined,
-        endDate: endDate ? new Date(endDate) : undefined,
-        daysOfWeek: Array.isArray(daysOfWeek) ? daysOfWeek : [],
-        startTime: startTime || '',
-        endTime: endTime || '',
-        timezone: timezone || 'IST (UTC+5:30)',
-        capacity: capacity ? parseInt(capacity, 10) : 30,
-        students: validatedStudentIds,
-        instructorId: instructorId || null,
+        instructorId: validInstructorIds[0] || null,
+        instructors: validInstructorIds,
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
         daysOfWeek: Array.isArray(daysOfWeek) ? daysOfWeek : [],
@@ -239,6 +245,7 @@ export const batchController = {
         endTime: endTime || undefined,
         timezone: timezone || 'IST (UTC+5:30)',
         capacity: capacity ? parseInt(capacity, 10) : 30,
+        students: validatedStudentIds,
         status: status || 'UPCOMING',
         createdBy: req.user?.id || req.user?._id
       });
@@ -252,9 +259,9 @@ export const batchController = {
 
       const populatedBatch = await Batch.findById(newBatch._id)
         .populate('courseId', 'courseName courseCode')
-        .populate('instructorId', 'name email phone role profile_image avatar')
+        .populate('instructorId', 'name email phone role designation profile_image avatar')
+        .populate('instructors', 'name email phone role designation profile_image avatar')
         .populate('students', 'name email phone studentId profile_image')
-        .populate('instructorId', 'name email phone role profile_image avatar')
         .lean();
 
       return res.status(201).json({
@@ -299,7 +306,9 @@ export const batchController = {
         endTime,
         timezone,
         capacity,
-        instructorId
+        instructorId,
+        instructors,
+        instructorIds
       } = req.body;
 
       const finalBatchName = batchName !== undefined ? batchName : name;
@@ -316,10 +325,6 @@ export const batchController = {
         }
       }
 
-      if (instructorId && !mongoose.Types.ObjectId.isValid(instructorId)) {
-        throw new AppError('Invalid instructor ID format provided.', 400);
-      }
-
       const oldValue = existingBatch.toObject();
 
       if (finalBatchName !== undefined && finalBatchName !== null) {
@@ -330,9 +335,25 @@ export const batchController = {
       }
       if (status !== undefined) existingBatch.status = status;
 
-      if (instructorId !== undefined) {
-        existingBatch.instructorId = (instructorId && mongoose.Types.ObjectId.isValid(instructorId)) ? instructorId : null;
+      // Handle Instructors Multi-Select Update
+      if (instructors !== undefined || instructorIds !== undefined || instructorId !== undefined) {
+        let rawInstructors = [];
+        if (Array.isArray(instructors)) {
+          rawInstructors = instructors;
+        } else if (Array.isArray(instructorIds)) {
+          rawInstructors = instructorIds;
+        } else if (instructorId) {
+          rawInstructors = Array.isArray(instructorId) ? instructorId : [instructorId];
+        }
+
+        const validInstructorIds = rawInstructors
+          .map(id => String(id).trim())
+          .filter(id => mongoose.Types.ObjectId.isValid(id));
+
+        existingBatch.instructors = validInstructorIds;
+        existingBatch.instructorId = validInstructorIds[0] || null;
       }
+
       if (startDate !== undefined) existingBatch.startDate = startDate ? new Date(startDate) : undefined;
       if (endDate !== undefined) existingBatch.endDate = endDate ? new Date(endDate) : undefined;
       if (Array.isArray(daysOfWeek)) existingBatch.daysOfWeek = daysOfWeek;
@@ -340,7 +361,6 @@ export const batchController = {
       if (endTime !== undefined) existingBatch.endTime = endTime;
       if (timezone !== undefined) existingBatch.timezone = timezone;
       if (capacity !== undefined) existingBatch.capacity = parseInt(capacity, 10) || existingBatch.capacity;
-
 
       if (Array.isArray(rawStudents)) {
         existingBatch.students = await validateRegisteredStudents(rawStudents);
@@ -359,7 +379,8 @@ export const batchController = {
 
       const updatedBatch = await Batch.findById(id)
         .populate('courseId', 'courseName courseCode')
-        .populate('instructorId', 'name email phone role profile_image avatar')
+        .populate('instructorId', 'name email phone role designation profile_image avatar')
+        .populate('instructors', 'name email phone role designation profile_image avatar')
         .populate('students', 'name email phone studentId profile_image')
         .lean();
 

@@ -18,7 +18,12 @@ import {
   ShieldCheck,
   Check,
   LayoutGrid,
-  List
+  List,
+  UserCheck,
+  UserPlus,
+  Phone,
+  MapPin,
+  Download
 } from 'lucide-react';
 import {
   getSalaryPayments,
@@ -41,7 +46,7 @@ const getAuthHeaders = () => {
 
 export default function ApprovalsPage() {
   const { user } = useUser();
-  const [activeTab, setActiveTab] = useState('leave'); // 'leave' | 'salary' | 'expense'
+  const [activeTab, setActiveTab] = useState('leave'); // 'leave' | 'salary' | 'expense' | 'recruitment'
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
   const [loading, setLoading] = useState(false);
 
@@ -69,6 +74,13 @@ export default function ApprovalsPage() {
   const [expenseSearch, setExpenseSearch] = useState('');
   const [selectedExpense, setSelectedExpense] = useState(null);
   const [expenseSubmitting, setExpenseSubmitting] = useState(false);
+
+  // Recruitment Approvals State
+  const [recruitmentCandidates, setRecruitmentCandidates] = useState([]);
+  const [recruitmentStatusFilter, setRecruitmentStatusFilter] = useState('ALL');
+  const [recruitmentSearch, setRecruitmentSearch] = useState('');
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [recruitmentSubmitting, setRecruitmentSubmitting] = useState(false);
 
   // Messages
   const [toastMsg, setToastMsg] = useState({ type: '', text: '' });
@@ -131,6 +143,25 @@ export default function ApprovalsPage() {
     }
   }, [expenseStatusFilter, expenseSearch]);
 
+  // Fetch Recruitment Candidates for Approval
+  const fetchRecruitmentCandidates = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/recruitment`, { headers: getAuthHeaders() });
+      const data = await res.json();
+      if (data.success) {
+        setRecruitmentCandidates(data.data || []);
+      } else {
+        setRecruitmentCandidates([]);
+      }
+    } catch (err) {
+      console.error('Error fetching recruitment candidates:', err);
+      setRecruitmentCandidates([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'leave') {
       fetchLeaves();
@@ -138,8 +169,10 @@ export default function ApprovalsPage() {
       fetchSalaryPayments();
     } else if (activeTab === 'expense') {
       fetchExpenses();
+    } else if (activeTab === 'recruitment') {
+      fetchRecruitmentCandidates();
     }
-  }, [activeTab, fetchLeaves, fetchSalaryPayments, fetchExpenses]);
+  }, [activeTab, fetchLeaves, fetchSalaryPayments, fetchExpenses, fetchRecruitmentCandidates]);
 
   // Handle Single Expense Approve
   const handleApproveExpense = async (expenseId) => {
@@ -288,28 +321,146 @@ export default function ApprovalsPage() {
     }
   };
 
+  // Handle Single Recruitment Candidate Approve
+  const handleApproveRecruitment = async (candidateId) => {
+    setRecruitmentSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/recruitment/${candidateId}/approval`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ action: 'APPROVED' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Candidate recruitment approval granted successfully!');
+        fetchRecruitmentCandidates();
+      } else {
+        showToast(data.message || 'Failed to approve candidate.', 'error');
+      }
+    } catch (err) {
+      console.error('Error approving recruitment candidate:', err);
+      showToast('Failed to approve candidate.', 'error');
+    } finally {
+      setRecruitmentSubmitting(false);
+    }
+  };
+
+  // Handle Single Recruitment Candidate Reject Submit
+  const handleRejectRecruitmentSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedCandidate) return;
+
+    if (!rejectionReason.trim()) {
+      showToast('Please enter a reason for rejecting candidate approval.', 'error');
+      return;
+    }
+
+    setRecruitmentSubmitting(true);
+    try {
+      const candidateId = selectedCandidate.id || selectedCandidate._id;
+      const res = await fetch(`${API_BASE}/recruitment/${candidateId}/approval`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          action: 'REJECTED',
+          rejectionReason: rejectionReason.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Candidate recruitment approval rejected.');
+        setSelectedCandidate(null);
+        setRejectionReason('');
+        fetchRecruitmentCandidates();
+      } else {
+        showToast(data.message || 'Failed to reject candidate.', 'error');
+      }
+    } catch (err) {
+      console.error('Error rejecting recruitment candidate:', err);
+      showToast('Failed to reject candidate.', 'error');
+    } finally {
+      setRecruitmentSubmitting(false);
+    }
+  };
+
+  // Resume Helper
+  const getResumeUrl = (path) => {
+    if (!path || typeof path !== 'string') return null;
+    if (path.startsWith("http://") || path.startsWith("https://") || path.startsWith("data:") || path.startsWith("blob:")) {
+      let cleanUrl = path;
+      if (path.includes('res.cloudinary.com')) {
+        cleanUrl = cleanUrl
+          .replace('/raw/upload/', '/image/upload/')
+          .replace('/image/upload/fl_inline/', '/image/upload/');
+      }
+      return cleanUrl;
+    }
+    const cleanPath = path.replace(/^\//, '');
+    const rawApiUrl = import.meta.env.VITE_API_URL || '';
+    const backendHost = rawApiUrl ? rawApiUrl.replace(/\/api\/v1\/?$/, '').replace(/\/api\/?$/, '') : window.location.origin;
+    return `${backendHost}/${cleanPath}`;
+  };
+
+  const handleOpenResume = (rawUrl, fileName) => {
+    if (!rawUrl) return;
+    const url = getResumeUrl(rawUrl);
+    if (!url) return;
+    if (url.startsWith('data:')) {
+      try {
+        const parts = url.split(';base64,');
+        const contentType = parts[0].replace('data:', '');
+        const raw = window.atob(parts[1]);
+        const rawLength = raw.length;
+        const uInt8Array = new Uint8Array(rawLength);
+        for (let i = 0; i < rawLength; ++i) {
+          uInt8Array[i] = raw.charCodeAt(i);
+        }
+        const blob = new Blob([uInt8Array], { type: contentType });
+        const blobUrl = URL.createObjectURL(blob);
+        const win = window.open(blobUrl, '_blank');
+        if (!win) {
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = fileName || 'Resume';
+          a.click();
+        }
+      } catch (e) {
+        console.error('Failed to open base64 resume blob:', e);
+      }
+    } else {
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.download = fileName || 'Resume';
+        a.click();
+      }
+    }
+  };
+
   // Status Badge Renderer
   const renderStatusBadge = (status) => {
-    switch (status) {
-      case 'APPROVED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 className="w-3.5 h-3.5" /> Approved
-          </span>
-        );
-      case 'REJECTED':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-            <XCircle className="w-3.5 h-3.5" /> Rejected
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-            <Clock className="w-3.5 h-3.5" /> Pending MD Review
-          </span>
-        );
+    const s = String(status || '').toUpperCase();
+    if (s === 'APPROVED') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <CheckCircle2 className="w-3.5 h-3.5" /> Approved
+        </span>
+      );
     }
+    if (s === 'REJECTED') {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+          <XCircle className="w-3.5 h-3.5" /> Rejected
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+        <Clock className="w-3.5 h-3.5" /> Pending MD Review
+      </span>
+    );
   };
 
   // Filter Salary Payments
@@ -323,7 +474,29 @@ export default function ApprovalsPage() {
     return matchesStatus && matchesSearch;
   });
 
+  // Filter Recruitment Candidates for Approval
+  const filteredRecruitment = recruitmentCandidates.filter(c => {
+    const isSelectedCandidate = c.selected === 'Selected' || (c.approval_status && c.approval_status !== 'N/A');
+    if (!isSelectedCandidate) return false;
+
+    const normApproval = String(c.approval_status || 'Pending').toUpperCase();
+    const matchesStatus = 
+      recruitmentStatusFilter === 'ALL' ||
+      (recruitmentStatusFilter === 'PENDING' && normApproval === 'PENDING') ||
+      (recruitmentStatusFilter === 'APPROVED' && normApproval === 'APPROVED') ||
+      (recruitmentStatusFilter === 'REJECTED' && normApproval === 'REJECTED');
+
+    const name = (c.name || '').toLowerCase();
+    const phone = (c.phone || '').toLowerCase();
+    const address = (c.address || '').toLowerCase();
+    const query = recruitmentSearch.toLowerCase().trim();
+    const matchesSearch = !query || name.includes(query) || phone.includes(query) || address.includes(query);
+
+    return matchesStatus && matchesSearch;
+  });
+
   const pendingSalaryCount = salaryPayments.filter(p => (p.status || 'PENDING') === 'PENDING').length;
+  const pendingRecruitmentCount = recruitmentCandidates.filter(c => (c.selected === 'Selected' || c.approval_status !== 'N/A') && (c.approval_status || 'Pending') === 'Pending').length;
 
   return (
     <div className="min-h-screen bg-slate-50/70 text-slate-800 p-4 md:p-8 space-y-6">
@@ -355,7 +528,7 @@ export default function ApprovalsPage() {
           <div>
             <h1 className="text-xl font-bold tracking-tight text-slate-900">Executive Approvals</h1>
             <p className="text-xs text-slate-500 font-normal">
-              Managing Director Approval Command Center for Staff Leaves & Salary Payments
+              Managing Director Approval Command Center for Staff Leaves, Salaries, Expenses & Recruitment
             </p>
           </div>
         </div>
@@ -405,6 +578,16 @@ export default function ApprovalsPage() {
               }`}
             >
               <FileText className="w-4 h-4" /> Expense Approvals (&gt; ₹1,000)
+            </button>
+            <button
+              onClick={() => setActiveTab('recruitment')}
+              className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'recruitment'
+                  ? 'bg-white text-indigo-600 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <UserCheck className="w-4 h-4" /> Recruitment Approvals {pendingRecruitmentCount > 0 && `(${pendingRecruitmentCount})`}
             </button>
           </div>
 
@@ -507,6 +690,32 @@ export default function ApprovalsPage() {
             >
               <option value="ALL">All Statuses</option>
               <option value="PENDING">Pending Approval (&gt; ₹1k)</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+          </div>
+        )}
+
+        {/* Tab 4 (Recruitment) Filters */}
+        {activeTab === 'recruitment' && (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search candidate..."
+                value={recruitmentSearch}
+                onChange={(e) => setRecruitmentSearch(e.target.value)}
+                className="pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs"
+              />
+            </div>
+            <select
+              value={recruitmentStatusFilter}
+              onChange={(e) => setRecruitmentStatusFilter(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-xs cursor-pointer"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="PENDING">Pending Approval</option>
               <option value="APPROVED">Approved</option>
               <option value="REJECTED">Rejected</option>
             </select>
@@ -1023,6 +1232,235 @@ export default function ApprovalsPage() {
         )
       )}
 
+      {/* TAB 4: RECRUITMENT APPROVALS */}
+      {activeTab === 'recruitment' && (
+        loading ? (
+          <div className="flex flex-col items-center justify-center py-16 text-slate-500 gap-3">
+            <Loader2 className="w-7 h-7 animate-spin text-indigo-600" />
+            <p className="text-xs font-medium">Loading recruitment candidate approvals...</p>
+          </div>
+        ) : filteredRecruitment.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-slate-200 text-center gap-3 shadow-xs">
+            <UserCheck className="w-10 h-10 text-slate-300" />
+            <p className="text-sm font-semibold text-slate-700">No selected candidates pending approval</p>
+            <p className="text-xs text-slate-400">When candidates are marked as Selected in Recruitment, they will appear here for MD approval.</p>
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <AnimatePresence>
+              {filteredRecruitment.map((c) => {
+                const candidateId = c.id || c._id;
+                const status = c.approval_status || 'Pending';
+                return (
+                  <motion.div
+                    key={candidateId}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    className="bg-white rounded-2xl border border-slate-200/90 p-5 flex flex-col justify-between hover:shadow-md transition-all space-y-4 shadow-xs"
+                  >
+                    <div className="space-y-3.5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-indigo-100 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-xs">
+                            {c.name ? c.name.charAt(0).toUpperCase() : 'C'}
+                          </div>
+                          <div>
+                            <h3 className="text-xs font-bold text-slate-900">{c.name}</h3>
+                            <p className="text-[11px] text-slate-500 flex items-center gap-1">
+                              <Phone className="w-3 h-3 text-slate-400" /> {c.phone}
+                            </p>
+                          </div>
+                        </div>
+                        {renderStatusBadge(status)}
+                      </div>
+
+                      <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-100 space-y-2 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-500 font-medium">Selection State:</span>
+                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md font-bold text-[10px]">
+                            Selected
+                          </span>
+                        </div>
+
+                        {c.address && (
+                          <div className="flex justify-between items-center text-[11px]">
+                            <span className="text-slate-500 font-medium">Address:</span>
+                            <span className="font-medium text-slate-700 truncate max-w-[150px]">{c.address}</span>
+                          </div>
+                        )}
+
+                        <div className="flex justify-between items-center text-[11px]">
+                          <span className="text-slate-500 font-medium">Resume File:</span>
+                          {c.resume_url ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenResume(c.resume_url, c.resume_name)}
+                              className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
+                            >
+                              <FileText className="w-3 h-3" /> View Resume
+                            </button>
+                          ) : (
+                            <span className="text-slate-400 italic">No File</span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1 pt-1.5 border-t border-slate-200/60 text-[10px] text-center">
+                          <div className="bg-white p-1 rounded border border-slate-100">
+                            <span className="text-slate-400 block font-bold">R1</span>
+                            <span className="font-semibold text-slate-700">{c.interview_1 || 'Pending'}</span>
+                          </div>
+                          <div className="bg-white p-1 rounded border border-slate-100">
+                            <span className="text-slate-400 block font-bold">R2</span>
+                            <span className="font-semibold text-slate-700">{c.interview_2 || 'N/A'}</span>
+                          </div>
+                          <div className="bg-white p-1 rounded border border-slate-100">
+                            <span className="text-slate-400 block font-bold">R3</span>
+                            <span className="font-semibold text-slate-700">{c.interview_3 || 'N/A'}</span>
+                          </div>
+                        </div>
+
+                        {status === 'Rejected' && c.rejection_reason && (
+                          <div className="text-[10px] text-rose-600 italic bg-rose-50 p-2 rounded-lg border border-rose-100 mt-1">
+                            Reason: "{c.rejection_reason}"
+                          </div>
+                        )}
+                        {status === 'Approved' && c.approved_by && (
+                          <div className="text-[10px] text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-100 mt-1 flex items-center gap-1 font-semibold">
+                            <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                            Approved by {c.approved_by.name || 'MD Executive'}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[10px] text-indigo-600 font-bold">
+                        Recruitment Selection Approval
+                      </span>
+                      {status === 'Pending' ? (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedCandidate(c);
+                              setRejectionReason('');
+                            }}
+                            className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                          >
+                            Reject
+                          </button>
+                          <button
+                            onClick={() => handleApproveRecruitment(candidateId)}
+                            disabled={recruitmentSubmitting}
+                            className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer flex items-center gap-1"
+                          >
+                            <Check className="w-3.5 h-3.5" /> Approve
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 italic">
+                          Status: {status}
+                        </span>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-slate-500 border-b border-slate-200 font-semibold uppercase text-[10px] tracking-wider">
+                  <tr>
+                    <th className="py-3.5 px-4">Candidate</th>
+                    <th className="py-3.5 px-4">Address</th>
+                    <th className="py-3.5 px-4">Resume</th>
+                    <th className="py-3.5 px-4">Interviews</th>
+                    <th className="py-3.5 px-4">Selected</th>
+                    <th className="py-3.5 px-4">Approval Status</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {filteredRecruitment.map((c) => {
+                    const candidateId = c.id || c._id;
+                    const status = c.approval_status || 'Pending';
+                    return (
+                      <tr key={candidateId} className="hover:bg-slate-50/70 transition">
+                        <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
+                          {c.name}
+                          <span className="block text-[10px] text-slate-400 font-normal">{c.phone}</span>
+                        </td>
+                        <td className="py-3.5 px-4 max-w-[150px] truncate text-[11px]">
+                          {c.address || 'N/A'}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          {c.resume_url ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenResume(c.resume_url, c.resume_name)}
+                              className="text-indigo-600 hover:text-indigo-800 font-bold text-[11px] flex items-center gap-1"
+                            >
+                              <FileText className="w-3 h-3" /> View
+                            </button>
+                          ) : (
+                            <span className="text-slate-400 italic text-[10px]">No File</span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-[11px]">
+                          R1: {c.interview_1 || 'Pending'} | R2: {c.interview_2 || 'N/A'} | R3: {c.interview_3 || 'N/A'}
+                        </td>
+                        <td className="py-3.5 px-4 font-bold text-emerald-700">
+                          Selected
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="space-y-1">
+                            {renderStatusBadge(status)}
+                            {status === 'Rejected' && c.rejection_reason && (
+                              <p className="text-[10px] text-rose-600 italic max-w-xs font-normal">
+                                Reason: "{c.rejection_reason}"
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          {status === 'Pending' ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedCandidate(c);
+                                  setRejectionReason('');
+                                }}
+                                className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                              >
+                                Reject
+                              </button>
+                              <button
+                                onClick={() => handleApproveRecruitment(candidateId)}
+                                disabled={recruitmentSubmitting}
+                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-all shadow-xs cursor-pointer flex items-center gap-1"
+                              >
+                                <Check className="w-3.5 h-3.5" /> Approve
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 italic">
+                              {status} {c.approved_by?.name ? `by ${c.approved_by.name}` : ''}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      )}
+
       {/* LEAVE ACTION MODAL */}
       {selectedLeave && leaveActionType && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs">
@@ -1203,6 +1641,67 @@ export default function ApprovalsPage() {
                   className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold transition-all flex items-center gap-2 shadow-xs cursor-pointer"
                 >
                   {expenseSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Confirm Rejection
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* RECRUITMENT REJECTION REASON MODAL */}
+      {selectedCandidate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-xl p-6 space-y-4 text-slate-800"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <XCircle className="w-4 h-4 text-rose-600" /> Reject Candidate Approval
+              </h2>
+              <button
+                onClick={() => setSelectedCandidate(null)}
+                className="text-slate-400 hover:text-slate-600 text-sm p-1 rounded-md transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <p><strong>Candidate:</strong> {selectedCandidate.name}</p>
+              <p><strong>Phone:</strong> {selectedCandidate.phone}</p>
+              {selectedCandidate.address && <p><strong>Address:</strong> {selectedCandidate.address}</p>}
+            </div>
+
+            <form onSubmit={handleRejectRecruitmentSubmit} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Reason for Rejection *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="Explain why this candidate recruitment approval is rejected..."
+                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCandidate(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={recruitmentSubmitting}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-semibold transition-all flex items-center gap-2 shadow-xs cursor-pointer"
+                >
+                  {recruitmentSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                   Confirm Rejection
                 </button>
               </div>

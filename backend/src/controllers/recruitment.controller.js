@@ -56,6 +56,7 @@ export const getAllCandidates = async (req, res, next) => {
   try {
     const candidates = await Recruitment.find()
       .populate('created_by', 'name email')
+      .populate('approved_by', 'name email')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -93,6 +94,7 @@ export const createCandidate = async (req, res, next) => {
       interview_2, 
       interview_3, 
       selected, 
+      approval_status,
       offer_letter, 
       notes 
     } = req.body;
@@ -140,6 +142,20 @@ export const createCandidate = async (req, res, next) => {
       }
     }
 
+    const initialSelected = selected || 'Pending';
+    let initialApproval = approval_status || 'N/A';
+    if (initialSelected === 'Selected' && (initialApproval === 'N/A' || !initialApproval)) {
+      initialApproval = 'Pending';
+    }
+
+    const initialOffer = offer_letter || 'N/A';
+    if (initialOffer !== 'N/A' && initialApproval !== 'Approved') {
+      return res.status(400).json({
+        success: false,
+        message: 'Candidate requires MD/Executive approval before an offer letter can be enabled or issued'
+      });
+    }
+
     const candidate = await Recruitment.create({
       name,
       phone,
@@ -151,13 +167,17 @@ export const createCandidate = async (req, res, next) => {
       interview_1: interview_1 || 'Pending',
       interview_2: interview_2 || 'N/A',
       interview_3: interview_3 || 'N/A',
-      selected: selected || 'Pending',
-      offer_letter: offer_letter || 'N/A',
+      selected: initialSelected,
+      approval_status: initialApproval,
+      offer_letter: initialOffer,
       notes: notes || '',
       created_by: userId
     });
 
-    const populated = await Recruitment.findById(candidate._id).populate('created_by', 'name email').lean();
+    const populated = await Recruitment.findById(candidate._id)
+      .populate('created_by', 'name email')
+      .populate('approved_by', 'name email')
+      .lean();
 
     return res.status(201).json({
       success: true,
@@ -201,15 +221,40 @@ export const updateCandidate = async (req, res, next) => {
       'interview_2', 
       'interview_3', 
       'selected', 
+      'approval_status',
       'offer_letter', 
       'notes'
     ];
+
+    // Gating check for offer_letter
+    if (req.body.offer_letter !== undefined && req.body.offer_letter !== 'N/A') {
+      const targetApprovalStatus = req.body.approval_status || candidate.approval_status;
+      if (targetApprovalStatus !== 'Approved') {
+        return res.status(400).json({
+          success: false,
+          message: 'Candidate requires MD/Executive approval before offer letter can be enabled or sent'
+        });
+      }
+    }
 
     fields.forEach(field => {
       if (req.body[field] !== undefined) {
         candidate[field] = req.body[field];
       }
     });
+
+    // Handle auto transition of approval_status based on selected
+    if (req.body.selected !== undefined) {
+      if (req.body.selected === 'Selected') {
+        if (candidate.approval_status !== 'Approved') {
+          candidate.approval_status = 'Pending';
+        }
+      } else {
+        if (candidate.approval_status !== 'Approved') {
+          candidate.approval_status = 'N/A';
+        }
+      }
+    }
 
     // Handle new resume file upload if provided
     const filesList = req.files && req.files.length > 0 ? req.files : (req.file ? [req.file] : []);
@@ -251,7 +296,10 @@ export const updateCandidate = async (req, res, next) => {
 
     await candidate.save();
 
-    const populated = await Recruitment.findById(candidate._id).populate('created_by', 'name email').lean();
+    const populated = await Recruitment.findById(candidate._id)
+      .populate('created_by', 'name email')
+      .populate('approved_by', 'name email')
+      .lean();
 
     return res.status(200).json({
       success: true,
@@ -266,6 +314,66 @@ export const updateCandidate = async (req, res, next) => {
     return res.status(500).json({
       success: false,
       message: err.message || 'Failed to update candidate'
+    });
+  }
+};
+
+/**
+ * PUT /api/v1/recruitment/:id/approval
+ * Approve or reject candidate recruitment approval (MD/Executive)
+ */
+export const approveOrRejectCandidate = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { action, rejectionReason, notes } = req.body;
+
+    const candidate = await Recruitment.findById(id);
+    if (!candidate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Candidate not found'
+      });
+    }
+
+    const normAction = String(action || '').toUpperCase();
+    if (normAction === 'APPROVED' || normAction === 'APPROVE') {
+      candidate.approval_status = 'Approved';
+      candidate.rejection_reason = '';
+      candidate.approved_by = req.user?.id || req.user?._id;
+      candidate.approved_at = new Date();
+    } else if (normAction === 'REJECTED' || normAction === 'REJECT') {
+      candidate.approval_status = 'Rejected';
+      candidate.rejection_reason = String(rejectionReason || notes || '').trim();
+      candidate.approved_by = req.user?.id || req.user?._id;
+      candidate.approved_at = new Date();
+      candidate.offer_letter = 'N/A';
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid approval action. Must be APPROVED or REJECTED.'
+      });
+    }
+
+    await candidate.save();
+
+    const populated = await Recruitment.findById(candidate._id)
+      .populate('created_by', 'name email')
+      .populate('approved_by', 'name email')
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: `Candidate approval status updated to ${candidate.approval_status}`,
+      data: {
+        ...populated,
+        id: populated._id.toString()
+      }
+    });
+  } catch (err) {
+    console.error("Error in approveOrRejectCandidate:", err);
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to process candidate approval'
     });
   }
 };

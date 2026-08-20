@@ -6,6 +6,7 @@ import {
   getAllCandidates,
   createCandidate,
   updateCandidate,
+  approveOrRejectCandidate,
   deleteCandidate
 } from '../controllers/recruitment.controller.js';
 
@@ -16,6 +17,7 @@ router.use(verifyJWT);
 
 router.get('/', getAllCandidates);
 router.post('/', upload.any(), createCandidate);
+router.put('/:id/approval', approveOrRejectCandidate);
 router.put('/:id', upload.any(), updateCandidate);
 router.delete('/:id', deleteCandidate);
 
