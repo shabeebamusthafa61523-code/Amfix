@@ -463,7 +463,20 @@ const formatLeanTask = (task) => {
             },
           ]
         : [],
-    comments: Array.isArray(task.comments) ? task.comments.filter(Boolean) : [],
+    comments: Array.isArray(task.comments)
+      ? task.comments.filter(Boolean).map((comment) => {
+          const authorRef = comment.author || comment.user || comment.user_id || comment.created_by;
+          return {
+            id: normalizeId(comment._id || comment.id),
+            author: formatUserRef(authorRef) || normalizeId(authorRef),
+            comment: comment.comment || comment.text || "",
+            text: comment.text || comment.comment || "",
+            attachments: Array.isArray(comment.attachments) ? comment.attachments : [],
+            createdAt: comment.createdAt,
+            updatedAt: comment.updatedAt,
+          };
+        })
+      : [],
     links: Array.isArray(task.links) ? task.links.filter(Boolean) : [],
     subtasks: Array.isArray(task.subtasks)
       ? task.subtasks.filter(Boolean).map((st) => ({
@@ -495,6 +508,8 @@ const formatLeanTask = (task) => {
 const TASK_POPULATE = [
   { path: "assigned_to", select: "name email", strictPopulate: false },
   { path: "created_by", select: "name email", strictPopulate: false },
+  { path: "comments.author", select: "name email", strictPopulate: false },
+  { path: "comments.user", select: "name email", strictPopulate: false },
   { path: "subtasks.created_by", select: "name email", strictPopulate: false },
   { path: "subtasks.completed_by", select: "name email", strictPopulate: false },
   {
@@ -872,16 +887,19 @@ export const getAllTasks = async (req, res, next) => {
         );
       }
 
+      const targetObjId = new mongoose.Types.ObjectId(targetUserId);
+      const userMatches = [String(targetUserId), targetObjId];
+
       query = {
         $or: [
           {
-            created_by: targetUserId,
+            created_by: { $in: userMatches },
           },
           {
-            assigned_to: targetUserId,
+            assigned_to: { $in: userMatches },
           },
           {
-            user_id: targetUserId,
+            user_id: { $in: userMatches },
           },
         ],
       };
@@ -922,30 +940,60 @@ export const getAllTasks = async (req, res, next) => {
           : [];
 
       const teamUserIds = usersInDepartment.map((user) => user._id);
-
       teamUserIds.push(userId);
+
+      const expandedTeamIds = [];
+      for (const id of teamUserIds) {
+        const str = String(id);
+        expandedTeamIds.push(str);
+        if (isValidObjectId(str)) {
+          expandedTeamIds.push(new mongoose.Types.ObjectId(str));
+        }
+      }
+
+      const userObjId = isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : null;
+      const userMatches = userObjId ? [String(userId), userObjId] : [String(userId)];
 
       query = {
         $or: [
           {
             assigned_to: {
-              $in: teamUserIds,
+              $in: expandedTeamIds,
             },
           },
           {
-            created_by: userId,
+            created_by: {
+              $in: userMatches,
+            },
+          },
+          {
+            user_id: {
+              $in: userMatches,
+            },
           },
         ],
       };
     } else {
       /* Normal user */
+      const userObjId = isValidObjectId(userId) ? new mongoose.Types.ObjectId(userId) : null;
+      const userMatches = userObjId ? [String(userId), userObjId] : [String(userId)];
+
       query = {
         $or: [
           {
-            assigned_to: userId,
+            assigned_to: {
+              $in: userMatches,
+            },
           },
           {
-            created_by: userId,
+            created_by: {
+              $in: userMatches,
+            },
+          },
+          {
+            user_id: {
+              $in: userMatches,
+            },
           },
         ],
       };
@@ -988,8 +1036,15 @@ export const getUserTasks = async (req, res, next) => {
       throw new AppError("Access denied. Insufficient permissions.", 403);
     }
 
+    const targetObjId = new mongoose.Types.ObjectId(user_id);
+    const userMatches = [String(user_id), targetObjId];
+
     const tasks = await findTasksSafe({
-      assigned_to: user_id,
+      $or: [
+        { assigned_to: { $in: userMatches } },
+        { user_id: { $in: userMatches } },
+        { created_by: { $in: userMatches } },
+      ],
     });
 
     return res.status(200).json(formatTaskList(tasks));
@@ -1012,13 +1067,25 @@ export const getCurrentUserTasks = async (req, res, next) => {
       throw new AppError("Authentication required", 401);
     }
 
+    const userObjId = new mongoose.Types.ObjectId(userId);
+    const userMatches = [String(userId), userObjId];
+
     const tasks = await findTasksSafe({
       $or: [
         {
-          assigned_to: userId,
+          assigned_to: {
+            $in: userMatches,
+          },
         },
         {
-          created_by: userId,
+          created_by: {
+            $in: userMatches,
+          },
+        },
+        {
+          user_id: {
+            $in: userMatches,
+          },
         },
       ],
     });
@@ -1051,7 +1118,7 @@ export const deleteTask = async (req, res, next) => {
 
     const userId = getAuthUserId(req);
 
-    const isCreator = normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by || task.user_id) === String(userId);
 
     const isSuperAdmin = isSuperAdminUser(req);
 
@@ -1130,7 +1197,7 @@ export const updateTaskStatus = async (req, res, next) => {
 
     const userId = getAuthUserId(req);
 
-    const isCreator = normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by || task.user_id) === String(userId);
 
     const isAssignee =
       Array.isArray(task.assigned_to) &&
@@ -1240,7 +1307,7 @@ export const updateTask = async (req, res, next) => {
 
     const userId = getAuthUserId(req);
 
-    const isCreator = normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by || task.user_id) === String(userId);
 
     const isSuperAdmin = isSuperAdminUser(req);
 
@@ -1364,7 +1431,7 @@ export const updateTask = async (req, res, next) => {
         : [];
 
     if (filesList.length > 0) {
-      const newAttachments = await processUploadedFiles(filesList);
+      const newAttachments = await processUploadedFiles(filesList, task_id);
 
       if (!Array.isArray(task.attachments)) {
         task.attachments = [];
@@ -1484,7 +1551,7 @@ export const addSubtask = async (req, res, next) => {
 
     const userId = getAuthUserId(req);
 
-    const isCreator = normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by || task.user_id) === String(userId);
 
     const isAssignee =
       Array.isArray(task.assigned_to) &&
@@ -1576,7 +1643,7 @@ export const toggleSubtask = async (req, res, next) => {
 
     const userId = getAuthUserId(req);
 
-    const isCreator = normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by || task.user_id) === String(userId);
 
     const isAssignee =
       Array.isArray(task.assigned_to) &&
@@ -1644,7 +1711,7 @@ export const deleteSubtask = async (req, res, next) => {
 
     const userId = getAuthUserId(req);
 
-    const isCreator = normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by || task.user_id) === String(userId);
 
     const isAssignee =
       Array.isArray(task.assigned_to) &&
@@ -1680,388 +1747,6 @@ export const deleteSubtask = async (req, res, next) => {
 };
 
 /* =========================================================
-   TASK COLLABORATION - COMMENTS
-========================================================= */
-
-/**
- * ADD TASK COMMENT
- * POST /api/v1/tasks/:task_id/comments
- *
- * Supports:
- * - Text comment
- * - Multiple attachments
- * - Images
- * - PDF/files
- */
-const addTaskCommentLegacy = async (req, res, next) => {
-  try {
-    const { task_id } = req.params;
-
-    if (!isValidObjectId(task_id)) {
-      throw new AppError("Invalid task ID", 400);
-    }
-
-    const task = await Task.findById(task_id);
-
-    if (!task) {
-      throw new AppError("Task not found", 404);
-    }
-
-    const userId = getAuthUserId(req);
-
-    if (!userId) {
-      throw new AppError("Authentication required", 401);
-    }
-
-    /*
-     * User must be creator or assignee.
-     * SuperAdmin can always comment.
-     */
-    const isCreator = normalizeId(task.created_by) === String(userId);
-
-    const isAssignee =
-      Array.isArray(task.assigned_to) &&
-      task.assigned_to.some((id) => normalizeId(id) === String(userId));
-
-    const isSuperAdmin = isSuperAdminUser(req);
-
-    if (!isCreator && !isAssignee && !isSuperAdmin) {
-      throw new AppError(
-        "Forbidden: You do not have access to comment on this task",
-        403,
-      );
-    }
-
-    const commentText =
-      typeof req.body?.comment === "string"
-        ? req.body.comment.trim()
-        : typeof req.body?.text === "string"
-          ? req.body.text.trim()
-          : typeof req.body?.content === "string"
-            ? req.body.content.trim()
-            : "";
-
-    const filesList = Array.isArray(req.files)
-      ? req.files
-      : req.file
-        ? [req.file]
-        : [];
-
-    if (!commentText && filesList.length === 0) {
-      throw new AppError(
-        "Comment text or at least one attachment is required",
-        400,
-      );
-    }
-
-    /*
-     * Upload attachments
-     */
-    const attachments = await processUploadedFiles(filesList);
-
-    /*
-     * Make sure comments array exists.
-     */
-    if (!Array.isArray(task.comments)) {
-      task.comments = [];
-    }
-
-    /*
-     * Add comment.
-     *
-     * IMPORTANT:
-     * This assumes your Task model has a comments
-     * subdocument array.
-     */
-    task.comments.push({
-      user: userId,
-      user_id: userId,
-      created_by: userId,
-
-      text: commentText,
-
-      comment: commentText,
-
-      attachments,
-
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-
-    await task.save();
-
-    const populatedTask = await getPopulatedTask(task._id);
-
-    /*
-     * Notify creator and assignees
-     */
-    try {
-      const recipients = [];
-
-      if (populatedTask?.created_by) {
-        recipients.push(populatedTask.created_by);
-      }
-
-      if (Array.isArray(populatedTask?.assigned_to)) {
-        recipients.push(...populatedTask.assigned_to);
-      }
-
-      const uniqueRecipients = Array.from(
-        new Map(
-          recipients.filter(Boolean).map((user) => [normalizeId(user), user]),
-        ).values(),
-      );
-
-      const commenterName = getUserName(req);
-
-      for (const recipient of uniqueRecipients) {
-        const recipientId = normalizeId(recipient);
-
-        if (!recipientId || recipientId === String(userId)) {
-          continue;
-        }
-
-        await sendNotification(
-          recipientId,
-          `${commenterName} added a comment to task "${task.title}".`,
-          "task_comment_added",
-          `New Comment: ${task.title}`,
-          userId,
-          commenterName,
-        );
-      }
-    } catch (notificationError) {
-      console.error(
-        "Task comment notification failed:",
-        notificationError.message,
-      );
-    }
-
-    /*
-     * Return only the newly created comment
-     * plus the updated task.
-     */
-    const latestComment = task.comments[task.comments.length - 1];
-
-    return res.status(201).json({
-      success: true,
-      message: "Comment added successfully",
-      comment: {
-        ...(latestComment.toObject?.() || latestComment),
-        id: normalizeId(latestComment._id || latestComment.id),
-      },
-      task: formatLeanTask(populatedTask),
-    });
-  } catch (error) {
-    console.error("ADD TASK COMMENT ERROR:", error);
-
-    next(error);
-  }
-};
-
-/**
- * UPDATE TASK COMMENT
- * PUT /api/v1/tasks/:task_id/comments/:comment_id
- *
- * Supports:
- * - Editing comment text
- * - Adding new attachments
- */
-const updateTaskCommentLegacy = async (req, res, next) => {
-  try {
-    const { task_id, comment_id } = req.params;
-
-    if (!isValidObjectId(task_id)) {
-      throw new AppError("Invalid task ID", 400);
-    }
-
-    if (!isValidObjectId(comment_id)) {
-      throw new AppError("Invalid comment ID", 400);
-    }
-
-    const task = await Task.findById(task_id);
-
-    if (!task) {
-      throw new AppError("Task not found", 404);
-    }
-
-    const userId = getAuthUserId(req);
-
-    if (!userId) {
-      throw new AppError("Authentication required", 401);
-    }
-
-    if (!Array.isArray(task.comments)) {
-      throw new AppError("Comment not found", 404);
-    }
-
-    const comment = task.comments?.id
-      ? task.comments.id(comment_id)
-      : task.comments?.find((c) => String(c._id) === String(comment_id));
-
-    if (!comment) {
-      throw new AppError("Comment not found", 404);
-    }
-
-    const isCommentOwner =
-      normalizeId(comment.user || comment.user_id || comment.created_by) ===
-      String(userId);
-
-    const isSuperAdmin = isSuperAdminUser(req);
-
-    if (!isCommentOwner && !isSuperAdmin) {
-      throw new AppError(
-        "Forbidden: Only the comment author or SuperAdmin can edit this comment",
-        403,
-      );
-    }
-
-    const newText =
-      typeof req.body?.comment === "string"
-        ? req.body.comment.trim()
-        : typeof req.body?.text === "string"
-          ? req.body.text.trim()
-          : typeof req.body?.content === "string"
-            ? req.body.content.trim()
-            : undefined;
-
-    /*
-     * Add new attachments if supplied.
-     */
-    const filesList = Array.isArray(req.files)
-      ? req.files
-      : req.file
-        ? [req.file]
-        : [];
-
-    if (newText !== undefined) {
-      comment.text = newText;
-      comment.comment = newText;
-    }
-
-    if (filesList.length > 0) {
-      const newAttachments = await processUploadedFiles(filesList);
-
-      if (!Array.isArray(comment.attachments)) {
-        comment.attachments = [];
-      }
-
-      comment.attachments.push(...newAttachments);
-    }
-
-    comment.updatedAt = new Date();
-
-    await task.save();
-
-    const populatedTask = await getPopulatedTask(task._id);
-
-    return res.status(200).json({
-      success: true,
-      message: "Comment updated successfully",
-      task: formatLeanTask(populatedTask),
-    });
-  } catch (error) {
-    console.error("UPDATE TASK COMMENT ERROR:", error);
-
-    next(error);
-  }
-};
-
-/**
- * DELETE TASK COMMENT
- * DELETE /api/v1/tasks/:task_id/comments/:comment_id
- */
-const deleteTaskCommentLegacy = async (req, res, next) => {
-  try {
-    const { task_id, comment_id } = req.params;
-
-    if (!isValidObjectId(task_id)) {
-      throw new AppError("Invalid task ID", 400);
-    }
-
-    if (!isValidObjectId(comment_id)) {
-      throw new AppError("Invalid comment ID", 400);
-    }
-
-    const task = await Task.findById(task_id);
-
-    if (!task) {
-      throw new AppError("Task not found", 404);
-    }
-
-    const userId = getAuthUserId(req);
-
-    if (!userId) {
-      throw new AppError("Authentication required", 401);
-    }
-
-    if (!Array.isArray(task.comments)) {
-      throw new AppError("Comment not found", 404);
-    }
-
-    const comment = task.comments?.id
-      ? task.comments.id(comment_id)
-      : task.comments?.find((c) => String(c._id) === String(comment_id));
-
-    if (!comment) {
-      throw new AppError("Comment not found", 404);
-    }
-
-    const commentOwner = normalizeId(
-      comment.user || comment.user_id || comment.created_by,
-    );
-
-    const isCommentOwner = commentOwner === String(userId);
-
-    const isSuperAdmin = isSuperAdminUser(req);
-
-    if (!isCommentOwner && !isSuperAdmin) {
-      throw new AppError(
-        "Forbidden: Only the comment author or SuperAdmin can delete this comment",
-        403,
-      );
-    }
-
-    /*
-     * Remove local task comment files before deleting the comment.
-     */
-    if (Array.isArray(comment.attachments)) {
-      for (const attachment of comment.attachments) {
-        await deleteLocalAttachmentFile(attachment);
-      }
-    }
-
-    /*
-     * Remove comment.
-     */
-    if (typeof task.comments.id === "function") {
-      const commentSubdocument = task.comments.id(comment_id);
-
-      if (commentSubdocument) {
-        commentSubdocument.deleteOne();
-      }
-    } else {
-      task.comments = task.comments.filter(
-        (item) => normalizeId(item?._id || item?.id) !== String(comment_id),
-      );
-    }
-
-    await task.save();
-
-    const populatedTask = await getPopulatedTask(task._id);
-
-    return res.status(200).json({
-      success: true,
-      message: "Comment deleted successfully",
-      task: formatLeanTask(populatedTask),
-    });
-  } catch (error) {
-    console.error("DELETE TASK COMMENT ERROR:", error);
-
-    next(error);
-  }
-};
-/* =========================================================
    TASK COLLABORATION - ADD COMMENT
    POST /api/v1/tasks/:task_id/comments
 ========================================================= */
@@ -2090,7 +1775,7 @@ export const addTaskComment = async (req, res, next) => {
        PERMISSION
     --------------------------------------------------------- */
 
-    const isCreator = normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by || task.user_id) === String(userId);
 
     const isAssignee =
       Array.isArray(task.assigned_to) &&
@@ -2110,7 +1795,7 @@ export const addTaskComment = async (req, res, next) => {
     --------------------------------------------------------- */
 
     const commentText = String(
-      req.body?.comment || req.body?.text || "",
+      req.body?.comment || req.body?.text || req.body?.content || "",
     ).trim();
 
     /* ---------------------------------------------------------
@@ -2135,32 +1820,7 @@ export const addTaskComment = async (req, res, next) => {
        UPLOAD COMMENT ATTACHMENTS
     --------------------------------------------------------- */
 
-    const uploadedAttachments = [];
-
-    if (filesList.length > 0) {
-      for (const file of filesList) {
-        if (!file?.path) continue;
-
-        const isImage =
-          file.mimetype?.startsWith("image/") ||
-          /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif|heic|jfif)$/i.test(
-            file.originalname || "",
-          );
-
-        const relativePath = path
-          .relative(process.cwd(), file.path)
-          .replace(/\\/g, "/");
-
-        uploadedAttachments.push({
-          url: `/${relativePath}`,
-          path: relativePath,
-          name: file.originalname || "Attachment",
-          public_id: `task-comment-${Date.now()}-${file.filename || "attachment"}`,
-          fileType: isImage ? "image" : "file",
-          size: Number(file.size) || 0,
-        });
-      }
-    }
+    const uploadedAttachments = await processUploadedFiles(filesList, `task-comment-${task_id}`);
 
     /* ---------------------------------------------------------
        CREATE COMMENT
@@ -2270,9 +1930,13 @@ export const updateTaskComment = async (req, res, next) => {
       throw new AppError("Task not found", 404);
     }
 
+    if (!Array.isArray(task.comments)) {
+      throw new AppError("Comment not found", 404);
+    }
+
     const comment = task.comments?.id
       ? task.comments.id(comment_id)
-      : task.comments?.find((c) => String(c._id) === String(comment_id));
+      : task.comments?.find((c) => String(c._id || c.id) === String(comment_id));
 
     if (!comment) {
       throw new AppError("Comment not found", 404);
@@ -2282,9 +1946,11 @@ export const updateTaskComment = async (req, res, next) => {
        PERMISSION
     --------------------------------------------------------- */
 
-    const isCommentAuthor = normalizeId(comment.author) === String(userId);
+    const isCommentAuthor =
+      normalizeId(comment.author || comment.user || comment.user_id || comment.created_by) ===
+      String(userId);
 
-    const isTaskCreator = normalizeId(task.created_by) === String(userId);
+    const isTaskCreator = normalizeId(task.created_by || task.user_id) === String(userId);
 
     const isSuperAdmin = isSuperAdminUser(req);
 
@@ -2299,7 +1965,11 @@ export const updateTaskComment = async (req, res, next) => {
     const commentText =
       req.body?.comment !== undefined
         ? String(req.body.comment).trim()
-        : undefined;
+        : req.body?.text !== undefined
+          ? String(req.body.text).trim()
+          : req.body?.content !== undefined
+            ? String(req.body.content).trim()
+            : undefined;
 
     if (commentText !== undefined && commentText.length > 5000) {
       throw new AppError("Comment cannot exceed 5000 characters", 400);
@@ -2310,11 +1980,12 @@ export const updateTaskComment = async (req, res, next) => {
     --------------------------------------------------------- */
 
     if (commentText !== undefined) {
-      if (!commentText) {
+      if (!commentText && (!Array.isArray(comment.attachments) || comment.attachments.length === 0)) {
         throw new AppError("Comment cannot be empty", 400);
       }
 
       comment.comment = commentText;
+      comment.text = commentText;
     }
 
     /* ---------------------------------------------------------
@@ -2328,32 +1999,13 @@ export const updateTaskComment = async (req, res, next) => {
         : [];
 
     if (filesList.length > 0) {
-      for (const file of filesList) {
-        if (!file?.path) continue;
+      const newAttachments = await processUploadedFiles(filesList, `task-comment-update-${task_id}`);
 
-        const isImage =
-          file.mimetype?.startsWith("image/") ||
-          /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif|heic|jfif)$/i.test(
-            file.originalname || "",
-          );
-
-        if (!Array.isArray(comment.attachments)) {
-          comment.attachments = [];
-        }
-
-        const relativePath = path
-          .relative(process.cwd(), file.path)
-          .replace(/\\/g, "/");
-
-        comment.attachments.push({
-          url: `/${relativePath}`,
-          path: relativePath,
-          name: file.originalname || "Attachment",
-          public_id: `task-comment-update-${Date.now()}-${file.filename || "attachment"}`,
-          fileType: isImage ? "image" : "file",
-          size: Number(file.size) || 0,
-        });
+      if (!Array.isArray(comment.attachments)) {
+        comment.attachments = [];
       }
+
+      comment.attachments.push(...newAttachments);
     }
 
     comment.updatedAt = new Date();
@@ -2403,13 +2055,13 @@ export const deleteTaskComment = async (req, res, next) => {
       throw new AppError("Task not found", 404);
     }
 
-    if (typeof task.comments.pull === "function") {
-      task.comments.pull(comment_id);
-    } else {
-      task.comments = task.comments.filter(
-        (c) => String(c._id) !== String(comment_id),
-      );
+    if (!Array.isArray(task.comments)) {
+      throw new AppError("Comment not found", 404);
     }
+
+    const comment = task.comments?.id
+      ? task.comments.id(comment_id)
+      : task.comments?.find((c) => String(c._id || c.id) === String(comment_id));
 
     if (!comment) {
       throw new AppError("Comment not found", 404);
@@ -2419,9 +2071,11 @@ export const deleteTaskComment = async (req, res, next) => {
        PERMISSION
     --------------------------------------------------------- */
 
-    const isCommentAuthor = normalizeId(comment.author) === String(userId);
+    const isCommentAuthor =
+      normalizeId(comment.author || comment.user || comment.user_id || comment.created_by) ===
+      String(userId);
 
-    const isTaskCreator = normalizeId(task.created_by) === String(userId);
+    const isTaskCreator = normalizeId(task.created_by || task.user_id) === String(userId);
 
     const isSuperAdmin = isSuperAdminUser(req);
 
@@ -2446,7 +2100,15 @@ export const deleteTaskComment = async (req, res, next) => {
        REMOVE COMMENT
     --------------------------------------------------------- */
 
-    task.comments.pull(comment_id);
+    if (typeof comment.deleteOne === "function") {
+      comment.deleteOne();
+    } else if (typeof task.comments.pull === "function") {
+      task.comments.pull(comment_id);
+    } else {
+      task.comments = task.comments.filter(
+        (c) => String(c._id || c.id) !== String(comment_id),
+      );
+    }
 
     await task.save();
 
@@ -2488,7 +2150,7 @@ export const getTaskComments = async (req, res, next) => {
       throw new AppError("Task not found", 404);
     }
 
-    const isCreator = normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by || task.user_id) === String(userId);
     const isAssignee =
       Array.isArray(task.assigned_to) &&
       task.assigned_to.some(
@@ -2539,7 +2201,7 @@ export const addTaskAttachments = async (req, res, next) => {
       throw new AppError("Task not found", 404);
     }
 
-    const isCreator = normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by || task.user_id) === String(userId);
     const isAssignee =
       Array.isArray(task.assigned_to) &&
       task.assigned_to.some(
@@ -2623,13 +2285,13 @@ export const deleteTaskAttachment = async (req, res, next) => {
 
     const attachment = task.attachments?.id
       ? task.attachments.id(attachment_id)
-      : task.attachments?.find((a) => String(a._id) === String(attachment_id));
+      : task.attachments?.find((a) => String(a._id || a.id) === String(attachment_id));
 
     if (!attachment) {
       throw new AppError("Attachment not found", 404);
     }
 
-    const isCreator = normalizeId(task.created_by) === String(userId);
+    const isCreator = normalizeId(task.created_by || task.user_id) === String(userId);
     const isUploader = normalizeId(attachment.uploaded_by) === String(userId);
 
     if (!isCreator && !isUploader && !isSuperAdminUser(req)) {
@@ -2647,7 +2309,7 @@ export const deleteTaskAttachment = async (req, res, next) => {
       task.attachments.pull(attachment_id);
     } else {
       task.attachments = task.attachments.filter(
-        (a) => String(a._id) !== String(attachment_id),
+        (a) => String(a._id || a.id) !== String(attachment_id),
       );
     }
 
