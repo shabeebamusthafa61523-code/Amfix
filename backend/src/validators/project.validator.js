@@ -4,7 +4,10 @@ export const createProjectValidator = [
   body('projectName').notEmpty().withMessage('Project Name is required').trim(),
   body('client').notEmpty().withMessage('Client selection is required').isMongoId().withMessage('Invalid Client ID'),
   body('projectManager').notEmpty().withMessage('Project Manager selection is required').isMongoId().withMessage('Invalid Project Manager ID'),
-  body('deadline').notEmpty().withMessage('Project Deadline date is required').isISO8601().withMessage('Invalid Date format'),
+  body('deadline')
+    .optional({ values: 'falsy' })
+    .isISO8601()
+    .withMessage('Invalid Date format'),
   // MANDATORY ASSIGNED EMPLOYEES ARRAY VALIDATION
   body('assignedEmployees')
     .isArray({ min: 1 })
