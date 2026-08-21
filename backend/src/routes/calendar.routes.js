@@ -57,6 +57,13 @@ router.post(
   createCalendarWork
 );
 
+router.post(
+  '',
+  handleImageUpload,
+  validateBody(createCalendarWorkSchema),
+  createCalendarWork
+);
+
 // ============================================================
 // GET ALL CALENDAR WORK (with filters)
 // GET /api/calendar-work
@@ -64,6 +71,11 @@ router.post(
 
 router.get(
   '/',
+  getCalendarWorks
+);
+
+router.get(
+  '',
   getCalendarWorks
 );
 
