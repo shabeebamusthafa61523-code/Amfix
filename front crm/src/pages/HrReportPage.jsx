@@ -10,7 +10,6 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
-import PayslipModal from '../components/accounts/PayslipModal';
 import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -81,9 +80,6 @@ const HrReportPage = () => {
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
   const [isPrivileged, setIsPrivileged] = useState(false);
-
-  // Payslip State
-  const [isPayslipOpen, setIsPayslipOpen] = useState(false);
 
   // Selection states
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -1801,14 +1797,7 @@ const HrReportPage = () => {
                   Monthly Report
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setIsPayslipOpen(true)}
-                  className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-200 font-semibold text-sm transition-all cursor-pointer"
-                >
-                  <FileText size={16} />
-                  Generate Payslip
-                </button>
+
 
                 
 
@@ -3784,21 +3773,6 @@ const HrReportPage = () => {
         </div>
       )}
 
-      {/* OFFICIAL PAYSLIP MODAL */}
-      <PayslipModal
-        isOpen={isPayslipOpen}
-        onClose={() => setIsPayslipOpen(false)}
-        salaryRecord={{
-          employeeName: basicDetails.employeeName || currentUser?.name || 'HR Staff Member',
-          designation: basicDetails.designation || 'HR Executive / Manager',
-          department: basicDetails.department || 'Human Resources',
-          month: basicDetails.date ? `Disbursal — ${basicDetails.date}` : 'Current Pay Period',
-          basicSalary: 40000,
-          paidAmount: 40000,
-          paymentMode: 'Bank Transfer',
-          status: 'APPROVED'
-        }}
-      />
     </div>
   );
 };
