@@ -930,7 +930,7 @@ const HrReportPage = () => {
   };
 
   // --- UNIFIED MULTI-PAGE AUTO-PAGINATED PDF ENGINE ---
-  const downloadFormattedHrPDF = ({ title, subtitle, basicRows, sections, filename }) => {
+  const downloadFormattedHrPDF = ({ title, subtitle, basicRows, sections, filename, returnBlob = false }) => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     
     const drawPageHeader = () => {
@@ -1029,6 +1029,9 @@ const HrReportPage = () => {
     }
 
     doc.save(filename);
+    if (returnBlob) {
+      return doc.output('blob');
+    }
   };
 
   const handleDownloadMonthlyPDF = async () => {
@@ -1548,11 +1551,12 @@ const HrReportPage = () => {
   };
 
   const handleDownloadPDF = async () => {
-    const reportType = 'hr';
-    // Automatically save report as well
+    // Automatically save report state first
     await handleSaveReport();
 
-    const generateClientPDF = () => {
+    try {
+      showToast("Generating HR Shift PDF report...", "info");
+
       const basicRows = [
         ["Date", basicDetails.date || selectedDate],
         ["Day", basicDetails.day || ''],
@@ -1653,57 +1657,30 @@ const HrReportPage = () => {
         }
       ];
 
-      const filename = `HR_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
-      downloadFormattedHrPDF({
+      const filename = `HR_Shift_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
+      const pdfBlob = downloadFormattedHrPDF({
         title: "DAILY HR OPERATIONS REPORT",
         subtitle: "HUMAN RESOURCES & ADMINISTRATION",
         basicRows,
         sections,
-        filename
+        filename,
+        returnBlob: true
       });
 
-      showToast("Full HR PDF report downloaded successfully!", "success");
-    };
-
-    try {
-      showToast("Generating PDF report...", "info");
-      const token = localStorage.getItem('token');
-      const cleanToken = token ? token.replace(/"/g, '') : '';
-      
-      const url = `${API_BASE}/v1/employee-reports/generate-pdf?userId=${selectedUserId}&dateString=${selectedDate}&reportType=${reportType}`;
-      
-      const res = await fetch(url, {
-        headers: {
-          'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`
+      if (pdfBlob && selectedUserId) {
+        try {
+          await uploadCompiledPDFReport(selectedUserId, selectedDate, pdfBlob, filename, 'hr', 'daily');
+        } catch (uploadErr) {
+          console.warn("PDF upload to server skipped:", uploadErr);
         }
-      });
-      
-      if (!res.ok) {
-        // Fallback to high-precision multi-page client side PDF generation
-        generateClientPDF();
-        return;
       }
-      
-      const blob = await res.blob();
-      const filename = `${reportType.charAt(0).toUpperCase() + reportType.slice(1)}_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
-      
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        a.remove();
-        window.URL.revokeObjectURL(downloadUrl);
-      }, 15000);
-      
-      showToast("PDF report downloaded successfully!", "success");
+
+      showToast("HR Shift PDF report generated and downloaded successfully!", "success");
     } catch (e) {
-      console.warn("Server PDF generation failed, executing multi-page client-side generator:", e);
-      generateClientPDF();
+      console.error("PDF generation failed:", e);
+      showToast("Failed to generate HR Shift PDF report.", "error");
     }
-  };;
+  };
 
   const getRecentDates = () => {
     const dates = [];
