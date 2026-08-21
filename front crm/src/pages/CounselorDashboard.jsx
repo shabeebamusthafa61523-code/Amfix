@@ -135,7 +135,7 @@ const CounselorDashboard = () => {
       const day = new Date(now);
       day.setDate(day.getDate() - i);
       const dayStr = new Intl.DateTimeFormat('en-CA').format(day);
-      const count = myLeads.filter(l => {
+      const count = leads.filter(l => {
         if (!l.createdAt) return false;
         try {
           const cd = new Intl.DateTimeFormat('en-CA').format(new Date(l.createdAt));
