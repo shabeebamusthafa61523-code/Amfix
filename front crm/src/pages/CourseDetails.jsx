@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowLeft, BookOpen, Calendar, Clock, User, Users, Plus, Edit, 
   Trash2, ShieldCheck, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, 
-  FolderKanban, Loader2, X, Sparkles, AlertTriangle, Layers, Award
+  FolderKanban, Loader2, X, Sparkles, AlertTriangle, Layers, Award, Search
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import LmsContentManager from '../components/lms/LmsContentManager';
@@ -26,6 +26,7 @@ const initialBatchForm = {
   timezone: 'IST (UTC+5:30)',
   capacity: 30,
   instructorId: '',
+  instructorIds: [],
   status: 'UPCOMING'
 };
 
@@ -45,6 +46,8 @@ const CourseDetails = () => {
   const [editingBatch, setEditingBatch] = useState(null);
   const [batchFormData, setBatchFormData] = useState(initialBatchForm);
   const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
+  const [isInstructorDropdownOpen, setIsInstructorDropdownOpen] = useState(false);
+  const [instructorSearchText, setInstructorSearchText] = useState('');
 
   // Delete Modal State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -137,6 +140,10 @@ const CourseDetails = () => {
 
   const handleOpenEditBatchModal = (batch) => {
     setEditingBatch(batch);
+    const existingInstIds = Array.isArray(batch.instructors) && batch.instructors.length > 0
+      ? batch.instructors.map(i => i._id || i.id || i)
+      : (batch.instructorId?._id || batch.instructorId ? [batch.instructorId?._id || batch.instructorId] : []);
+
     setBatchFormData({
       batchCode: batch.batchCode || '',
       batchName: batch.batchName || '',
@@ -147,10 +154,25 @@ const CourseDetails = () => {
       endTime: batch.endTime || '11:00 AM',
       timezone: batch.timezone || 'IST (UTC+5:30)',
       capacity: batch.capacity || 30,
-      instructorId: batch.instructorId?._id || batch.instructorId || '',
+      instructorId: existingInstIds[0] || '',
+      instructorIds: existingInstIds,
       status: batch.status || 'UPCOMING'
     });
     setIsBatchModalOpen(true);
+  };
+
+  const handleToggleInstructorSelection = (instId) => {
+    setBatchFormData(prev => {
+      const current = prev.instructorIds || [];
+      const updated = current.includes(instId)
+        ? current.filter(id => id !== instId)
+        : [...current, instId];
+      return {
+        ...prev,
+        instructorIds: updated,
+        instructorId: updated[0] || ''
+      };
+    });
   };
 
   const handleDayToggle = (day) => {
@@ -189,6 +211,8 @@ const CourseDetails = () => {
 
       const payload = {
         ...batchFormData,
+        instructors: batchFormData.instructorIds || [],
+        instructorId: (batchFormData.instructorIds && batchFormData.instructorIds[0]) || batchFormData.instructorId || null,
         courseId
       };
 
@@ -597,10 +621,12 @@ const CourseDetails = () => {
 
                             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 pt-1">
                               <span className="flex items-center gap-1.5 font-semibold">
-                                <User size={14} className="text-indigo-500" /> Instructor:
+                                <User size={14} className="text-indigo-500" /> Instructor(s):
                               </span>
                               <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                                {instructor.name || 'Unassigned'}
+                                {Array.isArray(b.instructors) && b.instructors.length > 0
+                                  ? b.instructors.map(i => i.name || 'Staff').join(', ')
+                                  : (instructor.name || 'Unassigned')}
                               </span>
                             </div>
                           </div>
@@ -794,21 +820,141 @@ const CourseDetails = () => {
                   </div>
                 </div>
 
-                {/* Assigned Instructor */}
-                <div className="space-y-1">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Assigned Instructor</label>
-                  <select
-                    value={batchFormData.instructorId}
-                    onChange={(e) => setBatchFormData({ ...batchFormData, instructorId: e.target.value })}
-                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 px-4 text-slate-900 dark:text-slate-100 outline-none text-sm font-medium cursor-pointer"
-                  >
-                    <option value="" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Select Instructor (Optional)</option>
-                    {instructors.map(inst => (
-                      <option key={inst._id || inst.id} value={inst._id || inst.id} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-                        {inst.name} ({inst.role || inst.designation || 'Staff'})
-                      </option>
-                    ))}
-                  </select>
+                {/* Assigned Instructors Multi-Select Dropdown */}
+                <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                      Assigned Instructors ({(batchFormData.instructorIds || []).length} Selected)
+                    </label>
+                    {instructors.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if ((batchFormData.instructorIds || []).length === instructors.length) {
+                            setBatchFormData(prev => ({ ...prev, instructorIds: [], instructorId: '' }));
+                          } else {
+                            const allIds = instructors.map(i => i._id || i.id);
+                            setBatchFormData(prev => ({ ...prev, instructorIds: allIds, instructorId: allIds[0] || '' }));
+                          }
+                        }}
+                        className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 hover:underline uppercase tracking-wider cursor-pointer"
+                      >
+                        {(batchFormData.instructorIds || []).length === instructors.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Selected Instructor Chips */}
+                  {(batchFormData.instructorIds || []).length > 0 && (
+                    <div className="flex flex-wrap gap-2 p-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl max-h-24 overflow-y-auto">
+                      {(batchFormData.instructorIds || []).map(instId => {
+                        const instObj = instructors.find(i => String(i._id || i.id) === String(instId));
+                        const instName = instObj ? instObj.name : `Instructor ${instId}`;
+                        return (
+                          <span 
+                            key={instId}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-xs"
+                          >
+                            <User size={12} />
+                            {instName}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleInstructorSelection(instId)}
+                              className="hover:text-rose-200 cursor-pointer ml-1"
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Dropdown Button Trigger */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsInstructorDropdownOpen(!isInstructorDropdownOpen)}
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-800 dark:text-slate-200 flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="text-slate-600 dark:text-slate-300 font-medium truncate flex items-center gap-2">
+                        <User size={16} className="text-indigo-500 shrink-0" />
+                        {(batchFormData.instructorIds || []).length === 0 
+                          ? '-- Select Assigned Instructors --' 
+                          : `${(batchFormData.instructorIds || []).length} Instructor(s) Selected`}
+                      </span>
+                      <ChevronDown size={18} className={`text-slate-400 shrink-0 transition-transform ${isInstructorDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {/* Dropdown Menu Container */}
+                    {isInstructorDropdownOpen && (
+                      <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 p-3 space-y-2 max-h-64 overflow-y-auto">
+                        {/* Search input */}
+                        <div className="relative mb-2">
+                          <Search className="absolute left-3 top-2.5 text-slate-400" size={14} />
+                          <input
+                            type="text"
+                            value={instructorSearchText}
+                            onChange={(e) => setInstructorSearchText(e.target.value)}
+                            placeholder="Search instructors by name or role..."
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-9 pr-3 text-xs text-slate-900 dark:text-slate-100 outline-none focus:border-indigo-500"
+                          />
+                        </div>
+
+                        {/* Instructor Options List */}
+                        <div className="space-y-1">
+                          {instructors.filter(i => {
+                            if (!instructorSearchText.trim()) return true;
+                            const q = instructorSearchText.toLowerCase();
+                            return (i.name || '').toLowerCase().includes(q) || (i.role || i.designation || '').toLowerCase().includes(q);
+                          }).length === 0 ? (
+                            <p className="text-center py-4 text-xs text-slate-400 font-medium">
+                              No matching instructors found.
+                            </p>
+                          ) : (
+                            instructors.filter(i => {
+                              if (!instructorSearchText.trim()) return true;
+                              const q = instructorSearchText.toLowerCase();
+                              return (i.name || '').toLowerCase().includes(q) || (i.role || i.designation || '').toLowerCase().includes(q);
+                            }).map(inst => {
+                              const instId = inst._id || inst.id;
+                              const isChecked = (batchFormData.instructorIds || []).includes(instId);
+
+                              return (
+                                <div
+                                  key={instId}
+                                  onClick={() => handleToggleInstructorSelection(instId)}
+                                  className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all border ${
+                                    isChecked 
+                                      ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500/50 text-indigo-900 dark:text-indigo-200 font-bold' 
+                                      : 'bg-white dark:bg-slate-950 border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 truncate">
+                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
+                                      isChecked ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                                    }`}>
+                                      {inst.name ? inst.name.charAt(0).toUpperCase() : 'I'}
+                                    </div>
+                                    <div className="truncate">
+                                      <p className="text-xs font-bold truncate">{inst.name}</p>
+                                      <p className="text-[10px] text-slate-400 truncate">{inst.role || inst.designation || 'Staff'}</p>
+                                    </div>
+                                  </div>
+
+                                  <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 ${
+                                    isChecked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-700'
+                                  }`}>
+                                    {isChecked && <CheckCircle2 size={12} />}
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">

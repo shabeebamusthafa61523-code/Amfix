@@ -55,6 +55,23 @@ const recruitmentSchema = new mongoose.Schema(
       enum: ['Pending', 'Selected', 'Not Selected'],
       default: 'Pending'
     },
+    approval_status: {
+      type: String,
+      enum: ['N/A', 'Pending', 'Approved', 'Rejected'],
+      default: 'N/A'
+    },
+    approved_by: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    approved_at: {
+      type: Date
+    },
+    rejection_reason: {
+      type: String,
+      trim: true,
+      default: ''
+    },
     offer_letter: {
       type: String,
       enum: ['N/A', 'Pending', 'Sent', 'Accepted', 'Declined'],
