@@ -20,10 +20,24 @@ export const ALL_DASHBOARD_ITEMS = [
 export const resolveUserDashboardPath = (userObj) => {
   if (!userObj) return '/dashboard';
 
+  const userRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
+  const isSuperAdminUser = 
+    userObj.isSuperAdmin === true ||
+    userObj.is_super_admin === true ||
+    userRole === 'superadmin' ||
+    userRole === 'super_admin' ||
+    userRole === 'super admin' ||
+    userRole === '0';
+
+  // 1. Super Admin ALWAYS gets Admin Dashboard (/dashboard)
+  if (isSuperAdminUser) {
+    return '/dashboard';
+  }
+
   const userPermissions = Array.isArray(userObj.permissions) ? userObj.permissions : [];
   const cleanPermissions = userPermissions.map(p => String(p).toLowerCase().trim());
 
-  // 1. Check custom user permissions for any entry containing "dashboard"
+  // 2. Check custom user permissions for any entry containing "dashboard"
   const dashboardPerm = cleanPermissions.find(p => p.includes('dashboard'));
   if (dashboardPerm) {
     const matchedByPerm = ALL_DASHBOARD_ITEMS.find(item => 
@@ -36,8 +50,7 @@ export const resolveUserDashboardPath = (userObj) => {
     }
   }
 
-  // 2. Dynamically match user's designation, department, or role against dashboard keywords
-  const userRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
+  // 3. Dynamically match user's designation, department, or role against dashboard keywords
   const userDesig = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
   const userDept = String(userObj.department || userObj.departmentId?.name || '').toLowerCase().trim();
 
@@ -58,11 +71,6 @@ export const resolveUserDashboardPath = (userObj) => {
     if (matchesUser) {
       return item.path;
     }
-  }
-
-  // 3. Fallback for Super Admin / Admin role
-  if (userObj.isSuperAdmin === true || userObj.is_super_admin === true || ['0', '1', '2', 'admin', 'superadmin'].includes(userRole)) {
-    return '/dashboard';
   }
 
   // 4. Default Fallback
