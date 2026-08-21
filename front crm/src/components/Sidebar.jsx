@@ -171,6 +171,9 @@ const CategoryDropdownGroup = ({ group, isCollapsed, activePath, onMobileClick }
   );
 
   const [isOpen, setIsOpen] = useState(isAnyChildActive);
+  const [isHovered, setIsHovered] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const categoryRef = useRef(null);
 
   useEffect(() => {
     if (isAnyChildActive) {
@@ -178,7 +181,77 @@ const CategoryDropdownGroup = ({ group, isCollapsed, activePath, onMobileClick }
     }
   }, [isAnyChildActive]);
 
-  // Single item in category -> No head, render directly as item
+  // When sidebar is collapsed / closed: Show ONLY the main category icon!
+  if (isCollapsed) {
+    const catMeta = CATEGORY_CONFIG[group.name] || { label: group.name, icon: Layers };
+    const mainItem = group.items[0];
+    const CategoryIcon = isSingleItem ? mainItem.icon : catMeta.icon;
+    const activeItem = group.items.find(i => activePath === i.path || (i.children && i.children.some(c => activePath === c.path)));
+    const targetPath = isSingleItem ? mainItem.path : (activeItem ? activeItem.path : group.items[0].path);
+    const tooltipLabel = isSingleItem ? mainItem.label : group.name;
+
+    const handleMouseEnter = () => {
+      if (categoryRef.current) {
+        const rect = categoryRef.current.getBoundingClientRect();
+        setCoords({
+          top: rect.top + rect.height / 2,
+          left: rect.right + 12,
+        });
+      }
+      setIsHovered(true);
+    };
+
+    return (
+      <div 
+        ref={categoryRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setIsHovered(false)}
+        className="w-full flex justify-center my-1.5 relative"
+      >
+        <Link
+          to={targetPath}
+          onClick={onMobileClick}
+          className={`flex items-center justify-center w-10 h-10 rounded-2xl transition-all duration-200 cursor-pointer ${
+            isAnyChildActive
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25 font-bold scale-105'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <CategoryIcon size={20} />
+        </Link>
+
+        {/* Floating Tooltip Badge on Hover */}
+        <AnimatePresence>
+          {isHovered && (
+            <PortalTooltip>
+              <motion.div 
+                initial={{ opacity: 0, x: -10, y: '-50%' }}
+                animate={{ opacity: 1, x: 0, y: '-50%' }}
+                exit={{ opacity: 0, x: -10, y: '-50%' }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                style={{
+                  position: 'fixed',
+                  top: `${coords.top}px`,
+                  left: `${coords.left}px`,
+                }}
+                className="fixed pointer-events-none z-[9999] px-3 py-1.5 bg-slate-900 dark:bg-slate-800 text-white text-[11px] font-bold rounded-xl shadow-xl border border-slate-700/50 whitespace-nowrap -translate-y-1/2 flex items-center gap-2"
+              >
+                <span>{tooltipLabel}</span>
+                {!isSingleItem && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-slate-700 dark:bg-slate-700 text-indigo-300 font-bold">
+                    {group.items.length} items
+                  </span>
+                )}
+                <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-1.5 h-1.5 bg-slate-900 dark:bg-slate-800 rotate-45" />
+              </motion.div>
+            </PortalTooltip>
+          )}
+        </AnimatePresence>
+      </div>
+    );
+  }
+
+  // Single item in expanded category -> No head, render directly as item
   if (isSingleItem) {
     const item = group.items[0];
     return (
@@ -213,31 +286,27 @@ const CategoryDropdownGroup = ({ group, isCollapsed, activePath, onMobileClick }
       >
         <div className="flex items-center gap-3 min-w-0">
           <CategoryIcon size={18} className="shrink-0 text-indigo-600 dark:text-indigo-400" />
-          {!isCollapsed && (
-            <span className="text-xs font-bold uppercase tracking-wide truncate">
-              {group.name}
-            </span>
-          )}
+          <span className="text-xs font-bold uppercase tracking-wide truncate">
+            {group.name}
+          </span>
         </div>
 
-        {!isCollapsed && (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-              {group.items.length}
-            </span>
-            <ChevronDown size={14} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-          </div>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+            {group.items.length}
+          </span>
+          <ChevronDown size={14} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        </div>
       </button>
 
       {/* Sub-items List inside Dropdown */}
       <AnimatePresence>
-        {(isOpen || isCollapsed) && (
+        {isOpen && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className={!isCollapsed ? "pl-2 space-y-1 border-l-2 border-slate-200 dark:border-slate-800 ml-3.5 mt-1" : "space-y-1"}
+            className="pl-2 space-y-1 border-l-2 border-slate-200 dark:border-slate-800 ml-3.5 mt-1"
           >
             {group.items.map((item) => (
               <NavItem 
