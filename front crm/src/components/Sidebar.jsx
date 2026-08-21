@@ -88,7 +88,8 @@ const CATEGORY_CONFIG = {
 
 const menuItems = [
   // --- OVERVIEW ---
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard', category: 'Overview', allowedRoles: ['1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
+  { icon: LayoutDashboard, label: 'Admin Dashboard', path: '/dashboard', category: 'Overview', allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
+  { icon: TrendingUp, label: 'MD Dashboard', path: '/md-dashboard', category: 'Overview', allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'management'] },
   { icon: CheckCircle2, label: 'Approvals', path: '/approvals', category: 'Overview', allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'management'] },
   { icon: Calendar, label: 'Leave Requests', path: '/leaves', category: 'Overview' },
   { icon: Bell, label: 'Notifications', path: '/notifications', category: 'Overview' },
