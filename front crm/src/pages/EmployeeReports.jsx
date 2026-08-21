@@ -491,6 +491,22 @@ const EmployeeReports = () => {
     if (isNonOperational) {
       allReports = allReports.filter(r => r.report_period !== 'daily');
     }
+
+    // Client-side deduplication by report_date + report_period
+    const dedupMap = new Map();
+    allReports.forEach(r => {
+      const key = `${r.report_date || 'nodate'}_${r.report_period || 'daily'}`;
+      if (!dedupMap.has(key)) {
+        dedupMap.set(key, r);
+      } else {
+        const existing = dedupMap.get(key);
+        if (!existing.pdf_url && r.pdf_url) {
+          dedupMap.set(key, r);
+        }
+      }
+    });
+    allReports = Array.from(dedupMap.values());
+
     const filter = periodFilters[empId] || 'all';
     let reports = filter === 'all' ? allReports : allReports.filter(r => r.report_period === filter);
     const sort = sortOrders[empId] || 'newest';
@@ -520,10 +536,7 @@ const EmployeeReports = () => {
   };
 
   const getReportCounts = (empId) => {
-    let all = uploadedReportsMap[empId] || [];
-    if (isNonOperational) {
-      all = all.filter(r => r.report_period !== 'daily');
-    }
+    let all = getFilteredReports(empId);
     return {
       all: all.length,
       daily: all.filter(r => r.report_period === 'daily').length,
