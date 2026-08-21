@@ -29,7 +29,6 @@ import academyRoutes from './src/routes/academy.routes.js';
 import notificationRoutes from './src/routes/notification.routes.js';
 import leaveRoutes from './src/routes/leave.routes.js';
 import recruitmentRoutes from './src/routes/recruitment.routes.js';
-import calendarRoutes from './src/routes/calendar.routes.js';
 import Designation from './src/models/designation.model.js';
 import Department from './src/modules/departments/department.model.js';
 const app = express();
@@ -100,8 +99,6 @@ app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/v1/recruitment', recruitmentRoutes);
 app.use('/api/recruitment', recruitmentRoutes);
-app.use('/api/v1/calendar-work', calendarRoutes);
-app.use('/api/calendar-work', calendarRoutes);
 
 // 4. Broad, Versioned, & Catch-all Fallbacks (Broadest matching paths go lower)
 app.use('/api/v1', studentRoutes);

@@ -39,14 +39,6 @@ const handleImageUpload = (req, res, next) => {
   });
 };
 
-// Normalize URL in case sub-router receives query params without leading slash (e.g. ?startDate=...)
-router.use((req, res, next) => {
-  if (req.url && req.url.startsWith('?')) {
-    req.url = '/' + req.url;
-  }
-  next();
-});
-
 // ============================================================
 // ALL ROUTES REQUIRE AUTHENTICATION
 // ============================================================
@@ -65,13 +57,6 @@ router.post(
   createCalendarWork
 );
 
-router.post(
-  '',
-  handleImageUpload,
-  validateBody(createCalendarWorkSchema),
-  createCalendarWork
-);
-
 // ============================================================
 // GET ALL CALENDAR WORK (with filters)
 // GET /api/calendar-work
@@ -79,11 +64,6 @@ router.post(
 
 router.get(
   '/',
-  getCalendarWorks
-);
-
-router.get(
-  '',
   getCalendarWorks
 );
 

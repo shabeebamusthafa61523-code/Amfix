@@ -11,14 +11,8 @@ const headers = () => {
 
 const isFormDataBody = (body) => typeof FormData !== 'undefined' && body instanceof FormData;
 
-const request = async (path = '', options = {}) => {
-  const cleanPath = String(path).replace(/^\/+/, '');
-  const url = cleanPath
-    ? (cleanPath.startsWith('?') 
-        ? `${baseUrl()}/v1/calendar-work${cleanPath}` 
-        : `${baseUrl()}/v1/calendar-work/${cleanPath}`)
-    : `${baseUrl()}/v1/calendar-work`;
-
+const request = async (path, options = {}) => {
+  const url = `${baseUrl()}/v1/calendar-work/${path}`;
   const formData = isFormDataBody(options.body);
 
   const mergedHeaders = {

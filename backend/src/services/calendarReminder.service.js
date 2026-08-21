@@ -2,6 +2,7 @@ import CalendarWork from '../models/calendarWork.model.js';
 import User from '../models/user.model.js';
 import Notification from '../models/notification.model.js';
 import logger from '../utils/logger.util.js';
+import { findTeamLeadsForUser } from './calendarNotification.service.js';
 
 const TIMEZONE = 'Asia/Kolkata'; // IST
 
@@ -40,25 +41,29 @@ export const calendarReminderService = {
 
       for (const item of overdueItems) {
         try {
-          // Determine recipient
+          // Determine recipients (Assigned Person + Team Lead)
           const recipient = item.assignedTo;
-          if (!recipient || !recipient._id || !recipient.email) {
+          if (!recipient || !recipient._id) {
             logger.warn(`⏰ CALENDAR REMINDER: Cannot send reminder for item ${item._id} - no valid assignee`);
             failureCount++;
             continue;
           }
 
-          // Create notification in database
-          const notification = new Notification({
-            title: '⏰ Scheduled Content Posting Reminder',
-            description: `The scheduled posting time for "${item.title}" (${item.contentType}) has passed. Please post this content now if not already done.`,
-            assignedTo: recipient._id,
-            createdBy: item.createdBy,
-            createdByName: 'System',
-            isRead: false
-          });
+          const recipientIds = await findTeamLeadsForUser(recipient._id);
 
-          await notification.save();
+          const notificationsToCreate = recipientIds.map(userId => ({
+            title: `⏰ Content Posting Due: ${item.title}`,
+            description: `The scheduled posting date for content "${item.title}" (${item.contentType || 'Content'}) assigned to ${recipient.name || 'Team Member'} has arrived. Please publish or update status.`,
+            image: item.imageUrl || null,
+            imageUrl: item.imageUrl || null,
+            category: 'emergency',
+            assignedTo: userId,
+            createdBy: item.createdBy || null,
+            createdByName: 'System Posting Monitor',
+            isRead: false
+          }));
+
+          await Notification.insertMany(notificationsToCreate);
 
           // Mark as reminder sent
           item.reminderSent = true;
@@ -66,7 +71,7 @@ export const calendarReminderService = {
           item.lastReminderAt = new Date();
           await item.save();
 
-          logger.info(`⏰ CALENDAR REMINDER: Reminder sent to ${recipient.email} for "${item.title}" (ID: ${item._id})`);
+          logger.info(`⏰ CALENDAR REMINDER: Reminders dispatched for "${item.title}" (ID: ${item._id}) to ${recipientIds.length} recipients`);
           successCount++;
         } catch (itemError) {
           logger.error(`⏰ CALENDAR REMINDER: Failed to process item ${item._id}: ${itemError.message}`);

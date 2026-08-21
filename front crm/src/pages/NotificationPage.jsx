@@ -709,28 +709,28 @@ const NotificationPage = () => {
                       animate={{ opacity: 1, y: 0 }}
                       className={`p-4 rounded-2xl border transition-all relative ${
                         !n.isRead && activeTab === 'received'
-                          ? 'bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-300 dark:border-indigo-700/60 border-l-4 border-l-indigo-600 dark:border-l-indigo-400 shadow-md'
-                          : 'bg-slate-50/50 dark:bg-slate-950/50 border-slate-200/60 dark:border-slate-800/60'
+                          ? 'bg-slate-50/80 dark:bg-slate-950/60 border-indigo-200/80 dark:border-indigo-800/40'
+                          : 'bg-slate-50/50 dark:bg-slate-950/50 border-slate-200/40 dark:border-slate-800/40'
                       }`}
                     >
                       {!n.isRead && activeTab === 'received' && (
-                        <div className="absolute left-[-2px] top-4 w-2.5 h-2.5 rounded-full bg-rose-500 ring-4 ring-rose-500/30 animate-pulse" />
+                        <div className="absolute left-3 top-4 w-2 h-2 rounded-full bg-rose-500 ring-4 ring-rose-500/20" />
                       )}
 
                       <div className="flex items-start justify-between gap-3 pl-3">
                         <div className="space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">
+                            <h4 className="text-sm font-black text-slate-900 dark:text-white">
                               {n.title || 'Notification'}
                             </h4>
                             {n.category && (
-                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${th.badgeClass}`}>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${th.badgeClass}`}>
                                 {th.badgeText}
                               </span>
                             )}
                             {!n.isRead && activeTab === 'received' && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-xs animate-pulse inline-flex items-center gap-0.5">
-                                <Sparkles size={9} /> NEW
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                                NEW
                               </span>
                             )}
                           </div>
@@ -740,16 +740,13 @@ const NotificationPage = () => {
                           </p>
 
                           {(n.imageUrl || n.image) && (
-                            <div className="mt-2.5 rounded-2xl overflow-hidden border-2 border-indigo-500/30 dark:border-indigo-500/40 max-w-xs group relative shadow-md">
+                            <div className="mt-2.5 rounded-2xl overflow-hidden border border-slate-200/80 dark:border-slate-800 max-w-xs group relative shadow-sm">
                               <img
                                 src={n.imageUrl || n.image}
                                 alt="Notification Attachment"
-                                className="w-full max-h-44 object-cover cursor-pointer group-hover:scale-105 transition-transform duration-300"
+                                className="w-full max-h-44 object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
                                 onClick={() => setSelectedImageModal(n.imageUrl || n.image)}
                               />
-                              <div className="absolute bottom-2 right-2 px-2 py-0.5 bg-black/75 text-white text-[9px] font-extrabold uppercase rounded-lg backdrop-blur-md cursor-pointer pointer-events-none">
-                                🔍 Click to view full image
-                              </div>
                             </div>
                           )}
 
