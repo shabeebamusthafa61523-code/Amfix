@@ -381,18 +381,21 @@ const DeveloperReportPage = () => {
   useEffect(() => {
     try {
       const savedUser = localStorage.getItem('user');
+      const storedUserId = localStorage.getItem('user_id')?.replace(/"/g, '');
       if (savedUser) {
         const userObj = JSON.parse(savedUser);
         setCurrentUser(userObj);
         
-        const role = String(userObj.role_id || userObj.role || '').toLowerCase().trim();
-        const privileged = ['1', '2', 'hr', 'admin'].includes(role);
+        const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
+        const privileged = userObj.isSuperAdmin === true || userObj.is_super_admin === true || ['0', '1', '2', 'hr', 'admin', 'superadmin', 'super_admin'].includes(role);
         setIsPrivileged(privileged);
         
-        // If not privileged, they can only view/create their own reports
-        if (!privileged) {
-          const uId = userObj.id || userObj._id;
-          setSelectedUserId(uId);
+        const myUserId = userObj._id || userObj.id || userObj.user_id || storedUserId || '';
+
+        if (!selectedUserId || !privileged) {
+          if (myUserId) {
+            setSelectedUserId(myUserId);
+          }
         }
       }
     } catch (err) {
@@ -1420,9 +1423,12 @@ const DeveloperReportPage = () => {
       const pdfBlob = doc.output('blob');
       const filename = `Developer_Report_${(basicDetails.employeeName || 'Developer').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
       try {
-        await uploadCompiledPDFReport(selectedUserId, selectedDate, pdfBlob, filename, 'developer', 'daily');
+        const targetUserId = selectedUserId || currentUser._id || currentUser.id || localStorage.getItem('user_id') || '';
+        if (targetUserId) {
+          await uploadCompiledPDFReport(targetUserId, selectedDate, pdfBlob, filename, 'developer', 'daily');
+        }
       } catch (uploadErr) {
-        console.error("Failed to upload developer PDF:", uploadErr);
+        console.error("Failed to upload developer PDF (saving locally anyway):", uploadErr);
       }
       doc.save(filename);
       showToast("Developer PDF report downloaded successfully!", "success");
