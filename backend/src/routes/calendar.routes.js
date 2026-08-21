@@ -39,6 +39,14 @@ const handleImageUpload = (req, res, next) => {
   });
 };
 
+// Normalize URL in case sub-router receives query params without leading slash (e.g. ?startDate=...)
+router.use((req, res, next) => {
+  if (req.url && req.url.startsWith('?')) {
+    req.url = '/' + req.url;
+  }
+  next();
+});
+
 // ============================================================
 // ALL ROUTES REQUIRE AUTHENTICATION
 // ============================================================
