@@ -18,7 +18,7 @@ const Login = () => {
 
   const handleGoogleSuccess = async (credentialResponse) => {
     setIsLoading(true);
-    const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
     try {
       const response = await fetch(`${apiBaseUrl}/auth/google`, {
@@ -90,7 +90,7 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
     try {
       const response = await fetch(`${apiBaseUrl}/auth/login`, {
@@ -351,7 +351,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, defaultEmail, showToast, onSucce
   const handleVerify = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
     try {
       const response = await fetch(`${apiBaseUrl}/auth/forgot-password/verify`, {
@@ -380,7 +380,7 @@ const ForgotPasswordModal = ({ isOpen, onClose, defaultEmail, showToast, onSucce
     e.preventDefault();
     if (!isPasswordValid) return;
     setIsLoading(true);
-    const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
     try {
       const response = await fetch(`${apiBaseUrl}/auth/forgot-password/reset`, {

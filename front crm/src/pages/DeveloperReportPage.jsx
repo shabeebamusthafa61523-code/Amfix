@@ -1355,7 +1355,7 @@ const DeveloperReportPage = () => {
       }
 
       // 9. DEVELOPER REMARKS
-      const activeRemarks = internRemarks || developerNotes || remarks || '';
+      const activeRemarks = internRemarks || '';
       if (activeRemarks && String(activeRemarks).trim() !== '') {
         const remarksLines = doc.splitTextToSize(String(activeRemarks), 178);
         const remarksBoxHeight = Math.max(12, remarksLines.length * 4.2 + 5);
@@ -1593,7 +1593,7 @@ const DeveloperReportPage = () => {
                       department: 'Software Development / R&D',
                       designation: basicDetails.designation,
                       date: selectedDate,
-                      actualReportContentText: JSON.stringify({ basicDetails, dailyTasks: dailyTaskSummary, projectProgress, bugTracking, researchLearning, developerNotes })
+                      actualReportContentText: JSON.stringify({ basicDetails, dailyTasks: dailyTaskSummary, developmentTaskReport, researchLearning, toolsUsed, challengesFaced, nextDayPlan, internRemarks })
                     });
                     setIsAiModalOpen(true);
                   }}
