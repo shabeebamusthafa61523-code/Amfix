@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useToast } from './ToastProvider';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
 const STATUS_OPTIONS = [
   'Outstanding',

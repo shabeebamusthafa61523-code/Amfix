@@ -57,7 +57,7 @@ const Register = () => {
   });
 
   React.useEffect(() => {
-    const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
     const fetchDesignations = async () => {
       try {
@@ -158,7 +158,7 @@ const Register = () => {
     }
 
     // Pull Render backend target URL from env variables
-    const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
     const finalPayload = {
       ...formData,
       salary: parseFloat(formData.salary) || 0,
