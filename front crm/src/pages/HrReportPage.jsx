@@ -926,36 +926,50 @@ const HrReportPage = () => {
   };
 
   // --- UNIFIED MULTI-PAGE AUTO-PAGINATED PDF ENGINE ---
-  const downloadFormattedHrPDF = ({ title, subtitle, basicRows, sections, filename, returnBlob = false }) => {
+  const downloadFormattedHrPDF = async ({ title, subtitle, basicRows, sections, filename, returnBlob = false }) => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     
-    const drawPageHeader = () => {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(18);
-      doc.setTextColor(60, 35, 117);
-      doc.text("KOD.", 14, 16);
-      doc.setTextColor(132, 204, 22);
-      doc.text("brand", 31, 16);
+    // Header Brand Logo - Only on First Page
+    const logoImg = new Image();
+    logoImg.src = '/logo3.png';
+    await new Promise((resolve) => {
+      logoImg.onload = () => {
+        try {
+          doc.addImage(logoImg, 'PNG', 14, 10, 32, 12);
+        } catch (e) {
+          console.error("Failed to render logo3.png in HR PDF:", e);
+        }
+        resolve();
+      };
+      logoImg.onerror = () => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(22);
+        doc.setTextColor(132, 204, 22);
+        doc.text("KOD.", 14, 21);
+        doc.setTextColor(60, 35, 117);
+        doc.text("brand", 34, 21);
+        resolve();
+      };
+    });
 
-      doc.setFontSize(11);
-      doc.setTextColor(60, 35, 117);
-      doc.text(title.toUpperCase(), 196, 15, { align: 'right' });
-      doc.setFontSize(7.5);
-      doc.setTextColor(100, 100, 100);
-      doc.text(subtitle.toUpperCase(), 196, 20, { align: 'right' });
-      doc.setDrawColor(220, 220, 225);
-      doc.setLineWidth(0.5);
-      doc.line(14, 23, 196, 23);
-    };
+    // Document Title & Subtitle on First Page
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(60, 35, 117);
+    doc.text(title.toUpperCase(), 196, 15, { align: 'right' });
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 100, 100);
+    doc.text(subtitle.toUpperCase(), 196, 20, { align: 'right' });
+    doc.setDrawColor(220, 220, 225);
+    doc.setLineWidth(0.5);
+    doc.line(14, 23, 196, 23);
 
-    drawPageHeader();
     let currentY = 27;
 
     const checkHeightAndAddPage = (neededHeight) => {
       if (currentY + neededHeight > 270) {
         doc.addPage();
-        drawPageHeader();
-        currentY = 27;
+        currentY = 15;
       }
     };
 
@@ -978,10 +992,9 @@ const HrReportPage = () => {
         body: validBasicRows,
         startY: currentY,
         theme: 'grid',
-        margin: { top: 27, bottom: 20, left: 14, right: 14 },
+        margin: { top: 15, bottom: 20, left: 14, right: 14 },
         styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [200, 200, 200], lineWidth: 0.1 },
-        columnStyles: { 0: { fontStyle: 'bold', fillColor: [245, 245, 248], width: 45 }, 1: { width: 137 } },
-        didDrawPage: () => drawPageHeader()
+        columnStyles: { 0: { fontStyle: 'bold', fillColor: [245, 245, 248], width: 45 }, 1: { width: 137 } }
       });
       currentY = doc.lastAutoTable.finalY + 5;
     }
@@ -998,11 +1011,10 @@ const HrReportPage = () => {
           body: validRows,
           startY: currentY,
           theme: 'grid',
-          margin: { top: 27, bottom: 20, left: 14, right: 14 },
+          margin: { top: 15, bottom: 20, left: 14, right: 14 },
           headStyles: { fillColor: [240, 240, 245], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [200, 200, 200], lineWidth: 0.1 },
           styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [200, 200, 200], lineWidth: 0.1, overflow: 'linebreak' },
-          columnStyles: sec.columnStyles || {},
-          didDrawPage: () => drawPageHeader()
+          columnStyles: sec.columnStyles || {}
         });
         currentY = doc.lastAutoTable.finalY + 5;
       } else if (sec.type === 'text' && sec.content && String(sec.content).trim() !== '') {
@@ -1125,7 +1137,7 @@ const HrReportPage = () => {
       ];
 
       const filename = `HR_Monthly_Consolidated_Report_${monthlyBasicDetails.employeeName || 'HR'}_${monthlyStartDate}_to_${monthlyEndDate}.pdf`;
-      downloadFormattedHrPDF({
+      await downloadFormattedHrPDF({
         title: "MONTHLY CONSOLIDATED HR REPORT",
         subtitle: "HR / ADMIN MANAGER",
         basicRows,
@@ -1239,7 +1251,7 @@ const HrReportPage = () => {
       ];
 
       const filename = `HR_Weekly_Consolidated_Report_${weeklyBasicDetails.employeeName || 'HR'}_${weeklyStartDate}_to_${weeklyEndDate}.pdf`;
-      downloadFormattedHrPDF({
+      await downloadFormattedHrPDF({
         title: "WEEKLY CONSOLIDATED HR REPORT",
         subtitle: "HR / ADMIN MANAGER",
         basicRows,
@@ -1652,7 +1664,7 @@ const HrReportPage = () => {
       ];
 
       const filename = `HR_Shift_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
-      const pdfBlob = downloadFormattedHrPDF({
+      const pdfBlob = await downloadFormattedHrPDF({
         title: "DAILY HR OPERATIONS REPORT",
         subtitle: "HUMAN RESOURCES & ADMINISTRATION",
         basicRows,
