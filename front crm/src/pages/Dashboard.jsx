@@ -118,98 +118,107 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
       setLoading(true);
       const todayStr = getISTDate();
 
+      const fetchSafe = (url) => fetch(url, { headers: getAuthHeaders() }).catch(err => {
+        console.warn(`Fetch error for ${url}:`, err);
+        return { ok: false };
+      });
+
       if (privilegedMode) {
         const deptParam = globalDepartment !== 'all' ? `?department=${encodeURIComponent(globalDepartment)}` : '';
-        // Fetch Admin specific stats in parallel
+        // Fetch Admin specific stats in parallel safely
         const [taskRes, userRes, summaryRes, funnelRes, sourceRes, staffRes, followupRes, clientsRes, projectsRes, clientLeadsRes] = await Promise.all([
-          fetch(`${API_BASE}/tasks/all`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/users`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/analytics/summary${deptParam}`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/analytics/conversion-rate${deptParam}`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/analytics/source-performance${deptParam}`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/analytics/staff-performance${deptParam}`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/analytics/followup-metrics${deptParam}`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/clients?limit=10&sortBy=createdAt&sortOrder=desc`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/projects?limit=10`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/v1/client-leads?limit=10`, { headers: getAuthHeaders() })
+          fetchSafe(`${API_BASE}/tasks/all`),
+          fetchSafe(`${API_BASE}/v1/users`),
+          fetchSafe(`${API_BASE}/v1/analytics/summary${deptParam}`),
+          fetchSafe(`${API_BASE}/v1/analytics/conversion-rate${deptParam}`),
+          fetchSafe(`${API_BASE}/v1/analytics/source-performance${deptParam}`),
+          fetchSafe(`${API_BASE}/v1/analytics/staff-performance${deptParam}`),
+          fetchSafe(`${API_BASE}/v1/analytics/followup-metrics${deptParam}`),
+          fetchSafe(`${API_BASE}/v1/clients?limit=10&sortBy=createdAt&sortOrder=desc`),
+          fetchSafe(`${API_BASE}/v1/projects?limit=10`),
+          fetchSafe(`${API_BASE}/v1/client-leads?limit=10`)
         ]);
 
         // TASKS
         if (taskRes.ok) {
-          const taskData = await taskRes.json();
-          const rawTasks = Array.isArray(taskData) ? taskData : taskData?.data || [];
-          setTasks(rawTasks);
+          const taskData = await taskRes.json().catch(() => null);
+          if (taskData) {
+            const rawTasks = Array.isArray(taskData) ? taskData : taskData?.data || [];
+            setTasks(rawTasks);
+          }
         }
 
         // USERS
         if (userRes.ok) {
-          const userData = await userRes.json();
-          const rawUsers = userData.data && Array.isArray(userData.data)
-            ? userData.data
-            : (Array.isArray(userData) ? userData : []);
-          setAllUsers(rawUsers);
+          const userData = await userRes.json().catch(() => null);
+          if (userData) {
+            const rawUsers = userData.data && Array.isArray(userData.data)
+              ? userData.data
+              : (Array.isArray(userData) ? userData : []);
+            setAllUsers(rawUsers);
+          }
         }
 
         // SUMMARY METRICS
         if (summaryRes.ok) {
-          const summaryData = await summaryRes.json();
-          if (summaryData.success) {
+          const summaryData = await summaryRes.json().catch(() => null);
+          if (summaryData && summaryData.success) {
             setAdminStats(summaryData.data);
           }
         }
 
         // FUNNEL
         if (funnelRes.ok) {
-          const funnelData = await funnelRes.json();
-          if (funnelData.success) {
+          const funnelData = await funnelRes.json().catch(() => null);
+          if (funnelData && funnelData.success) {
             setFunnelData(funnelData.data);
           }
         }
 
         // SOURCE PERFORMANCE
         if (sourceRes.ok) {
-          const sourceData = await sourceRes.json();
-          if (sourceData.success) {
+          const sourceData = await sourceRes.json().catch(() => null);
+          if (sourceData && sourceData.success) {
             setSourcePerformance(sourceData.data || []);
           }
         }
 
         // STAFF PERFORMANCE
         if (staffRes.ok) {
-          const staffData = await staffRes.json();
-          if (staffData.success) {
+          const staffData = await staffRes.json().catch(() => null);
+          if (staffData && staffData.success) {
             setStaffPerformance(staffData.data || []);
           }
         }
 
         // WEEKLY TIMELINE
         if (followupRes.ok) {
-          const followupData = await followupRes.json();
-          if (followupData.success) {
+          const followupData = await followupRes.json().catch(() => null);
+          if (followupData && followupData.success) {
             setFollowupMetrics(followupData.data || null);
           }
         }
 
         // CLIENTS
         if (clientsRes.ok) {
-          const cd = await clientsRes.json();
-          if (cd.success) {
+          const cd = await clientsRes.json().catch(() => null);
+          if (cd && cd.success) {
             setClientsData({ clients: cd.data?.clients || [], stats: cd.data?.stats || {} });
           }
         }
 
         // PROJECTS
         if (projectsRes.ok) {
-          const pd = await projectsRes.json();
-          if (pd.success) {
+          const pd = await projectsRes.json().catch(() => null);
+          if (pd && pd.success) {
             setProjectsData({ projects: pd.data?.projects || [], stats: pd.data?.stats || {} });
           }
         }
 
         // CLIENT LEADS
         if (clientLeadsRes.ok) {
-          const cld = await clientLeadsRes.json();
-          if (cld.success) {
+          const cld = await clientLeadsRes.json().catch(() => null);
+          if (cld && cld.success) {
             setClientLeadsData(Array.isArray(cld.data) ? cld.data : []);
           }
         }
@@ -217,24 +226,26 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
       } else {
         // Standard User fetching
         const [taskRes, attRes] = await Promise.all([
-          fetch(`${API_BASE}/tasks/all`, { headers: getAuthHeaders() }),
-          fetch(`${API_BASE}/attendance/${todayStr}`, { headers: getAuthHeaders() })
+          fetchSafe(`${API_BASE}/tasks/all`),
+          fetchSafe(`${API_BASE}/attendance/${todayStr}`)
         ]);
 
         if (taskRes.ok) {
-          const taskData = await taskRes.json();
-          const rawTasks = Array.isArray(taskData) ? taskData : taskData?.data || [];
-          const cleanedTasks = rawTasks.map(task => ({
-            ...task,
-            assigned_to: (task.assigned_to && typeof task.assigned_to === "object")
-              ? (task.assigned_to.id || task.assigned_to._id)
-              : task.assigned_to
-          }));
-          setTasks(cleanedTasks);
+          const taskData = await taskRes.json().catch(() => null);
+          if (taskData) {
+            const rawTasks = Array.isArray(taskData) ? taskData : taskData?.data || [];
+            const cleanedTasks = rawTasks.map(task => ({
+              ...task,
+              assigned_to: (task.assigned_to && typeof task.assigned_to === "object")
+                ? (task.assigned_to.id || task.assigned_to._id)
+                : task.assigned_to
+            }));
+            setTasks(cleanedTasks);
+          }
         }
 
         if (attRes.ok) {
-          const attData = await attRes.json();
+          const attData = await attRes.json().catch(() => null);
           setAttendanceRecord(attData || null);
         }
       }
@@ -256,45 +267,46 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
     const savedUser = localStorage.getItem("user");
     const storedUserId = localStorage.getItem("user_id")?.replace(/"/g, '');
 
-    if (savedUser && storedUserId) {
-      const parsedUser = JSON.parse(savedUser);
-      parsedUser.user_id = storedUserId;
-      setUser(parsedUser);
-
-      // Check if user is MD -> redirect to MD Dashboard
-      const currentUserRole = String(parsedUser.role_id || parsedUser.roleId || parsedUser.role || '').toLowerCase().trim();
-      const currentUserDesignation = String(parsedUser.designation || '').toLowerCase().trim();
-      const currentUserDesignationId = String(parsedUser.designationId?._id || parsedUser.designationId || parsedUser.designation_id || '').trim();
-
-      const isMd = currentUserDesignation.includes('md') || 
-                   currentUserDesignation.includes('managing director') || 
-                   ['md', 'coo', 'executive_director'].includes(currentUserRole);
-
-      if (isMd && !isEmbedded) {
-        navigate('/md-dashboard', { replace: true });
-        return;
+    if (savedUser) {
+      let parsedUser = null;
+      try {
+        parsedUser = JSON.parse(savedUser);
+      } catch (e) {
+        console.error("Failed to parse user:", e);
       }
 
-      // Check if user is HR -> redirect to HR Dashboard
-      const isHr = currentUserRole === 'hr' || 
-                   currentUserDesignation.includes('hr');
+      if (parsedUser) {
+        const resolvedUserId = parsedUser._id || parsedUser.id || parsedUser.user_id || storedUserId || '';
+        parsedUser.user_id = resolvedUserId;
+        setUser(parsedUser);
 
-      if (isHr && !isEmbedded) {
-        navigate('/hr-dashboard', { replace: true });
-        return;
+        const currentUserRole = String(parsedUser.role_id || parsedUser.roleId || parsedUser.role || '').toLowerCase().trim();
+        const currentUserDesignation = String(parsedUser.designation || '').toLowerCase().trim();
+        const currentUserDeptName = String(parsedUser.department || parsedUser.departmentId?.name || '').toLowerCase().trim();
+        const isSuperAdminUser = parsedUser.isSuperAdmin === true || parsedUser.is_super_admin === true || ['0', 'superadmin'].includes(currentUserRole);
+
+        const privileged = isEmbedded ||
+                           isSuperAdminUser ||
+                           ['1', '2', 'admin'].includes(currentUserRole) || 
+                           currentUserDeptName.includes('hr') || 
+                           currentUserDeptName.includes('admin');
+        setIsAdmin(privileged);
+
+        if (resolvedUserId) {
+          fetchData(resolvedUserId, privileged);
+        } else {
+          setLoading(false);
+        }
+      } else {
+        setLoading(false);
       }
-
-      const currentUserDeptName = String(parsedUser.department || parsedUser.departmentId?.name || '').toLowerCase().trim();
-      const privileged = isEmbedded ||
-                         ['1', '2', 'admin'].includes(currentUserRole) || 
-                         currentUserDeptName.includes('hr') || 
-                         currentUserDeptName.includes('admin');
-      setIsAdmin(privileged);
+    } else {
+      setLoading(false);
     }
 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [fetchData, isEmbedded]);
 
   useEffect(() => {
     if (user?.user_id) {

@@ -5,7 +5,7 @@ import { sendEmail } from '../services/notification.service.js';
 
 export const createNotification = async (req, res) => {
   try {
-    const { title, description, assignedTo } = req.body;
+    const { title, description, assignedTo, image, imageUrl, category } = req.body;
 
     if (!description || !description.trim()) {
       return res.status(400).json({ success: false, message: 'Notification description is required.' });
@@ -14,6 +14,9 @@ export const createNotification = async (req, res) => {
     if (!assignedTo) {
       return res.status(400).json({ success: false, message: 'Please select an assigned user.' });
     }
+
+    const finalImageUrl = imageUrl || image || null;
+    const finalCategory = (category && typeof category === 'string') ? category.toLowerCase().trim() : 'official';
 
     const currentUserId = req.user?.id || req.user?._id;
     let createdByName = req.user?.name || '';
@@ -42,6 +45,9 @@ export const createNotification = async (req, res) => {
     const notificationsToCreate = recipientIds.map(userId => ({
       title: title && title.trim() ? title.trim() : 'Notification',
       description: description.trim(),
+      image: finalImageUrl,
+      imageUrl: finalImageUrl,
+      category: finalCategory,
       assignedTo: userId,
       createdBy: validCreatorId,
       createdByName: createdByName || 'System',
@@ -53,12 +59,13 @@ export const createNotification = async (req, res) => {
     // Trigger Email Dispatch to all recipients
     try {
       const recipientUsers = await User.find({ _id: { $in: recipientIds } }).select('name email');
+      const imageHtml = finalImageUrl ? `<div style="margin-top: 15px;"><img src="${finalImageUrl}" style="max-width: 100%; max-height: 300px; border-radius: 12px; border: 1px solid #e2e8f0;" alt="Notification Attachment" /></div>` : '';
       for (const u of recipientUsers) {
         if (u.email) {
           sendEmail(
             u.email,
             `🔔 ${title || 'New Notification'}`,
-            `<p>Hello <strong>${u.name || 'Team Member'}</strong>,</p><p>${description.trim()}</p><p>- Sent via KOD.BRAND CRM HQ</p>`,
+            `<p>Hello <strong>${u.name || 'Team Member'}</strong>,</p><p>${description.trim()}</p>${imageHtml}<p>- Sent via KOD.BRAND CRM HQ</p>`,
             description.trim()
           );
         }

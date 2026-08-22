@@ -234,14 +234,9 @@ export const createExpense = async (req, res) => {
     const isSalary = catObj.name.toLowerCase() === 'salary';
 
     // Rule:
-    // 1. Any Expense > 1,000 INR requires MD approval -> PENDING
-    // 2. Any Salary Expense requires MD approval -> PENDING
-    // 3. Any non-MD staff submission requires MD approval -> PENDING
-    // 4. Expenses <= 1,000 INR created directly by MD are APPROVED
-    let initialStatus = 'PENDING';
-    if (expAmount <= 1000 && !isSalary && isMdUser) {
-      initialStatus = 'APPROVED';
-    }
+    // Expenses > 1,000 INR require MD approval -> PENDING
+    // Expenses <= 1,000 INR do NOT require approval -> APPROVED
+    let initialStatus = expAmount > 1000 ? 'PENDING' : 'APPROVED';
     if (req.body.status && isMdUser) {
       initialStatus = req.body.status;
     }
@@ -479,7 +474,8 @@ export const createSalaryPayment = async (req, res) => {
       addedBy: req.user?.id || null,
       addedByName,
       type: 'Salary',
-      salaryPaymentId: salaryPayment._id
+      salaryPaymentId: salaryPayment._id,
+      status: salaryPayment.paidAmount > 1000 ? 'PENDING' : 'APPROVED'
     });
 
     // Link back expense ID to salary payment

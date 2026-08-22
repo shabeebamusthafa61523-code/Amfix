@@ -465,8 +465,38 @@ export const employeeReportPDFController = {
         ...acctReports.map(d => mapShiftReport(d, 'Accountant', 'accountant'))
       ];
 
-      // Merge both lists
-      const combined = [...pdfUploads, ...shiftReports];
+      // Merge and deduplicate by (report_date + '_' + report_period)
+      const reportMap = new Map();
+
+      // 1. Add shiftReports (JSON database records)
+      shiftReports.forEach(report => {
+        const dateKey = String(report.report_date || '').trim();
+        const periodKey = String(report.report_period || 'daily').toLowerCase().trim();
+        const key = `${dateKey}_${periodKey}`;
+        reportMap.set(key, report);
+      });
+
+      // 2. Merge pdfUploads (Cloudinary compiled PDF uploads take priority for pdf_url)
+      pdfUploads.forEach(upload => {
+        const dateKey = String(upload.report_date || '').trim();
+        const periodKey = String(upload.report_period || 'daily').toLowerCase().trim();
+        const key = `${dateKey}_${periodKey}`;
+        if (reportMap.has(key)) {
+          const existing = reportMap.get(key);
+          reportMap.set(key, {
+            ...existing,
+            ...upload,
+            _id: upload._id || existing._id,
+            shiftReportId: existing._id,
+            pdf_url: upload.pdf_url || existing.pdf_url,
+            created_at: upload.created_at || existing.created_at
+          });
+        } else {
+          reportMap.set(key, upload);
+        }
+      });
+
+      const combined = Array.from(reportMap.values());
 
       // Sort by report_date / created_at
       combined.sort((a, b) => {

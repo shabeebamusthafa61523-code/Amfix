@@ -381,18 +381,21 @@ const DeveloperReportPage = () => {
   useEffect(() => {
     try {
       const savedUser = localStorage.getItem('user');
+      const storedUserId = localStorage.getItem('user_id')?.replace(/"/g, '');
       if (savedUser) {
         const userObj = JSON.parse(savedUser);
         setCurrentUser(userObj);
         
-        const role = String(userObj.role_id || userObj.role || '').toLowerCase().trim();
-        const privileged = ['1', '2', 'hr', 'admin'].includes(role);
+        const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
+        const privileged = userObj.isSuperAdmin === true || userObj.is_super_admin === true || ['0', '1', '2', 'hr', 'admin', 'superadmin', 'super_admin'].includes(role);
         setIsPrivileged(privileged);
         
-        // If not privileged, they can only view/create their own reports
-        if (!privileged) {
-          const uId = userObj.id || userObj._id;
-          setSelectedUserId(uId);
+        const myUserId = userObj._id || userObj.id || userObj.user_id || storedUserId || '';
+
+        if (!selectedUserId || !privileged) {
+          if (myUserId) {
+            setSelectedUserId(myUserId);
+          }
         }
       }
     } catch (err) {
@@ -1033,7 +1036,7 @@ const DeveloperReportPage = () => {
       doc.rect(14, currentY, 182, planBoxHeight);
       currentY += planBoxHeight + 4;
 
-      // 9. INTERN / STUDENT REMARKS
+      // 9. DEVELOPER REMARKS
       drawSectionHeader("9. REMARKS");
       const remarksLines = doc.splitTextToSize(mRemarks || '', 178);
       doc.text(remarksLines, 16, currentY + 5);
@@ -1107,45 +1110,331 @@ const DeveloperReportPage = () => {
 
   // Download PDF
   const handleDownloadPDF = async () => {
-    const reportType = 'developer';
     // Automatically save report as well
     await handleSaveReport();
 
     try {
-      showToast("Generating PDF on server...", "info");
-      const token = localStorage.getItem('token');
-      const cleanToken = token ? token.replace(/"/g, '') : '';
-      
-      const url = `${API_BASE}/v1/employee-reports/generate-pdf?userId=${selectedUserId}&dateString=${selectedDate}&reportType=${reportType}`;
-      
-      const res = await fetch(url, {
-        headers: {
-          'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`
-        }
+      showToast("Generating Developer Shift PDF report...", "info");
+
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
       });
+
+      let currentY = 15;
       
-      if (!res.ok) {
-        throw new Error("Failed to generate PDF report on server.");
+      const checkHeightAndAddPage = (neededHeight) => {
+        if (currentY + neededHeight > 270) {
+          doc.addPage();
+          currentY = 15;
+        }
+      };
+
+      const drawSectionHeader = (title) => {
+        checkHeightAndAddPage(12);
+        doc.setFillColor(60, 35, 117);
+        doc.rect(14, currentY, 182, 7, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(255, 255, 255);
+        doc.text(title.toUpperCase(), 17, currentY + 5);
+        currentY += 7;
+      };
+
+      // Header Brand Logo
+      const logoImg = new Image();
+      logoImg.src = '/logo3.png';
+      await new Promise((resolve) => {
+        logoImg.onload = () => {
+          doc.addImage(logoImg, 'PNG', 14, 10, 32, 12);
+          resolve();
+        };
+        logoImg.onerror = () => {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(22);
+          doc.setTextColor(132, 204, 22);
+          doc.text("KOD.", 14, 21);
+          doc.setTextColor(60, 35, 117);
+          doc.text("brand", 34, 21);
+          resolve();
+        };
+      });
+
+      // Document Title & Designation
+      doc.setFontSize(13);
+      doc.setTextColor(60, 35, 117);
+      doc.text("DAILY DEVELOPER SHIFT REPORT", 85, 16);
+      
+      doc.setFontSize(7.5);
+      doc.setTextColor(0, 0, 0);
+      doc.setFont('helvetica', 'bold');
+      doc.text("SOFTWARE & WEB DEVELOPER / R&D", 112, 22);
+
+      currentY = 27;
+
+      // 1. BASIC DETAILS
+      const validBasicRows = [
+        ["Date", basicDetails.date || selectedDate],
+        ["Day", basicDetails.day || ''],
+        ["Employee Name", basicDetails.employeeName || ''],
+        ["Employee ID", basicDetails.employeeId || ''],
+        ["Department", basicDetails.department || 'Software Development / R&D'],
+        ["Designation", basicDetails.designation || 'Developer'],
+        ["Shift Timing", basicDetails.shiftTiming || ''],
+        ["Reporting To", basicDetails.reportingTo || ''],
+        ["Prepared Time", basicDetails.preparedTime || '']
+      ].filter(r => r[1] && String(r[1]).trim() !== '');
+
+      if (validBasicRows.length > 0) {
+        drawSectionHeader("1. BASIC DETAILS");
+        autoTable(doc, {
+          body: validBasicRows,
+          startY: currentY,
+          theme: 'grid',
+          styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+          columnStyles: {
+            0: { fontStyle: 'bold', fillColor: [245, 245, 247], width: 45 },
+            1: { width: 137 }
+          },
+          margin: { left: 14, right: 14 }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
       }
-      
-      const blob = await res.blob();
-      const filename = `${reportType.charAt(0).toUpperCase() + reportType.slice(1)}_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
-      
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        a.remove();
-        window.URL.revokeObjectURL(downloadUrl);
-      }, 15000);
-      
-      showToast("PDF report downloaded and saved successfully!", "success");
+
+      // 2. DAILY TASK SUMMARY
+      const summaryHeaders = [["Activity", "Due Date", "Start Time", "End Time", "Status", "Remarks"]];
+      const validSummaryRows = dailyTaskSummary
+        .map(t => [t.activity || '', t.dueDate || '', t.startDate || '', t.endDate || '', t.status || '', t.remarks || t.remark || ''])
+        .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+      if (validSummaryRows.length > 0) {
+        drawSectionHeader("2. DAILY TASK SUMMARY");
+        autoTable(doc, {
+          head: summaryHeaders,
+          body: validSummaryRows,
+          startY: currentY,
+          theme: 'grid',
+          headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+          styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+          columnStyles: {
+            0: { width: 45 },
+            1: { width: 20 },
+            2: { width: 20 },
+            3: { width: 20 },
+            4: { width: 20, halign: 'center' },
+            5: { width: 57 }
+          },
+          margin: { left: 14, right: 14 }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // 3. DEVELOPMENT TASK REPORT
+      const devHeaders = [["Project", "Development Activity", "Status", "Remark"]];
+      const validDevRows = developmentTaskReport
+        .map(t => [t.project || '', t.activity || '', t.status || '', t.remark || t.remarks || ''])
+        .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+      if (validDevRows.length > 0) {
+        drawSectionHeader("3. DEVELOPMENT TASK REPORT");
+        autoTable(doc, {
+          head: devHeaders,
+          body: validDevRows,
+          startY: currentY,
+          theme: 'grid',
+          headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+          styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+          columnStyles: {
+            0: { width: 35 },
+            1: { width: 75 },
+            2: { width: 35, halign: 'center' },
+            3: { width: 37 }
+          },
+          margin: { left: 14, right: 14 }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // 4. RESEARCH & LEARNING ACTIVITIES
+      const researchHeaders = [["Activity", "Details"]];
+      const validResearchRows = researchLearning
+        .map(t => [t.activity || '', t.details || ''])
+        .filter(row => row.some(cell => cell && String(cell).trim() !== ''));
+
+      if (validResearchRows.length > 0) {
+        drawSectionHeader("4. RESEARCH & LEARNING ACTIVITIES");
+        autoTable(doc, {
+          head: researchHeaders,
+          body: validResearchRows,
+          startY: currentY,
+          theme: 'grid',
+          headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+          styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+          columnStyles: {
+            0: { width: 55 },
+            1: { width: 127 }
+          },
+          margin: { left: 14, right: 14 }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // 5. PERFORMANCE TRACKER
+      const perfHeaders = [["KPI", "STATUS"]];
+      const validPerfRows = [
+        ["Task Completed", performanceTracker.taskCompleted || ''],
+        ["Learning Progress", performanceTracker.learningProgress || ''],
+        ["Communication", performanceTracker.communication || ''],
+        ["Attendance", performanceTracker.attendance || ''],
+        ["Productivity", performanceTracker.productivity || '']
+      ].filter(r => r[1] && String(r[1]).trim() !== '');
+
+      if (validPerfRows.length > 0) {
+        drawSectionHeader("5. PERFORMANCE TRACKER");
+        autoTable(doc, {
+          head: perfHeaders,
+          body: validPerfRows,
+          startY: currentY,
+          theme: 'grid',
+          headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+          styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15, overflow: 'linebreak' },
+          columnStyles: {
+            0: { width: 91, fontStyle: 'bold' },
+            1: { width: 91, halign: 'center' }
+          },
+          margin: { left: 14, right: 14 }
+        });
+        currentY = doc.lastAutoTable.finalY + 4;
+      }
+
+      // 6. TOOLS AND SOFTWARE USED
+      if (toolsUsed && String(toolsUsed).trim() !== '') {
+        const toolsLines = doc.splitTextToSize(String(toolsUsed), 178);
+        const toolsBoxHeight = Math.max(12, toolsLines.length * 4.2 + 5);
+        checkHeightAndAddPage(toolsBoxHeight + 14);
+        drawSectionHeader("6. TOOLS AND SOFTWARE USED");
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(0, 0, 0);
+        doc.text(toolsLines, 16, currentY + 5);
+        doc.setDrawColor(180, 180, 180);
+        doc.rect(14, currentY, 182, toolsBoxHeight);
+        currentY += toolsBoxHeight + 4;
+      }
+
+      // 7. CHALLENGES FACED
+      if (challengesFaced && String(challengesFaced).trim() !== '') {
+        const challengesLines = doc.splitTextToSize(String(challengesFaced), 178);
+        const challengesBoxHeight = Math.max(12, challengesLines.length * 4.2 + 5);
+        checkHeightAndAddPage(challengesBoxHeight + 14);
+        drawSectionHeader("7. CHALLENGES FACED");
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(0, 0, 0);
+        doc.text(challengesLines, 16, currentY + 5);
+        doc.setDrawColor(180, 180, 180);
+        doc.rect(14, currentY, 182, challengesBoxHeight);
+        currentY += challengesBoxHeight + 4;
+      }
+
+      // 8. PLANNED NEXT STEPS / NEXT PLAN
+      if (nextDayPlan && String(nextDayPlan).trim() !== '') {
+        const planLines = doc.splitTextToSize(String(nextDayPlan), 178);
+        const planBoxHeight = Math.max(12, planLines.length * 4.2 + 5);
+        checkHeightAndAddPage(planBoxHeight + 14);
+        drawSectionHeader("8. PLANNED NEXT STEPS / NEXT PLAN");
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(0, 0, 0);
+        doc.text(planLines, 16, currentY + 5);
+        doc.setDrawColor(180, 180, 180);
+        doc.rect(14, currentY, 182, planBoxHeight);
+        currentY += planBoxHeight + 4;
+      }
+
+      // 9. DEVELOPER REMARKS
+      const activeRemarks = internRemarks || '';
+      if (activeRemarks && String(activeRemarks).trim() !== '') {
+        const remarksLines = doc.splitTextToSize(String(activeRemarks), 178);
+        const remarksBoxHeight = Math.max(12, remarksLines.length * 4.2 + 5);
+        checkHeightAndAddPage(remarksBoxHeight + 14);
+        drawSectionHeader("9. REMARKS");
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(0, 0, 0);
+        doc.text(remarksLines, 16, currentY + 5);
+        doc.setDrawColor(180, 180, 180);
+        doc.rect(14, currentY, 182, remarksBoxHeight);
+        currentY += remarksBoxHeight + 4;
+      }
+
+      // 10. APPROVAL
+      drawSectionHeader("10. APPROVAL");
+      const approvalHeaders = [["Role / Field", "Signature", "Date"]];
+      const approvalRows = [
+        [
+          `Developer: ${approval.internName || basicDetails.employeeName || ''}`,
+          approval.internSignature || '',
+          approval.internDate || basicDetails.date || selectedDate
+        ]
+      ];
+      if (approval.hodName || approval.hodSignature) {
+        approvalRows.push([
+          `HOD - R&D / Developer: ${approval.hodName || ''}`,
+          approval.hodSignature || '',
+          approval.hodDate || ''
+        ]);
+      }
+
+      autoTable(doc, {
+        head: approvalHeaders,
+        body: approvalRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 8, cellPadding: 3, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { cellWidth: 62 },
+          2: { cellWidth: 40 }
+        },
+        didDrawCell: (data) => {
+          if (data.column.index === 1 && data.cell.section === 'body') {
+            const signatureVal = data.cell.raw;
+            if (signatureVal && String(signatureVal).startsWith('data:image/')) {
+              data.cell.text = '';
+              const x = data.cell.x + 2;
+              const y = data.cell.y + 2;
+              const w = data.cell.width - 4;
+              const h = data.cell.height - 4;
+              try {
+                doc.addImage(signatureVal, 'PNG', x, y, w, h);
+              } catch (e) {
+                console.error("Failed to add signature image:", e);
+              }
+            }
+          }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      const pdfBlob = doc.output('blob');
+      const filename = `Developer_Report_${(basicDetails.employeeName || 'Developer').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
+      try {
+        const targetUserId = selectedUserId || currentUser._id || currentUser.id || localStorage.getItem('user_id') || '';
+        if (targetUserId) {
+          await uploadCompiledPDFReport(targetUserId, selectedDate, pdfBlob, filename, 'developer', 'daily');
+        }
+      } catch (uploadErr) {
+        console.error("Failed to upload developer PDF (saving locally anyway):", uploadErr);
+      }
+      doc.save(filename);
+      showToast("Developer PDF report downloaded successfully!", "success");
     } catch (e) {
-      console.error(e);
-      showToast("Failed to download PDF.", "error");
+      console.error("Developer PDF generation error:", e);
+      showToast("Failed to download Developer PDF.", "error");
     }
   };;
 
@@ -1304,7 +1593,7 @@ const DeveloperReportPage = () => {
                       department: 'Software Development / R&D',
                       designation: basicDetails.designation,
                       date: selectedDate,
-                      actualReportContentText: JSON.stringify({ basicDetails, dailyTasks: dailyTaskSummary, projectProgress, bugTracking, researchLearning, developerNotes })
+                      actualReportContentText: JSON.stringify({ basicDetails, dailyTasks: dailyTaskSummary, developmentTaskReport, researchLearning, toolsUsed, challengesFaced, nextDayPlan, internRemarks })
                     });
                     setIsAiModalOpen(true);
                   }}
@@ -1949,7 +2238,7 @@ const DeveloperReportPage = () => {
                     <SignatureUpload
                       value={approval.internSignature || ''}
                       onChange={(val) => setApproval({ ...approval, internSignature: val })}
-                      placeholder="Upload intern signature"
+                      placeholder="Upload developer signature"
                     />
                   </div>
                   <div>
@@ -2666,7 +2955,7 @@ const DeveloperReportPage = () => {
                               <SignatureUpload
                                 value={monthlyApproval.internSignature || ''}
                                 onChange={(val) => setMonthlyApproval({ ...monthlyApproval, internSignature: val })}
-                                placeholder="Upload intern signature"
+                                placeholder="Upload developer signature"
                               />
                             </div>
                             <div>

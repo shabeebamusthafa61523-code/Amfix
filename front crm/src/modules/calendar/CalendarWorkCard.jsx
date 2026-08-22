@@ -96,9 +96,9 @@ const CalendarWorkCard = ({
           <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate flex-1">
             {record.title}
           </h4>
-          {postedIndicator && (
+          {(postedIndicator || String(record.workStatus).toLowerCase() === 'completed') && (
             <span className="shrink-0">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 stroke-[2.5]" title="Completed / Posted" />
             </span>
           )}
         </div>

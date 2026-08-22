@@ -8,6 +8,7 @@ import Task from '../models/task.model.js';
 import Department from '../modules/departments/department.model.js';
 import { sendSuccess, sendError } from '../utils/response.helper.js';
 import logger from '../utils/logger.util.js';
+import { notifyContentAssignedAndTeamLead, checkAndNotifyPostingDateDue } from '../services/calendarNotification.service.js';
 
 // ============================================================
 // HELPERS
@@ -210,6 +211,14 @@ export const createCalendarWork = async (req, res) => {
     ]);
 
     logger.info(`📅 Calendar work created: ${newCalendarWork._id} by ${userId}`);
+
+    // Trigger notification to assigned person and their team lead
+    try {
+      await notifyContentAssignedAndTeamLead(newCalendarWork, userId);
+    } catch (notifErr) {
+      logger.error(`Failed to dispatch calendar work notification: ${notifErr.message}`);
+    }
+
     return sendSuccess(res, 'Calendar work created successfully', newCalendarWork, 201);
   } catch (error) {
     logger.error(`Error creating calendar work: ${error.message}`);

@@ -292,6 +292,11 @@ export const login = async (req, res) => {
   }
 };
 
+const normalizePhoneDigits = (val) => {
+  const digits = String(val || '').replace(/\D/g, '');
+  return digits.length >= 10 ? digits.slice(-10) : digits;
+};
+
 export const verifyForgotPassword = async (req, res) => {
   try {
     const { email, phone } = req.body;
@@ -304,10 +309,10 @@ export const verifyForgotPassword = async (req, res) => {
       return res.status(404).json({ success: false, detail: "User profile not found with this email." });
     }
 
-    const cleanUserPhone = String(user.phone || '').trim().replace(/[-()\s]/g, '');
-    const cleanInputPhone = String(phone).trim().replace(/[-()\s]/g, '');
+    const cleanUserPhone = normalizePhoneDigits(user.phone);
+    const cleanInputPhone = normalizePhoneDigits(phone);
 
-    if (cleanUserPhone !== cleanInputPhone) {
+    if (!cleanUserPhone || !cleanInputPhone || cleanUserPhone !== cleanInputPhone) {
       return res.status(400).json({ success: false, detail: "Phone number does not match our records." });
     }
 
@@ -329,10 +334,10 @@ export const resetForgotPassword = async (req, res) => {
       return res.status(404).json({ success: false, detail: "User profile not found." });
     }
 
-    const cleanUserPhone = String(user.phone || '').trim().replace(/[-()\s]/g, '');
-    const cleanInputPhone = String(phone).trim().replace(/[-()\s]/g, '');
+    const cleanUserPhone = normalizePhoneDigits(user.phone);
+    const cleanInputPhone = normalizePhoneDigits(phone);
 
-    if (cleanUserPhone !== cleanInputPhone) {
+    if (!cleanUserPhone || !cleanInputPhone || cleanUserPhone !== cleanInputPhone) {
       return res.status(400).json({ success: false, detail: "Phone number verification failed." });
     }
 

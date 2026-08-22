@@ -13,7 +13,7 @@ import autoTable from 'jspdf-autotable';
 import { useToast } from '../components/ToastProvider';
 import StudentProfileModal from '../components/StudentProfileModal';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 const STUDENT_ROLE_ID = "10"; 
 
 const FormInput = ({ label, name, type = "text", icon, onChange, value, placeholder = "", required = false }) => (

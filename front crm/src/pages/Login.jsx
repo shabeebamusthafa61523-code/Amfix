@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../components/ToastProvider';
 import { useUser } from '../contexts/UserContext';
 import { GoogleLogin } from '@react-oauth/google';
+import { resolveUserDashboardPath } from '../utils/userDashboard';
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -17,7 +18,7 @@ const Login = () => {
 
   const handleGoogleSuccess = async (credentialResponse) => {
     setIsLoading(true);
-    const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
     try {
       const response = await fetch(`${apiBaseUrl}/auth/google`, {
@@ -39,8 +40,9 @@ const Login = () => {
         }
         showToast('Google Sign-In successful!', 'success');
 
+        const targetDashboard = resolveUserDashboardPath(result.user);
         setTimeout(() => {
-          navigate('/dashboard');
+          navigate(targetDashboard);
         }, 500);
       } else {
         showToast(result.detail || result.message || 'Google Sign-In failed.', 'error');
@@ -88,7 +90,7 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
     try {
       const response = await fetch(`${apiBaseUrl}/auth/login`, {
@@ -139,27 +141,8 @@ const Login = () => {
         }
         showToast('Login successful!', 'success');
 
-        // Check if user is MD, HR, or Admin
-        const currentUserRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
-        const currentUserDesignation = String(userObj.designation || '').toLowerCase().trim();
-        const currentUserDesignationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-
-        const isMd = currentUserDesignation.includes('md') || 
-                     currentUserDesignation.includes('managing director') || 
-                     ['md', 'coo', 'executive_director'].includes(currentUserRole);
-
-        const isAdmin = ['1', '2', 'admin'].includes(currentUserRole) || currentUserDesignation.includes('admin');
-        const isHr = currentUserRole === 'hr' || currentUserDesignation.includes('hr');
-
-        if (isMd) {
-          navigate('/md-dashboard');
-        } else if (isHr) {
-          navigate('/hr-dashboard');
-        } else if (isAdmin) {
-          navigate('/dashboard');
-        } else {
-          navigate('/attendance');
-        }
+        const targetDashboard = resolveUserDashboardPath(userObj);
+        navigate(targetDashboard);
       } else {
         showToast(result.detail || "Authentication Failed", 'error');
       }
@@ -368,10 +351,10 @@ const ForgotPasswordModal = ({ isOpen, onClose, defaultEmail, showToast, onSucce
   const handleVerify = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
     try {
-      const response = await fetch(`${apiBaseUrl}/v1/auth/forgot-password/verify`, {
+      const response = await fetch(`${apiBaseUrl}/auth/forgot-password/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email, phone: formData.phone }),
@@ -397,10 +380,10 @@ const ForgotPasswordModal = ({ isOpen, onClose, defaultEmail, showToast, onSucce
     e.preventDefault();
     if (!isPasswordValid) return;
     setIsLoading(true);
-    const apiBaseUrl = import.meta.env.VITE_API_URL || '';
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
     try {
-      const response = await fetch(`${apiBaseUrl}/v1/auth/forgot-password/reset`, {
+      const response = await fetch(`${apiBaseUrl}/auth/forgot-password/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email, phone: formData.phone, newPassword: formData.newPassword }),

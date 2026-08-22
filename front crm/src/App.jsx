@@ -121,6 +121,8 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
+import { resolveUserDashboardPath } from './utils/userDashboard';
+
 const LandingRoute = () => {
   const token = getStoredToken();
   if (!token) return <Navigate to="/login" replace />;
@@ -129,19 +131,8 @@ const LandingRoute = () => {
     const userStr = localStorage.getItem('user');
     if (userStr) {
       const userObj = JSON.parse(userStr);
-      const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
-      const designation = String(userObj.designation || '').toLowerCase().trim();
-      const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
-      const isHr = role === 'hr' || designation.includes('hr');
-      const isAdmin = ['1', '2', 'admin'].includes(role) || designation.includes('admin');
-
-      if (isHr) {
-        return <Navigate to="/hr-dashboard" replace />;
-      }
-      if (isAdmin) {
-        return <Navigate to="/dashboard" replace />;
-      }
-      return <Navigate to="/attendance" replace />;
+      const targetDashboard = resolveUserDashboardPath(userObj);
+      return <Navigate to={targetDashboard} replace />;
     }
   } catch (e) {
     console.error("Landing redirect role parse failed:", e);

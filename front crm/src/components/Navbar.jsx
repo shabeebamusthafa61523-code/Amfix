@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Search, Bell, User, LogOut, Sun, Moon, Menu } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import ProfileDrawer from './ProfileDrawer';
 import NotificationPopover from './NotificationPopover';
+import NavbarNotificationPopup from './NavbarNotificationPopup';
 import { AiAnalyzeButton, AiAnalyzeModal } from './AiAnalyzeModal';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
 const Navbar = ({ isSidebarCollapsed, toggleMobileSidebar }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -15,6 +16,11 @@ const Navbar = ({ isSidebarCollapsed, toggleMobileSidebar }) => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isPageAiOpen, setIsPageAiOpen] = useState(false);
   const [pageContextData, setPageContextData] = useState(null);
+
+  // Pop-up modal state
+  const [seenPopupIds, setSeenPopupIds] = useState(new Set());
+  const [activePopupNotification, setActivePopupNotification] = useState(null);
+  const [currentPopupIndex, setCurrentPopupIndex] = useState(0);
 
   const location = useLocation();
 
@@ -130,8 +136,8 @@ const Navbar = ({ isSidebarCollapsed, toggleMobileSidebar }) => {
     let timeoutId = null;
     let inFlight = false;
     let consecutiveFailures = 0;
-    const BASE_INTERVAL_MS = 30000;
-    const MAX_BACKOFF_MS = 5 * 60 * 1000;
+    const BASE_INTERVAL_MS = 8000; // Poll every 8s for live notification modal pop-ups
+    const MAX_BACKOFF_MS = 2 * 60 * 1000;
 
     const scheduleNext = (delay) => {
       if (cancelled) return;
@@ -160,6 +166,36 @@ const Navbar = ({ isSidebarCollapsed, toggleMobileSidebar }) => {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [fetchMyNotifications]);
+
+  // Handle auto-triggering live pop-up modal ONLY for the single latest unread notification
+  const [dismissedPopupIds, setDismissedPopupIds] = useState(new Set());
+
+  const latestUnreadNotification = useMemo(() => {
+    const unread = notifications.filter(n => !n.isRead);
+    if (unread.length === 0) return null;
+    return unread.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+  }, [notifications]);
+
+  useEffect(() => {
+    if (latestUnreadNotification) {
+      const latestId = latestUnreadNotification._id || latestUnreadNotification.id;
+      if (!dismissedPopupIds.has(latestId)) {
+        setActivePopupNotification(latestUnreadNotification);
+      } else {
+        setActivePopupNotification(null);
+      }
+    } else {
+      setActivePopupNotification(null);
+    }
+  }, [latestUnreadNotification, dismissedPopupIds]);
+
+  const handleClosePopup = () => {
+    if (activePopupNotification) {
+      const activeId = activePopupNotification._id || activePopupNotification.id;
+      setDismissedPopupIds(prev => new Set([...prev, activeId]));
+    }
+    setActivePopupNotification(null);
+  };
 
   const handleMarkAsRead = async (id) => {
     try {
@@ -290,6 +326,15 @@ const Navbar = ({ isSidebarCollapsed, toggleMobileSidebar }) => {
         </section>
 
       </header>
+
+      {/* Live Navbar Floating Notification Pop-up Modal */}
+      {activePopupNotification && (
+        <NavbarNotificationPopup
+          notification={activePopupNotification}
+          onClose={handleClosePopup}
+          onMarkAsRead={handleMarkAsRead}
+        />
+      )}
 
       {/* Profile Drawer */}
       <ProfileDrawer

@@ -18,7 +18,9 @@ import {
   Filter,
   Download,
   AlertCircle,
-  ChevronDown
+  ChevronDown,
+  Lock,
+  ShieldCheck
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
@@ -63,6 +65,7 @@ export default function RecruitmentPage() {
     interview_2: 'N/A',
     interview_3: 'N/A',
     selected: 'Pending',
+    approval_status: 'N/A',
     offer_letter: 'N/A',
     notes: ''
   });
@@ -128,6 +131,7 @@ export default function RecruitmentPage() {
       interview_2: 'N/A',
       interview_3: 'N/A',
       selected: 'Pending',
+      approval_status: 'N/A',
       offer_letter: 'N/A',
       notes: ''
     });
@@ -147,6 +151,7 @@ export default function RecruitmentPage() {
       interview_2: candidate.interview_2 || 'N/A',
       interview_3: candidate.interview_3 || 'N/A',
       selected: candidate.selected || 'Pending',
+      approval_status: candidate.approval_status || 'N/A',
       offer_letter: candidate.offer_letter || 'N/A',
       notes: candidate.notes || ''
     });
@@ -245,6 +250,7 @@ export default function RecruitmentPage() {
         formData.append('interview_2', form.interview_2);
         formData.append('interview_3', form.interview_3);
         formData.append('selected', form.selected);
+        formData.append('approval_status', form.approval_status);
         formData.append('offer_letter', form.offer_letter);
         formData.append('notes', form.notes.trim());
         formData.append('resume', resumeFile);
@@ -264,6 +270,7 @@ export default function RecruitmentPage() {
           interview_2: form.interview_2,
           interview_3: form.interview_3,
           selected: form.selected,
+          approval_status: form.approval_status,
           offer_letter: form.offer_letter,
           notes: form.notes.trim()
         };
@@ -303,7 +310,15 @@ export default function RecruitmentPage() {
       // Optimistic update in UI
       setCandidates(prev => prev.map(c => {
         if ((c.id || c._id) === candidateId) {
-          return { ...c, [fieldName]: newValue };
+          const updated = { ...c, [fieldName]: newValue };
+          if (fieldName === 'selected') {
+            if (newValue === 'Selected' && c.approval_status !== 'Approved') {
+              updated.approval_status = 'Pending';
+            } else if (newValue !== 'Selected' && c.approval_status !== 'Approved') {
+              updated.approval_status = 'N/A';
+            }
+          }
+          return updated;
         }
         return c;
       }));
@@ -320,6 +335,7 @@ export default function RecruitmentPage() {
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(`Updated ${fieldName.replace('_', ' ')}`, 'info');
+        fetchCandidates(); // Sync full state with backend
       } else {
         showToast(data.message || 'Inline update failed', 'error');
         fetchCandidates(); // Revert on failure
@@ -357,8 +373,19 @@ export default function RecruitmentPage() {
   };
 
   // Render inline select dropdown badges
-  const renderInlineSelect = (candidateId, fieldName, value, options, colorMap) => {
+  const renderInlineSelect = (candidateId, fieldName, value, options, colorMap, disabled = false, disabledTitle = '') => {
     const activeColor = colorMap[value] || 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700';
+
+    if (disabled) {
+      return (
+        <div className="relative inline-block" title={disabledTitle}>
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-80">
+            <Lock size={11} className="text-amber-500 shrink-0" />
+            <span>{value || 'N/A'}</span>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="relative inline-block">
@@ -375,6 +402,33 @@ export default function RecruitmentPage() {
         </select>
         <ChevronDown size={12} className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
       </div>
+    );
+  };
+
+  // Render approval status badge
+  const renderApprovalBadge = (approvalStatus, isSelected) => {
+    if (!isSelected) {
+      return <span className="text-[10px] text-slate-400 italic">N/A</span>;
+    }
+    const norm = String(approvalStatus || 'Pending').toUpperCase();
+    if (norm === 'APPROVED') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-extrabold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800" title="Approved by MD/Executive">
+          <CheckCircle2 size={12} /> Approved
+        </span>
+      );
+    }
+    if (norm === 'REJECTED') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800" title="Rejected by MD/Executive">
+          <XCircle size={12} /> Rejected
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800" title="Pending MD/Executive Approval on Approvals Page">
+        <Clock size={12} /> Pending MD Approval
+      </span>
     );
   };
 
@@ -426,7 +480,7 @@ export default function RecruitmentPage() {
                 Recruitment Directory
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Manage candidate applications, interview rounds, selection statuses, and offer letters.
+                Manage candidate applications, interview rounds, selection statuses, MD approvals, and offer letters.
               </p>
             </div>
           </div>
@@ -557,6 +611,7 @@ export default function RecruitmentPage() {
                   <th className="py-3.5 px-3">Interview 2</th>
                   <th className="py-3.5 px-3">Interview 3</th>
                   <th className="py-3.5 px-3">Selected</th>
+                  <th className="py-3.5 px-3">Approval Status</th>
                   <th className="py-3.5 px-3">Offer Letter</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
@@ -564,6 +619,10 @@ export default function RecruitmentPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
                 {filteredCandidates.map((c) => {
                   const candidateId = c.id || c._id;
+                  const isSelected = c.selected === 'Selected';
+                  const isApproved = c.approval_status === 'Approved';
+                  const offerDisabled = isSelected && !isApproved;
+
                   return (
                     <tr key={candidateId} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors group">
                       {/* Candidate Name & Phone */}
@@ -639,9 +698,22 @@ export default function RecruitmentPage() {
                         {renderInlineSelect(candidateId, 'selected', c.selected || 'Pending', SELECTED_OPTIONS, selectedColorMap)}
                       </td>
 
-                      {/* Offer Letter (Inline Select) */}
+                      {/* Approval Status Badge */}
                       <td className="py-3.5 px-3">
-                        {renderInlineSelect(candidateId, 'offer_letter', c.offer_letter || 'N/A', OFFER_LETTER_OPTIONS, offerColorMap)}
+                        {renderApprovalBadge(c.approval_status, isSelected)}
+                      </td>
+
+                      {/* Offer Letter (Inline Select - Gated if Selected and Not Approved) */}
+                      <td className="py-3.5 px-3">
+                        {renderInlineSelect(
+                          candidateId, 
+                          'offer_letter', 
+                          c.offer_letter || 'N/A', 
+                          OFFER_LETTER_OPTIONS, 
+                          offerColorMap,
+                          offerDisabled,
+                          'Candidate requires MD/Executive approval on the Approvals page before offer letter can be enabled'
+                        )}
                       </td>
 
                       {/* Actions */}
@@ -833,7 +905,16 @@ export default function RecruitmentPage() {
                     <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-1">Selected Status</label>
                     <select
                       value={form.selected}
-                      onChange={(e) => setForm({ ...form, selected: e.target.value })}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        let newApproval = form.approval_status;
+                        if (val === 'Selected' && newApproval !== 'Approved') {
+                          newApproval = 'Pending';
+                        } else if (val !== 'Selected' && newApproval !== 'Approved') {
+                          newApproval = 'N/A';
+                        }
+                        setForm({ ...form, selected: val, approval_status: newApproval });
+                      }}
                       className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100 outline-none"
                     >
                       {SELECTED_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -842,13 +923,20 @@ export default function RecruitmentPage() {
 
                   <div>
                     <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 block mb-1">Offer Letter</label>
-                    <select
-                      value={form.offer_letter}
-                      onChange={(e) => setForm({ ...form, offer_letter: e.target.value })}
-                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100 outline-none"
-                    >
-                      {OFFER_LETTER_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    {form.selected === 'Selected' && form.approval_status !== 'Approved' ? (
+                      <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-bold text-slate-400 dark:text-slate-500 flex items-center gap-1.5" title="Requires MD/Executive approval on the Approvals page">
+                        <Lock size={12} className="text-amber-500 shrink-0" />
+                        <span>{form.offer_letter || 'N/A'} (Approval Required)</span>
+                      </div>
+                    ) : (
+                      <select
+                        value={form.offer_letter}
+                        onChange={(e) => setForm({ ...form, offer_letter: e.target.value })}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-2 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100 outline-none"
+                      >
+                        {OFFER_LETTER_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    )}
                   </div>
                 </div>
               </div>

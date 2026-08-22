@@ -16,10 +16,12 @@ import {
   Search,
   X,
   CheckSquare,
-  Square
+  Square,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { sendEmail } from '../services/emailService';
+import { NOTIFICATION_THEMES, getNotificationTheme } from '../utils/notificationThemes';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
@@ -27,12 +29,64 @@ const NotificationPage = () => {
   const { showToast } = useToast();
   const [channel, setChannel] = useState('email'); // email, sms, whatsapp
 
-
   // Form State
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('official'); // official, event, emergency
   const [assignedTo, setAssignedTo] = useState([]); // Array of user ID strings
   const [sending, setSending] = useState(false);
+
+  // Image Upload State
+  const [imagePreview, setImagePreview] = useState('');
+  const [selectedImageModal, setSelectedImageModal] = useState(null);
+
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast("Please select a valid image file (PNG, JPG, WEBP, etc.)", "warning");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      showToast("Image file size must be under 10MB", "warning");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1200;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setImagePreview(compressedDataUrl);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setImagePreview('');
+  };
 
   // Users for Dropdown
   const [userList, setUserList] = useState([]);
@@ -210,7 +264,6 @@ const NotificationPage = () => {
         return u && u.email ? { email: u.email, name: u.name || u.username } : null;
       })
       .filter(Boolean);
-    const recipientPhones = assignedTo.map((id) => getUserById(id)?.phone).filter(Boolean);
 
     if (channel === "email" && recipientEmails.length === 0) {
       showToast("Selected employee(s) do not have a valid email address configured.", "warning");
@@ -226,6 +279,9 @@ const NotificationPage = () => {
         body: JSON.stringify({
           title: title.trim() || "Notification",
           description: description.trim(),
+          image: imagePreview || null,
+          imageUrl: imagePreview || null,
+          category,
           assignedTo // Array of user ID strings
         })
       });
@@ -257,6 +313,8 @@ const NotificationPage = () => {
 
         setTitle("");
         setDescription("");
+        setCategory("official");
+        setImagePreview("");
         setAssignedTo([]);
         setIsUserDropdownOpen(false);
         fetchNotifications();
@@ -352,11 +410,37 @@ const NotificationPage = () => {
             </h2>
 
             <form onSubmit={handleSendNotification} className="space-y-4">
-              {/* Title / Subject (Placed ABOVE Description) */}
+              {/* Title / Subject with Subtle Corner Category Selector */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                  Title / Subject <span className="text-slate-400 font-normal">(Optional)</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Title / Subject <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+
+                  {/* Corner Style/Type Picker Pills */}
+                  <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800 shrink-0">
+                    {NOTIFICATION_THEMES && Object.values(NOTIFICATION_THEMES).map((th) => {
+                      const isSelected = category === th.id;
+                      return (
+                        <button
+                          key={th.id}
+                          type="button"
+                          onClick={() => setCategory(th.id)}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                            isSelected
+                              ? `${th.badgeClass} shadow-xs`
+                              : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                          }`}
+                          title={`Set modal style: ${th.name}`}
+                        >
+                          <span>{th.emoji}</span>
+                          <span>{th.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <input
                   type="text"
                   value={title}
@@ -379,6 +463,51 @@ const NotificationPage = () => {
                   className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-800 dark:text-slate-200 resize-y"
                   required
                 />
+              </div>
+
+              {/* Notification Image Attachment */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Notification Image <span className="text-slate-400 font-normal">(Optional)</span>
+                  </label>
+                  {imagePreview && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveImage}
+                      className="text-[11px] font-bold text-rose-500 hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <X size={12} /> Remove Image
+                    </button>
+                  )}
+                </div>
+
+                {imagePreview ? (
+                  <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-2">
+                    <img
+                      src={imagePreview}
+                      alt="Notification Attachment Preview"
+                      className="w-full h-44 object-cover rounded-xl"
+                    />
+                  </div>
+                ) : (
+                  <label htmlFor="notification-image-input" className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer bg-slate-50/50 dark:bg-slate-950/50 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 hover:border-indigo-500/50 transition-all group">
+                    <div className="flex flex-col items-center justify-center pt-2.5 pb-2.5">
+                      <ImageIcon className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 mb-1 transition-colors" />
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-bold">
+                        Click to upload image <span className="font-normal text-slate-400">(PNG, JPG, WEBP)</span>
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Max file size: 10MB</p>
+                    </div>
+                    <input
+                      id="notification-image-input"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
               </div>
 
               {/* Multi-Select Assigned To */}
@@ -571,87 +700,137 @@ const NotificationPage = () => {
               </div>
             ) : (
               <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-                {displayedNotifications.map((n) => (
-                  <motion.div
-                    key={n._id}
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`p-4 rounded-2xl border transition-all relative ${
-                      !n.isRead && activeTab === 'received'
-                        ? 'bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-200/60 dark:border-indigo-800/40'
-                        : 'bg-slate-50/50 dark:bg-slate-950/50 border-slate-200/40 dark:border-slate-800/40'
-                    }`}
-                  >
-                    {!n.isRead && activeTab === 'received' && (
-                      <div className="absolute left-3 top-4 w-2 h-2 rounded-full bg-rose-500 ring-4 ring-rose-500/20" />
-                    )}
+                {displayedNotifications.map((n) => {
+                  const th = getNotificationTheme(n.category);
+                  return (
+                    <motion.div
+                      key={n._id}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`p-4 rounded-2xl border transition-all relative ${
+                        !n.isRead && activeTab === 'received'
+                          ? 'bg-slate-50/80 dark:bg-slate-950/60 border-indigo-200/80 dark:border-indigo-800/40'
+                          : 'bg-slate-50/50 dark:bg-slate-950/50 border-slate-200/40 dark:border-slate-800/40'
+                      }`}
+                    >
+                      {!n.isRead && activeTab === 'received' && (
+                        <div className="absolute left-3 top-4 w-2 h-2 rounded-full bg-rose-500 ring-4 ring-rose-500/20" />
+                      )}
 
-                    <div className="flex items-start justify-between gap-3 pl-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-black text-slate-900 dark:text-white">
-                            {n.title || 'Notification'}
-                          </h4>
-                          {!n.isRead && activeTab === 'received' && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
-                              NEW
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
-                          {n.description}
-                        </p>
-
-                        <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400 font-medium pt-1">
-                          <span className="flex items-center gap-1">
-                            <Clock size={12} />
-                            {new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                          
-                          {activeTab === 'received' ? (
-                            n.createdByName && (
-                              <span className="flex items-center gap-1">
-                                <User size={12} />
-                                Assigned By: {n.createdByName}
+                      <div className="flex items-start justify-between gap-3 pl-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                              {n.title || 'Notification'}
+                            </h4>
+                            {n.category && (
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${th.badgeClass}`}>
+                                {th.badgeText}
                               </span>
-                            )
-                          ) : (
-                            <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-bold">
-                              <Users size={12} />
-                              Assigned To: {formatAssignedTo(n.assignedTo)}
-                            </span>
+                            )}
+                            {!n.isRead && activeTab === 'received' && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                                NEW
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                            {n.description}
+                          </p>
+
+                          {(n.imageUrl || n.image) && (
+                            <div className="mt-2.5 rounded-2xl overflow-hidden border border-slate-200/80 dark:border-slate-800 max-w-xs group relative shadow-sm">
+                              <img
+                                src={n.imageUrl || n.image}
+                                alt="Notification Attachment"
+                                className="w-full max-h-44 object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
+                                onClick={() => setSelectedImageModal(n.imageUrl || n.image)}
+                              />
+                            </div>
                           )}
+
+                          <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-400 font-medium pt-1">
+                            <span className="flex items-center gap-1">
+                              <Clock size={12} />
+                              {new Date(n.createdAt).toLocaleDateString()} {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            
+                            {activeTab === 'received' ? (
+                              n.createdByName && (
+                                <span className="flex items-center gap-1">
+                                  <User size={12} />
+                                  Assigned By: {n.createdByName}
+                                </span>
+                              )
+                            ) : (
+                              <span className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-bold">
+                                <Users size={12} />
+                                Assigned To: {formatAssignedTo(n.assignedTo)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {!n.isRead && activeTab === 'received' && (
+                            <button
+                              onClick={() => handleMarkAsRead(n._id)}
+                              title="Mark as read"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors cursor-pointer"
+                            >
+                              <Check size={16} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteNotification(n._id)}
+                            title="Delete notification"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </div>
-
-                      {/* Action buttons */}
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {!n.isRead && activeTab === 'received' && (
-                          <button
-                            onClick={() => handleMarkAsRead(n._id)}
-                            title="Mark as read"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors cursor-pointer"
-                          >
-                            <Check size={16} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleDeleteNotification(n._id)}
-                          title="Delete notification"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Fullscreen Image Preview Modal */}
+      <AnimatePresence>
+        {selectedImageModal && (
+          <div 
+            className="fixed inset-0 z-[120] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4" 
+            onClick={() => setSelectedImageModal(null)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }} 
+              animate={{ scale: 1, opacity: 1 }} 
+              exit={{ scale: 0.9, opacity: 0 }} 
+              className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-800" 
+              onClick={e => e.stopPropagation()}
+            >
+              <button 
+                onClick={() => setSelectedImageModal(null)} 
+                className="absolute top-4 right-4 p-2 bg-slate-950/70 hover:bg-slate-950 rounded-full text-white transition-colors z-10 cursor-pointer"
+                title="Close"
+              >
+                <X size={20} />
+              </button>
+              <img 
+                src={selectedImageModal} 
+                alt="Enlarged attachment preview" 
+                className="w-full h-auto max-h-[85vh] object-contain" 
+              />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

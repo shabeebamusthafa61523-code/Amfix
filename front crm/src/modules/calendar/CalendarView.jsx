@@ -10,8 +10,9 @@ import CalendarDayDrawer from "./CalendarDayDrawer";
 const getItemDateValue = (item) => item?.date || item?.postingDate || item?.workDate;
 
 const isWorkCompleted = (item) => {
-  const status = String(item?.status || item?.workStatus || "").trim();
-  return status.toLowerCase() === "completed";
+  const status = String(item?.workStatus || item?.status || "").trim().toLowerCase();
+  const postingStatus = String(item?.postingStatus || "").trim().toLowerCase();
+  return status === "completed" || postingStatus === "posted";
 };
 
 /**

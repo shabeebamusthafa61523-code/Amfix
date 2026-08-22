@@ -10,7 +10,6 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { fetchCompletedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
-import PayslipModal from '../components/accounts/PayslipModal';
 import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
 const API_BASE = import.meta.env.VITE_API_URL;
@@ -81,9 +80,6 @@ const HrReportPage = () => {
   const [isEditingBasic, setIsEditingBasic] = useState(false);
   const [currentUser, setCurrentUser] = useState({});
   const [isPrivileged, setIsPrivileged] = useState(false);
-
-  // Payslip State
-  const [isPayslipOpen, setIsPayslipOpen] = useState(false);
 
   // Selection states
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -930,36 +926,50 @@ const HrReportPage = () => {
   };
 
   // --- UNIFIED MULTI-PAGE AUTO-PAGINATED PDF ENGINE ---
-  const downloadFormattedHrPDF = ({ title, subtitle, basicRows, sections, filename }) => {
+  const downloadFormattedHrPDF = async ({ title, subtitle, basicRows, sections, filename, returnBlob = false }) => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
     
-    const drawPageHeader = () => {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(18);
-      doc.setTextColor(60, 35, 117);
-      doc.text("KOD.", 14, 16);
-      doc.setTextColor(132, 204, 22);
-      doc.text("brand", 31, 16);
+    // Header Brand Logo - Only on First Page
+    const logoImg = new Image();
+    logoImg.src = '/logo3.png';
+    await new Promise((resolve) => {
+      logoImg.onload = () => {
+        try {
+          doc.addImage(logoImg, 'PNG', 14, 10, 32, 12);
+        } catch (e) {
+          console.error("Failed to render logo3.png in HR PDF:", e);
+        }
+        resolve();
+      };
+      logoImg.onerror = () => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(22);
+        doc.setTextColor(132, 204, 22);
+        doc.text("KOD.", 14, 21);
+        doc.setTextColor(60, 35, 117);
+        doc.text("brand", 34, 21);
+        resolve();
+      };
+    });
 
-      doc.setFontSize(11);
-      doc.setTextColor(60, 35, 117);
-      doc.text(title.toUpperCase(), 196, 15, { align: 'right' });
-      doc.setFontSize(7.5);
-      doc.setTextColor(100, 100, 100);
-      doc.text(subtitle.toUpperCase(), 196, 20, { align: 'right' });
-      doc.setDrawColor(220, 220, 225);
-      doc.setLineWidth(0.5);
-      doc.line(14, 23, 196, 23);
-    };
+    // Document Title & Subtitle on First Page
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(60, 35, 117);
+    doc.text(title.toUpperCase(), 196, 15, { align: 'right' });
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 100, 100);
+    doc.text(subtitle.toUpperCase(), 196, 20, { align: 'right' });
+    doc.setDrawColor(220, 220, 225);
+    doc.setLineWidth(0.5);
+    doc.line(14, 23, 196, 23);
 
-    drawPageHeader();
     let currentY = 27;
 
     const checkHeightAndAddPage = (neededHeight) => {
       if (currentY + neededHeight > 270) {
         doc.addPage();
-        drawPageHeader();
-        currentY = 27;
+        currentY = 15;
       }
     };
 
@@ -975,42 +985,46 @@ const HrReportPage = () => {
     };
 
     // 1. Basic Details Table
-    drawSectionHeader("1. BASIC DETAILS");
-    autoTable(doc, {
-      body: basicRows,
-      startY: currentY,
-      theme: 'grid',
-      margin: { top: 27, bottom: 20, left: 14, right: 14 },
-      styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [200, 200, 200], lineWidth: 0.1 },
-      columnStyles: { 0: { fontStyle: 'bold', fillColor: [245, 245, 248], width: 45 }, 1: { width: 137 } },
-      didDrawPage: () => drawPageHeader()
-    });
-    currentY = doc.lastAutoTable.finalY + 5;
+    const validBasicRows = basicRows.filter(r => r[1] && String(r[1]).trim() !== '');
+    if (validBasicRows.length > 0) {
+      drawSectionHeader("1. BASIC DETAILS");
+      autoTable(doc, {
+        body: validBasicRows,
+        startY: currentY,
+        theme: 'grid',
+        margin: { top: 15, bottom: 20, left: 14, right: 14 },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [200, 200, 200], lineWidth: 0.1 },
+        columnStyles: { 0: { fontStyle: 'bold', fillColor: [245, 245, 248], width: 45 }, 1: { width: 137 } }
+      });
+      currentY = doc.lastAutoTable.finalY + 5;
+    }
 
-    // Render all other dynamic sections
+    // Render all other dynamic sections (Only if they contain valid non-empty data)
     sections.forEach((sec) => {
       if (sec.type === 'table' && sec.rows && sec.rows.length > 0) {
+        const validRows = sec.rows.filter(row => row.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== ''));
+        if (validRows.length === 0) return; // Skip section if no data
+
         drawSectionHeader(sec.title);
         autoTable(doc, {
           head: [sec.headers],
-          body: sec.rows,
+          body: validRows,
           startY: currentY,
           theme: 'grid',
-          margin: { top: 27, bottom: 20, left: 14, right: 14 },
+          margin: { top: 15, bottom: 20, left: 14, right: 14 },
           headStyles: { fillColor: [240, 240, 245], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [200, 200, 200], lineWidth: 0.1 },
-          styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [200, 200, 200], lineWidth: 0.1 },
-          columnStyles: sec.columnStyles || {},
-          didDrawPage: () => drawPageHeader()
+          styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [200, 200, 200], lineWidth: 0.1, overflow: 'linebreak' },
+          columnStyles: sec.columnStyles || {}
         });
         currentY = doc.lastAutoTable.finalY + 5;
-      } else if (sec.type === 'text' && sec.content && sec.content.trim()) {
+      } else if (sec.type === 'text' && sec.content && String(sec.content).trim() !== '') {
+        const lines = doc.splitTextToSize(String(sec.content), 178);
+        const boxH = Math.max(14, lines.length * 4.2 + 6);
+        checkHeightAndAddPage(boxH + 12);
         drawSectionHeader(sec.title);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
         doc.setTextColor(0, 0, 0);
-        const lines = doc.splitTextToSize(sec.content, 178);
-        const boxH = Math.max(14, lines.length * 4.2 + 6);
-        checkHeightAndAddPage(boxH + 4);
         doc.text(lines, 16, currentY + 5);
         doc.setDrawColor(200, 200, 200);
         doc.rect(14, currentY, 182, boxH);
@@ -1029,6 +1043,9 @@ const HrReportPage = () => {
     }
 
     doc.save(filename);
+    if (returnBlob) {
+      return doc.output('blob');
+    }
   };
 
   const handleDownloadMonthlyPDF = async () => {
@@ -1120,7 +1137,7 @@ const HrReportPage = () => {
       ];
 
       const filename = `HR_Monthly_Consolidated_Report_${monthlyBasicDetails.employeeName || 'HR'}_${monthlyStartDate}_to_${monthlyEndDate}.pdf`;
-      downloadFormattedHrPDF({
+      await downloadFormattedHrPDF({
         title: "MONTHLY CONSOLIDATED HR REPORT",
         subtitle: "HR / ADMIN MANAGER",
         basicRows,
@@ -1234,7 +1251,7 @@ const HrReportPage = () => {
       ];
 
       const filename = `HR_Weekly_Consolidated_Report_${weeklyBasicDetails.employeeName || 'HR'}_${weeklyStartDate}_to_${weeklyEndDate}.pdf`;
-      downloadFormattedHrPDF({
+      await downloadFormattedHrPDF({
         title: "WEEKLY CONSOLIDATED HR REPORT",
         subtitle: "HR / ADMIN MANAGER",
         basicRows,
@@ -1548,11 +1565,12 @@ const HrReportPage = () => {
   };
 
   const handleDownloadPDF = async () => {
-    const reportType = 'hr';
-    // Automatically save report as well
+    // Automatically save report state first
     await handleSaveReport();
 
-    const generateClientPDF = () => {
+    try {
+      showToast("Generating HR Shift PDF report...", "info");
+
       const basicRows = [
         ["Date", basicDetails.date || selectedDate],
         ["Day", basicDetails.day || ''],
@@ -1574,136 +1592,101 @@ const HrReportPage = () => {
           columnStyles: { 0: { cellWidth: 52 }, 1: { cellWidth: 22 }, 2: { cellWidth: 22 }, 3: { cellWidth: 22 }, 4: { cellWidth: 22 }, 5: { cellWidth: 42 } }
         },
         {
-          title: "3. EMPLOYEE MANAGEMENT",
+          title: "3. RECRUITMENT REPORT",
           type: "table",
-          headers: ["Employee Name", "Department", "Attendance", "Task Status", "Remarks"],
-          rows: employeeManagement.map(e => [e.employeeName || '', e.department || '', e.attendance || '', e.taskStatus || '', e.remarks || '']),
-          columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: 35 }, 2: { cellWidth: 30 }, 3: { cellWidth: 30 }, 4: { cellWidth: 42 } }
+          headers: ["Recruitment Activity", "Count / Status"],
+          rows: recruitmentReport.map(r => [r.activity || '', r.countStatus || '']),
+          columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72 } }
         },
         {
-          title: "4. RECRUITMENT REPORT",
-          type: "table",
-          headers: ["Recruitment Activity", "Due Date / Milestone", "Count / Status"],
-          rows: recruitmentReport.map(r => [r.activity || '', r.dueDate || '', r.countStatus || '']),
-          columnStyles: { 0: { cellWidth: 80 }, 1: { cellWidth: 50 }, 2: { cellWidth: 52 } }
-        },
-        {
-          title: "5. ATTENDANCE & LEAVE REPORT",
+          title: "4. ATTENDANCE & LEAVE REPORT",
           type: "table",
           headers: ["Category", "Count"],
           rows: attendanceLeave.map(a => [a.category || '', a.count || '']),
           columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
         },
         {
-          title: "6. ADMIN OPERATIONS",
+          title: "5. ADMIN OPERATIONS REPORT",
           type: "table",
           headers: ["Activity", "Due Date", "Status", "Remarks"],
           rows: adminOperations.map(a => [a.activity || '', a.dueDate || '', a.status || '', a.remarks || '']),
           columnStyles: { 0: { cellWidth: 65 }, 1: { cellWidth: 30 }, 2: { cellWidth: 30 }, 3: { cellWidth: 57 } }
         },
         {
-          title: "7. DOCUMENTATION & COMPLIANCE",
+          title: "6. DOCUMENTATION & COMPLIANCE",
           type: "table",
           headers: ["Activity", "Due Date", "Status"],
           rows: documentationCompliance.map(d => [d.activity || '', d.dueDate || '', d.status || '']),
           columnStyles: { 0: { cellWidth: 100 }, 1: { cellWidth: 42 }, 2: { cellWidth: 40, halign: 'center' } }
         },
         {
-          title: "8. KPI TRACKING",
+          title: "7. KPI TRACKING",
           type: "table",
-          headers: ["Key Performance Indicator", "Target / Achieved Status"],
+          headers: ["KPI", "Status"],
           rows: kpiTracking.map(k => [k.kpi || '', k.status || '']),
           columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72 } }
         },
         {
-          title: "9. ISSUES & ESCALATIONS",
+          title: "8. ISSUES / ESCALATIONS",
           type: "table",
-          headers: ["Issue Description", "Priority", "Action Taken"],
+          headers: ["Issue", "Priority", "Action Taken"],
           rows: issuesEscalations.map(i => [i.issue || '', i.priority || '', i.actionTaken || '']),
           columnStyles: { 0: { cellWidth: 70 }, 1: { cellWidth: 30, halign: 'center' }, 2: { cellWidth: 82 } }
         },
         {
-          title: "10. NEXT DAY ACTION PLAN",
+          title: "9. NEXT DAY ACTION PLAN",
           type: "text",
           content: nextDayActionPlan || ''
         },
         {
-          title: "11. FINAL SHIFT HANDOVER",
+          title: "10. FINAL SHIFT HANDOVER",
           type: "table",
           headers: ["Handover Item", "Status"],
           rows: finalShiftHandover.map(h => [h.item || '', h.status || '']),
           columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 72, halign: 'center' } }
         },
         {
-          title: "12. HR / ADMIN COMMENTS",
+          title: "11. HR / ADMIN COMMENTS",
           type: "text",
           content: hrAdminComments || ''
         },
         {
-          title: "13. APPROVAL & SIGNATURES",
+          title: "12. APPROVAL DETAILS",
           type: "table",
-          headers: ["Role / Field", "Signature / Details"],
+          headers: ["Field", "Details"],
           rows: [
-            ["HR Manager Name", approval?.hrName || ''],
-            ["HR Date", approval?.hrDate || ''],
-            ["COO / Executive Director Name", approval?.cooName || ''],
-            ["COO Date", approval?.cooDate || '']
+            ["HR / Admin Manager Name", approval?.hrName || basicDetails.employeeName || ''],
+            ["Signature Status", approval?.hrSignature ? "Signed" : "Pending"],
+            ["Date", approval?.hrDate || basicDetails.date || selectedDate]
           ],
           columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 122 } }
         }
       ];
 
-      const filename = `HR_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
-      downloadFormattedHrPDF({
+      const filename = `HR_Shift_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
+      const pdfBlob = await downloadFormattedHrPDF({
         title: "DAILY HR OPERATIONS REPORT",
         subtitle: "HUMAN RESOURCES & ADMINISTRATION",
         basicRows,
         sections,
-        filename
+        filename,
+        returnBlob: true
       });
 
-      showToast("Full HR PDF report downloaded successfully!", "success");
-    };
-
-    try {
-      showToast("Generating PDF report...", "info");
-      const token = localStorage.getItem('token');
-      const cleanToken = token ? token.replace(/"/g, '') : '';
-      
-      const url = `${API_BASE}/v1/employee-reports/generate-pdf?userId=${selectedUserId}&dateString=${selectedDate}&reportType=${reportType}`;
-      
-      const res = await fetch(url, {
-        headers: {
-          'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`
+      if (pdfBlob && selectedUserId) {
+        try {
+          await uploadCompiledPDFReport(selectedUserId, selectedDate, pdfBlob, filename, 'hr', 'daily');
+        } catch (uploadErr) {
+          console.warn("PDF upload to server skipped:", uploadErr);
         }
-      });
-      
-      if (!res.ok) {
-        // Fallback to high-precision multi-page client side PDF generation
-        generateClientPDF();
-        return;
       }
-      
-      const blob = await res.blob();
-      const filename = `${reportType.charAt(0).toUpperCase() + reportType.slice(1)}_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
-      
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        a.remove();
-        window.URL.revokeObjectURL(downloadUrl);
-      }, 15000);
-      
-      showToast("PDF report downloaded successfully!", "success");
+
+      showToast("HR Shift PDF report generated and downloaded successfully!", "success");
     } catch (e) {
-      console.warn("Server PDF generation failed, executing multi-page client-side generator:", e);
-      generateClientPDF();
+      console.error("PDF generation failed:", e);
+      showToast("Failed to generate HR Shift PDF report.", "error");
     }
-  };;
+  };
 
   const getRecentDates = () => {
     const dates = [];
@@ -1824,14 +1807,7 @@ const HrReportPage = () => {
                   Monthly Report
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setIsPayslipOpen(true)}
-                  className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-200 font-semibold text-sm transition-all cursor-pointer"
-                >
-                  <FileText size={16} />
-                  Generate Payslip
-                </button>
+
 
                 
 
@@ -2495,7 +2471,7 @@ const HrReportPage = () => {
                 <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">12</span>
                 Approval Details
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 dark:bg-slate-950/20 p-5 rounded-2xl border border-slate-100 dark:border-slate-800">
+              <div className="bg-slate-50/50 dark:bg-slate-950/20 p-5 rounded-2xl border border-slate-100 dark:border-slate-800 max-w-lg">
                 <div className="space-y-3">
                   <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">HR / Admin Manager</h4>
                   <div>
@@ -2521,36 +2497,6 @@ const HrReportPage = () => {
                       type="text"
                       value={approval.hrDate || ''}
                       onChange={(e) => setApproval({ ...approval, hrDate: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">COO / Executive Director</h4>
-                  <div>
-                    <label className="block text-xs mb-1">Name</label>
-                    <input
-                      type="text"
-                      value={approval.cooName || ''}
-                      onChange={(e) => setApproval({ ...approval, cooName: e.target.value })}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs mb-1">Signature</label>
-                    <SignatureUpload
-                      value={approval.cooSignature || ''}
-                      onChange={(val) => setApproval({ ...approval, cooSignature: val })}
-                      placeholder="Upload COO signature"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs mb-1">Date</label>
-                    <input
-                      type="text"
-                      value={approval.cooDate || ''}
-                      onChange={(e) => setApproval({ ...approval, cooDate: e.target.value })}
                       className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-sm focus:outline-none"
                     />
                   </div>
@@ -3807,21 +3753,6 @@ const HrReportPage = () => {
         </div>
       )}
 
-      {/* OFFICIAL PAYSLIP MODAL */}
-      <PayslipModal
-        isOpen={isPayslipOpen}
-        onClose={() => setIsPayslipOpen(false)}
-        salaryRecord={{
-          employeeName: basicDetails.employeeName || currentUser?.name || 'HR Staff Member',
-          designation: basicDetails.designation || 'HR Executive / Manager',
-          department: basicDetails.department || 'Human Resources',
-          month: basicDetails.date ? `Disbursal — ${basicDetails.date}` : 'Current Pay Period',
-          basicSalary: 40000,
-          paidAmount: 40000,
-          paymentMode: 'Bank Transfer',
-          status: 'APPROVED'
-        }}
-      />
     </div>
   );
 };
