@@ -66,6 +66,7 @@ import {
 
 const CATEGORY_ORDER = [
   'Overview',
+  'Dashboards',
   'People & HR',
   'Sales & CRM',
   'Marketing & Work',
@@ -77,6 +78,7 @@ const CATEGORY_ORDER = [
 
 const CATEGORY_CONFIG = {
   'Overview': { label: 'Overview', icon: LayoutDashboard },
+  'Dashboards': { label: 'Dashboards', icon: LayoutDashboard },
   'People & HR': { label: 'People & HR', icon: Users },
   'Sales & CRM': { label: 'Sales & CRM', icon: Target },
   'Marketing & Work': { label: 'Marketing & Work', icon: Megaphone },
@@ -88,21 +90,29 @@ const CATEGORY_CONFIG = {
 
 const menuItems = [
   // --- OVERVIEW ---
-  { icon: LayoutDashboard, label: 'Admin Dashboard', path: '/dashboard', category: 'Overview', allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
-  { icon: TrendingUp, label: 'MD Dashboard', path: '/md-dashboard', category: 'Overview', allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'management'] },
   { icon: CheckCircle2, label: 'Approvals', path: '/approvals', category: 'Overview', allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'management'] },
   { icon: Calendar, label: 'Leave Requests', path: '/leaves', category: 'Overview' },
   { icon: Bell, label: 'Notifications', path: '/notifications', category: 'Overview' },
 
+  // --- DASHBOARDS ---
+  { icon: LayoutDashboard, label: 'Admin Dashboard', path: '/dashboard', category: 'Dashboards', allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
+  { icon: TrendingUp, label: 'MD Dashboard', path: '/md-dashboard', category: 'Dashboards', allowedRoles: ['0', '1', '2', '10', 'admin', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'management'] },
+  { icon: UserCog, label: 'HR Dashboard', path: '/hr-dashboard', category: 'Dashboards', allowedDesignationNames: ['hr', 'recruiter'] },
+  { icon: Target, label: 'Lead Dashboard', path: '/lead-dashboard', category: 'Dashboards', allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'], allowedDepartmentNames: ['counselor', 'sales', 'ops', 'marketing'], allowedDesignationNames: ['counselor', 'telecaller', 'ops'] },
+  { icon: Megaphone, label: 'Marketing Dashboard', path: '/marketing-dashboard', category: 'Dashboards', allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'marketing', 'manager', 'team_lead', 'teamlead', 'tl'], allowedDepartmentNames: ['marketing', 'digital'] },
+  { icon: Video, label: 'Video Dashboard', path: '/videographer-dashboard', category: 'Dashboards', allowedDesignationNames: ['video', 'editor', 'media'] },
+  { icon: Palette, label: 'GD Dashboard', path: '/graphic-designer-dashboard', category: 'Dashboards', allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'] },
+  { icon: Code2, label: 'Dev Dashboard', path: '/developer-dashboard', category: 'Dashboards', allowedDepartmentNames: ['r&d', 'dev', 'developer', 'development'] },
+  { icon: GraduationCap, label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Dashboards', allowedDesignationNames: ['counselor', 'academic', 'tele'] },
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/common-dashboard', category: 'Dashboards', isCommonDashboardFallback: true },
+
   // --- PEOPLE & HR ---
-  { icon: UserCog, label: 'HR Dashboard', path: '/hr-dashboard', category: 'People & HR', allowedDesignationNames: ['hr', 'recruiter'] },
   { icon: UserCheck, label: 'Recruitment', path: '/recruitment', category: 'People & HR', allowedRoles: ['0', '1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'recruiter'], allowedDesignationNames: ['hr', 'recruiter', 'admin', 'manager'] },
   { icon: Users, label: 'Users', path: '/users', category: 'People & HR', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartmentNames: ['hr', 'admin'] },
   { icon: Building, label: 'Departments', path: '/departments', category: 'People & HR', allowedRoles: ['1', '2', 'hr', 'admin'] },
   { icon: ShieldCheck, label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'People & HR', allowedRoles: ['0', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
 
   // --- SALES & CRM ---
-  { icon: Target, label: 'Lead Dashboard', path: '/lead-dashboard', category: 'Sales & CRM', allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'], allowedDepartmentNames: ['counselor', 'sales', 'ops', 'marketing'], allowedDesignationNames: ['counselor', 'telecaller', 'ops'] },
   { icon: Magnet, label: 'Leads Directory', path: '/leads', category: 'Sales & CRM', allowedDepartmentNames: ['marketing', 'digital', 'counselor', 'sales'], allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'] },
   { icon: PhoneCall, label: 'Telecaller Leads', path: '/leads-telecaller', category: 'Sales & CRM', allowedDesignationNames: ['counselor', 'telecaller', 'ops'], allowedRoles: ['1', '2', 'hr', 'admin', 'superadmin'], allowedDepartmentNames: ['hr', 'admin'] },
   { icon: Contact, label: 'Lead Counselor', path: '/lead-counselor', category: 'Sales & CRM', allowedDesignationNames: ['ops', 'counselor', 'sales'], allowedRoles: ['1', '2', '3', 'hr', 'admin', 'superadmin'] },
@@ -110,12 +120,8 @@ const menuItems = [
   { icon: Building2, label: 'Clients', path: '/clients', category: 'Sales & CRM', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'] },
 
   // --- MARKETING & WORK ---
-  { icon: Megaphone, label: 'Marketing Dashboard', path: '/marketing-dashboard', category: 'Marketing & Work', allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'marketing', 'manager', 'team_lead', 'teamlead', 'tl'], allowedDepartmentNames: ['marketing', 'digital'] },
   { icon: Calendar, label: 'Content Calendar', path: '/calendar-work', category: 'Marketing & Work', allowedRoles: ['1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'], allowedDesignationNames: ['designer', 'graphic', 'marketer', 'marketing', 'digital', 'social'] },
   { icon: FolderKanban, label: 'Projects', path: '/projects', category: 'Marketing & Work', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead'] },
-  { icon: Video, label: 'Video Dashboard', path: '/videographer-dashboard', category: 'Marketing & Work', allowedDesignationNames: ['video', 'editor', 'media'] },
-  { icon: Palette, label: 'GD Dashboard', path: '/graphic-designer-dashboard', category: 'Marketing & Work', allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'] },
-  { icon: Code2, label: 'Dev Dashboard', path: '/developer-dashboard', category: 'Marketing & Work', allowedDepartmentNames: ['r&d', 'dev', 'developer', 'development'] },
 
   // --- FINANCE & PAYROLL ---
   { icon: Wallet, label: 'Accounts', path: '/accounts', category: 'Finance & Payroll', children: [
@@ -130,7 +136,6 @@ const menuItems = [
   { icon: CreditCard, label: 'Personal Payslip', path: '/my-payslip', category: 'Finance & Payroll' },
 
   // --- ACADEMY & LMS ---
-  { icon: GraduationCap, label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Academy & LMS', allowedDesignationNames: ['counselor', 'academic', 'tele'] },
   { icon: BookOpen, label: 'Course Management', path: '/academy/courses', category: 'Academy & LMS', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
   { icon: Layers, label: 'Batches', path: '/academy/batches', category: 'Academy & LMS', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
   { icon: School, label: 'Enrollment Tracking', path: '/academy/enrollments', category: 'Academy & LMS', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartments: ['6a3caed51194353cbc8a3686'] },
@@ -151,7 +156,6 @@ const menuItems = [
   { icon: BookOpenCheck, label: 'Academic Counselor Report', path: '/academic-counselor-report', category: 'Reports', allowedDesignationNames: ['counselor', 'academic', 'tele'] },
   { icon: Sliders, label: 'Ops Shift Report', path: '/ops-report', category: 'Reports', allowedDesignationNames: ['ops', 'operation', 'sales'] },
   { icon: PieChart, label: 'Marketing Shift Report', path: '/marketing-report', category: 'Reports', allowedDesignationNames: ['marketing', 'marketer', 'digital'] },
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/common-dashboard', category: 'Overview', isCommonDashboardFallback: true },
   { icon: ClipboardList, label: 'Daily Report', path: '/basic-report', category: 'Reports', isBasicReportFallback: true },
 
   // --- DAILY OPERATIONS ---
