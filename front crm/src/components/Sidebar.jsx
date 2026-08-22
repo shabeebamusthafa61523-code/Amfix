@@ -71,7 +71,7 @@ const CATEGORY_ORDER = [
   'Marketing & Work',
   'Finance & Payroll',
   'Academy & LMS',
-  'Reports & Analytics',
+  'Reports',
   'Daily Operations'
 ];
 
@@ -82,7 +82,7 @@ const CATEGORY_CONFIG = {
   'Marketing & Work': { label: 'Marketing & Work', icon: Megaphone },
   'Finance & Payroll': { label: 'Finance & Payroll', icon: Wallet },
   'Academy & LMS': { label: 'Academy & LMS', icon: GraduationCap },
-  'Reports & Analytics': { label: 'Reports & Analytics', icon: BarChart3 },
+  'Reports': { label: 'Reports', icon: BarChart3 },
   'Daily Operations': { label: 'Daily Operations', icon: Clock }
 };
 
@@ -97,7 +97,6 @@ const menuItems = [
   // --- PEOPLE & HR ---
   { icon: UserCog, label: 'HR Dashboard', path: '/hr-dashboard', category: 'People & HR', allowedDesignationNames: ['hr', 'recruiter'] },
   { icon: UserCheck, label: 'Recruitment', path: '/recruitment', category: 'People & HR', allowedRoles: ['0', '1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'recruiter'], allowedDesignationNames: ['hr', 'recruiter', 'admin', 'manager'] },
-  { icon: ClipboardCheck, label: 'HR Shift Report', path: '/hr-report', category: 'People & HR', allowedDesignationNames: ['hr', 'recruiter'] },
   { icon: Users, label: 'Users', path: '/users', category: 'People & HR', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartmentNames: ['hr', 'admin'] },
   { icon: Building, label: 'Departments', path: '/departments', category: 'People & HR', allowedRoles: ['1', '2', 'hr', 'admin'] },
   { icon: ShieldCheck, label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'People & HR', allowedRoles: ['0', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
@@ -129,7 +128,6 @@ const menuItems = [
   },
   { icon: Receipt, label: 'Payslips', path: '/payslips', category: 'Finance & Payroll', allowedRoles: ['0', '1', '2', '10', 'hr', 'admin', 'accountant', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'accounts', 'finance'], allowedDesignationNames: ['hr', 'recruiter', 'accountant', 'finance', 'accounts'] },
   { icon: CreditCard, label: 'Personal Payslip', path: '/my-payslip', category: 'Finance & Payroll' },
-  { icon: Calculator, label: 'Accountant Shift Report', path: '/accountant-report', category: 'Finance & Payroll', allowedDesignationNames: ['accountant', 'accounts', 'finance'] },
 
   // --- ACADEMY & LMS ---
   { icon: GraduationCap, label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Academy & LMS', allowedDesignationNames: ['counselor', 'academic', 'tele'] },
@@ -139,20 +137,22 @@ const menuItems = [
   { icon: GraduationCap, label: 'My LMS Learning', path: '/academy/learning', category: 'Academy & LMS', allowedRoles: ['10', 'student', '1', '2', 'admin', 'superadmin'] },
   { icon: Clipboard, label: 'Student Attendance', path: '/student-attendance', category: 'Academy & LMS', allowedRoles: ['1', '2', 'hr', 'admin'] },
 
-  // --- REPORTS & ANALYTICS ---
-  { icon: Sparkles, label: 'AI Reports', path: '/ai-report', category: 'Reports & Analytics' },
-  { icon: Award, label: 'KPI Analytics', path: '/performance-dashboard', category: 'Reports & Analytics', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'] },
-  { icon: BarChart2, label: 'Employee Reports', path: '/employee-reports', category: 'Reports & Analytics', allowedRoles: ['hr', 'admin'] },
-  { icon: UsersRound, label: 'Team Reports', path: '/team-reports', category: 'Reports & Analytics', isTeamLeadOnly: true },
-  { icon: FileCode, label: 'Developer Report', path: '/developer-report', category: 'Reports & Analytics', allowedDesignationNames: ['developer', 'dev'] },
-  { icon: Lightbulb, label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports & Analytics', allowedDesignationNames: ['hod', 'r&d', 'research'] },
-  { icon: Paintbrush, label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports & Analytics', allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'] },
-  { icon: FileVideo, label: 'Videographer Report', path: '/videographer-report', category: 'Reports & Analytics', allowedDesignationNames: ['video', 'editor', 'media'] },
-  { icon: BookOpenCheck, label: 'Academic Counselor Report', path: '/academic-counselor-report', category: 'Reports & Analytics', allowedDesignationNames: ['counselor', 'academic', 'tele'] },
-  { icon: Sliders, label: 'Ops Shift Report', path: '/ops-report', category: 'Reports & Analytics', allowedDesignationNames: ['ops', 'operation', 'sales'] },
-  { icon: PieChart, label: 'Marketing Shift Report', path: '/marketing-report', category: 'Reports & Analytics', allowedDesignationNames: ['marketing', 'marketer', 'digital'] },
+  // --- REPORTS ---
+  { icon: ClipboardCheck, label: 'HR Shift Report', path: '/hr-report', category: 'Reports', allowedDesignationNames: ['hr', 'recruiter'] },
+  { icon: Calculator, label: 'Accountant Shift Report', path: '/accountant-report', category: 'Reports', allowedDesignationNames: ['accountant', 'accounts', 'finance'] },
+  { icon: Sparkles, label: 'AI Reports', path: '/ai-report', category: 'Reports' },
+  { icon: Award, label: 'KPI Analytics', path: '/performance-dashboard', category: 'Reports', allowedRoles: ['1', '2', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl'] },
+  { icon: BarChart2, label: 'Employee Reports', path: '/employee-reports', category: 'Reports', allowedRoles: ['hr', 'admin'] },
+  { icon: UsersRound, label: 'Team Reports', path: '/team-reports', category: 'Reports', isTeamLeadOnly: true },
+  { icon: FileCode, label: 'Developer Report', path: '/developer-report', category: 'Reports', allowedDesignationNames: ['developer', 'dev'] },
+  { icon: Lightbulb, label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports', allowedDesignationNames: ['hod', 'r&d', 'research'] },
+  { icon: Paintbrush, label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports', allowedDesignationNames: ['graphic', 'designer', 'ui', 'ux'] },
+  { icon: FileVideo, label: 'Videographer Report', path: '/videographer-report', category: 'Reports', allowedDesignationNames: ['video', 'editor', 'media'] },
+  { icon: BookOpenCheck, label: 'Academic Counselor Report', path: '/academic-counselor-report', category: 'Reports', allowedDesignationNames: ['counselor', 'academic', 'tele'] },
+  { icon: Sliders, label: 'Ops Shift Report', path: '/ops-report', category: 'Reports', allowedDesignationNames: ['ops', 'operation', 'sales'] },
+  { icon: PieChart, label: 'Marketing Shift Report', path: '/marketing-report', category: 'Reports', allowedDesignationNames: ['marketing', 'marketer', 'digital'] },
   { icon: LayoutDashboard, label: 'Dashboard', path: '/common-dashboard', category: 'Overview', isCommonDashboardFallback: true },
-  { icon: ClipboardList, label: 'Daily Report', path: '/basic-report', category: 'Reports & Analytics', isBasicReportFallback: true },
+  { icon: ClipboardList, label: 'Daily Report', path: '/basic-report', category: 'Reports', isBasicReportFallback: true },
 
   // --- DAILY OPERATIONS ---
   { icon: Clock, label: 'Attendance', path: '/attendance', category: 'Daily Operations', excludeRoles: ['1', '2', 'hr', 'admin'] },
