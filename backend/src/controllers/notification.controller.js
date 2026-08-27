@@ -65,7 +65,7 @@ export const createNotification = async (req, res) => {
           sendEmail(
             u.email,
             `🔔 ${title || 'New Notification'}`,
-            `<p>Hello <strong>${u.name || 'Team Member'}</strong>,</p><p>${description.trim()}</p>${imageHtml}<p>- Sent via KOD.BRAND CRM HQ</p>`,
+            `<p>Hello <strong>${u.name || 'Team Member'}</strong>,</p><div style="white-space: pre-wrap; font-family: inherit; line-height: 1.6;">${description.trim()}</div>${imageHtml}<p>- Sent via KOD.BRAND CRM HQ</p>`,
             description.trim()
           );
         }
@@ -197,5 +197,57 @@ export const deleteNotification = async (req, res) => {
   } catch (error) {
     console.error('Error deleting notification:', error);
     return res.status(500).json({ success: false, message: error.message || 'Server error deleting notification.' });
+  }
+};
+
+export const updateNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ success: false, message: 'Invalid notification ID.' });
+    }
+
+    const { title, description, category, image, imageUrl, assignedTo } = req.body;
+
+    const notification = await Notification.findById(id);
+    if (!notification) {
+      return res.status(404).json({ success: false, message: 'Notification not found.' });
+    }
+
+    // Check authorization: creator or admin
+    const currentUserId = req.user?.id || req.user?._id;
+    const userRole = String(req.user?.role || req.user?.role_id || '').toLowerCase();
+    const isAdmin = ['admin', '1', '2', 'superadmin', 'md'].includes(userRole);
+
+    const isCreator = notification.createdBy && String(notification.createdBy) === String(currentUserId);
+
+    if (!isCreator && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Only the creator or admin can update this notification.' });
+    }
+
+    if (title !== undefined) notification.title = title.trim();
+    if (description !== undefined) notification.description = description.trim();
+    if (category !== undefined) notification.category = category.toLowerCase().trim();
+
+    const finalImage = imageUrl !== undefined ? imageUrl : image;
+    if (finalImage !== undefined) {
+      notification.image = finalImage;
+      notification.imageUrl = finalImage;
+    }
+
+    if (assignedTo && mongoose.Types.ObjectId.isValid(String(assignedTo))) {
+      notification.assignedTo = assignedTo;
+    }
+
+    await notification.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Notification updated successfully.',
+      data: notification
+    });
+  } catch (error) {
+    console.error('Error updating notification:', error);
+    return res.status(500).json({ success: false, message: error.message || 'Server error updating notification.' });
   }
 };

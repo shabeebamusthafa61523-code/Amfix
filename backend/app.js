@@ -97,6 +97,8 @@ app.use('/api/v1/academy', academyRoutes);
 app.use('/api/academy', academyRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/v1/notifications', notificationRoutes);
+app.use('/notifications', notificationRoutes);
 app.use('/api/v1/recruitment', recruitmentRoutes);
 app.use('/api/recruitment', recruitmentRoutes);
 
@@ -105,6 +107,8 @@ app.use('/api/v1', studentRoutes);
 app.use('/api/v1', crmRoutes);
 app.use('/api', studentRoutes); 
 app.use('/api', crmRoutes);
+app.use('/v1', studentRoutes);
+app.use('/v1', crmRoutes);
 app.use('/api', apiRoutes);      // Legacy base fallback route handler
 
 // Welcome / Root Health Check Route

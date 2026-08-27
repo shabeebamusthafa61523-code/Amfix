@@ -3,6 +3,7 @@ import ExpenseCategory from '../models/expenseCategory.model.js';
 import Expense from '../models/expense.model.js';
 import SalaryPayment from '../models/salaryPayment.model.js';
 import User from '../models/user.model.js';
+import Income from '../models/income.model.js';
 import { sendEmail } from '../services/emailService.js';
 
 const DEFAULT_CATEGORIES = [
@@ -201,7 +202,22 @@ export const getExpenses = async (req, res) => {
 
 export const createExpense = async (req, res) => {
   try {
-    const { date, category, amount, paymentMode, paidTo, description } = req.body;
+    const { 
+      date, 
+      category, 
+      amount, 
+      paymentMode, 
+      paidTo, 
+      description,
+      taxOption,
+      gstCategory,
+      gstRate,
+      gstAmount,
+      cgstAmount,
+      sgstAmount,
+      igstAmount,
+      totalAmount
+    } = req.body;
 
     if (!category || !amount || !paymentMode || !paidTo) {
       return res.status(400).json({
@@ -253,6 +269,14 @@ export const createExpense = async (req, res) => {
       addedBy: req.user?.id || null,
       addedByName,
       type: isSalary ? 'Salary' : 'Expense',
+      taxOption: taxOption || 'No GST',
+      gstCategory: gstCategory || 'NONE',
+      gstRate: parseFloat(gstRate || 0),
+      gstAmount: parseFloat(gstAmount || 0),
+      cgstAmount: parseFloat(cgstAmount || 0),
+      sgstAmount: parseFloat(sgstAmount || 0),
+      igstAmount: parseFloat(igstAmount || 0),
+      totalAmount: parseFloat(totalAmount || expAmount),
       status: initialStatus
     });
 
@@ -569,46 +593,100 @@ export const deleteSalaryPayment = async (req, res) => {
 
 export const getCashBook = async (req, res) => {
   try {
-    const { startDate, endDate, type, category, paymentMode } = req.query;
-    const query = {};
-
-    if (type) {
-      query.type = type; // 'Expense' or 'Salary'
-    }
-
-    if (category) {
-      query.category = category;
-    }
+    const { startDate, endDate, entryType, type, category, paymentMode } = req.query;
+    const expenseQuery = {};
+    const incomeQuery = {};
 
     if (paymentMode) {
       if (paymentMode === 'UPI_BANK' || paymentMode === 'UPI/BANK') {
-        query.paymentMode = { $in: ['UPI', 'Bank', 'upi', 'bank'] };
+        expenseQuery.paymentMode = { $in: ['UPI', 'Bank', 'upi', 'bank'] };
+        incomeQuery.paymentMethod = { $in: ['Bank Transfer', 'UPI / QR Code', 'Credit/Debit Card', 'Online Payment Gateway', 'UPI', 'Bank'] };
+      } else if (paymentMode === 'Cash' || paymentMode === 'CASH') {
+        expenseQuery.paymentMode = { $regex: '^cash$', $options: 'i' };
+        incomeQuery.paymentMethod = { $regex: '^cash$', $options: 'i' };
       } else {
-        query.paymentMode = paymentMode;
+        expenseQuery.paymentMode = paymentMode;
+        incomeQuery.paymentMethod = paymentMode;
       }
     }
 
     if (startDate || endDate) {
-      query.date = {};
-      if (startDate) query.date.$gte = new Date(startDate);
-      if (endDate) query.date.$lte = new Date(endDate + 'T23:59:59.999Z');
+      const dateFilter = {};
+      if (startDate) dateFilter.$gte = new Date(startDate);
+      if (endDate) dateFilter.$lte = new Date(endDate + 'T23:59:59.999Z');
+      expenseQuery.date = dateFilter;
+      incomeQuery.date = dateFilter;
     }
 
-    // Cash Book represents all money going out (from expenses collection which includes auto-created salary expenses)
-    const cashBookEntries = await Expense.find(query)
-      .populate('category', 'name')
-      .populate('addedBy', 'name email')
-      .sort({ date: -1, createdAt: -1 });
+    if (category) {
+      expenseQuery.category = category;
+    }
 
-    const totalOutflow = cashBookEntries.reduce((sum, item) => sum + (item.amount || 0), 0);
+    if (type) {
+      expenseQuery.type = type;
+    }
+
+    let expenses = [];
+    let incomes = [];
+
+    // Fetch Expenses if entryType is 'all' or 'EXPENSE'
+    if (!entryType || entryType === 'all' || entryType === 'EXPENSE') {
+      const expList = await Expense.find(expenseQuery)
+        .populate('category', 'name')
+        .populate('addedBy', 'name email')
+        .sort({ date: -1, createdAt: -1 });
+
+      expenses = expList.map(e => ({
+        _id: e._id,
+        entryType: 'EXPENSE', // Outflow
+        type: e.type || 'Expense',
+        categoryName: e.type === 'Salary' ? 'Employee Salary' : (e.categoryName || e.category?.name || 'General'),
+        paidTo: e.paidTo || 'N/A',
+        paymentMode: e.paymentMode || 'Cash',
+        amount: e.amount || 0,
+        date: e.date || e.createdAt,
+        referenceNo: e.receiptNo || e._id,
+        description: e.description || ''
+      }));
+    }
+
+    // Fetch Incomes if entryType is 'all' or 'INCOME'
+    if (!entryType || entryType === 'all' || entryType === 'INCOME') {
+      const incList = await Income.find(incomeQuery)
+        .sort({ date: -1, createdAt: -1 });
+
+      incomes = incList.map(i => ({
+        _id: i._id,
+        entryType: 'INCOME', // Inflow
+        type: i.sourceType || 'Income',
+        categoryName: i.department || 'Income',
+        paidTo: i.clientName ? `${i.title} (${i.clientName})` : i.title,
+        paymentMode: i.paymentMethod || 'Bank Transfer',
+        amount: i.amount || 0,
+        date: i.date || i.createdAt,
+        referenceNo: i.referenceNo || '',
+        description: i.description || ''
+      }));
+    }
+
+    // Combine and sort by date descending
+    const combinedLedger = [...incomes, ...expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // Calculate Summary Stats
+    const totalIncome = incomes.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalExpense = expenses.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const netBalance = totalIncome - totalExpense;
 
     return res.status(200).json({
       success: true,
       summary: {
-        totalOutflow,
-        totalEntries: cashBookEntries.length
+        totalIncome,
+        totalExpense,
+        totalOutflow: totalExpense,
+        netBalance,
+        totalEntries: combinedLedger.length
       },
-      data: cashBookEntries
+      data: combinedLedger
     });
   } catch (error) {
     console.error('getCashBook Error:', error);
@@ -1019,6 +1097,485 @@ export const sendSalaryPayslipEmail = async (req, res) => {
     });
   } catch (error) {
     console.error('sendSalaryPayslipEmail Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ==========================================
+// INCOME CONTROLLERS
+// ==========================================
+
+export const getIncomes = async (req, res) => {
+  try {
+    const { department, paymentMethod, startDate, endDate, search } = req.query;
+    const query = {};
+
+    if (department && department !== 'all') {
+      query.department = { $regex: new RegExp(`^${department.trim()}$`, 'i') };
+    }
+
+    if (paymentMethod && paymentMethod !== 'all') {
+      query.paymentMethod = paymentMethod;
+    }
+
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) query.date.$gte = new Date(startDate);
+      if (endDate) query.date.$lte = new Date(endDate + 'T23:59:59.999Z');
+    }
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      query.$or = [
+        { title: { $regex: q, $options: 'i' } },
+        { description: { $regex: q, $options: 'i' } },
+        { referenceNo: { $regex: q, $options: 'i' } },
+        { department: { $regex: q, $options: 'i' } },
+        { createdByName: { $regex: q, $options: 'i' } }
+      ];
+    }
+
+    const incomes = await Income.find(query).sort({ date: -1, createdAt: -1 }).populate('client');
+
+    const totalIncome = incomes.reduce((sum, item) => sum + (item.amount || 0), 0);
+
+    // Group by department
+    const deptBreakdown = incomes.reduce((acc, item) => {
+      const d = item.department || 'General';
+      acc[d] = (acc[d] || 0) + (item.amount || 0);
+      return acc;
+    }, {});
+
+    return res.status(200).json({
+      success: true,
+      summary: {
+        totalIncome,
+        totalEntries: incomes.length,
+        departmentBreakdown: deptBreakdown
+      },
+      data: incomes
+    });
+  } catch (error) {
+    console.error('getIncomes Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getIncomeById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ success: false, message: 'Invalid income record ID.' });
+    }
+
+    const income = await Income.findById(id).populate('client');
+    if (!income) {
+      return res.status(404).json({ success: false, message: 'Income record not found.' });
+    }
+
+    return res.status(200).json({ success: true, data: income });
+  } catch (error) {
+    console.error('getIncomeById Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const createIncome = async (req, res) => {
+  try {
+    const { 
+      title, 
+      amount, 
+      department, 
+      paymentMethod, 
+      date, 
+      referenceNo, 
+      description,
+      sourceType,
+      client,
+      clientName,
+      taxOption,
+      gstCategory,
+      gstRate,
+      gstAmount,
+      cgstAmount,
+      sgstAmount,
+      igstAmount,
+      totalAmount
+    } = req.body;
+
+    if (!title || !title.trim()) {
+      return res.status(400).json({ success: false, message: 'Income title / source is required.' });
+    }
+
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'Valid positive income amount is required.' });
+    }
+
+    if (!department || !department.trim()) {
+      return res.status(400).json({ success: false, message: 'Department is required.' });
+    }
+
+    const creatorId = req.user?.id || req.user?._id;
+    const creatorName = req.user?.name || 'Accountant';
+
+    let finalSourceType = sourceType || 'General';
+    if (client || (clientName && clientName.trim())) {
+      finalSourceType = 'Client';
+    } else if (department && department.trim() === 'Academy & LMS') {
+      finalSourceType = 'Academy';
+    }
+
+    let finalReferenceNo = referenceNo ? referenceNo.trim() : '';
+    if (!finalReferenceNo) {
+      const prefix = finalSourceType === 'Client' ? 'INV-KB-C' : finalSourceType === 'Academy' ? 'INV-KB-A' : 'INV-KB-G';
+      const sCount = await Income.countDocuments({ sourceType: finalSourceType });
+      finalReferenceNo = `${prefix}${1001 + sCount}`;
+    }
+
+    const inputStatus = req.body.status || 'Pending';
+
+    let finalReceiptNo = req.body.receiptNo ? req.body.receiptNo.trim() : '';
+    if (!finalReceiptNo && inputStatus === 'Paid') {
+      const recPrefix = finalSourceType === 'Client' ? 'REC-KB-C' : finalSourceType === 'Academy' ? 'REC-KB-A' : 'REC-KB-G';
+      const rCount = await Income.countDocuments({ receiptNo: { $ne: '' } });
+      finalReceiptNo = `${recPrefix}${1001 + rCount}`;
+    }
+
+    const income = new Income({
+      title: title.trim(),
+      amount: parsedAmount,
+      department: department.trim(),
+      paymentMethod: paymentMethod || 'Bank Transfer',
+      date: date ? new Date(date) : new Date(),
+      referenceNo: finalReferenceNo,
+      description: description ? description.trim() : '',
+      sourceType: finalSourceType,
+      client: client && mongoose.Types.ObjectId.isValid(String(client)) ? client : null,
+      clientName: clientName ? clientName.trim() : '',
+      taxOption: taxOption || 'No GST',
+      gstCategory: gstCategory || 'NONE',
+      gstRate: parseFloat(gstRate || 0),
+      gstAmount: parseFloat(gstAmount || 0),
+      cgstAmount: parseFloat(cgstAmount || 0),
+      sgstAmount: parseFloat(sgstAmount || 0),
+      igstAmount: parseFloat(igstAmount || 0),
+      totalAmount: parseFloat(totalAmount || parsedAmount),
+      status: inputStatus,
+      dueDate: req.body.dueDate ? new Date(req.body.dueDate) : new Date(Date.now() + 15*24*60*60*1000),
+      orderNumber: req.body.orderNumber ? req.body.orderNumber.trim() : '',
+      paymentTerms: req.body.paymentTerms || 'Due on Receipt',
+      accountsReceivable: req.body.accountsReceivable || 'Accounts Receivable',
+      salesperson: req.body.salesperson ? req.body.salesperson.trim() : '',
+      subject: req.body.subject ? req.body.subject.trim() : '',
+      discountRate: parseFloat(req.body.discountRate || 0),
+      discountAmount: parseFloat(req.body.discountAmount || 0),
+      tdsAmount: parseFloat(req.body.tdsAmount || 0),
+      tcsAmount: parseFloat(req.body.tcsAmount || 0),
+      adjustment: parseFloat(req.body.adjustment || 0),
+      receiptNo: finalReceiptNo,
+      receiptDate: req.body.receiptDate ? new Date(req.body.receiptDate) : (finalReceiptNo ? new Date() : null),
+      receiptAmount: (inputStatus === 'Paid' || inputStatus === 'Partially Paid') 
+        ? parseFloat(req.body.receiptAmount !== undefined ? req.body.receiptAmount : (totalAmount || parsedAmount))
+        : 0,
+      lineItems: Array.isArray(req.body.lineItems) && req.body.lineItems.length > 0 
+        ? req.body.lineItems.map(item => ({
+            description: item.description || title.trim(),
+            quantity: parseFloat(item.quantity || 1),
+            unitPrice: parseFloat(item.unitPrice || 0),
+            amount: parseFloat(item.amount || 0)
+          }))
+        : [{ description: title.trim(), quantity: 1, unitPrice: parsedAmount, amount: parsedAmount }],
+      notes: req.body.notes ? req.body.notes.trim() : 'Thanks for your business.',
+      terms: req.body.terms ? req.body.terms.trim() : 'Payment due within 15 days.',
+      createdBy: creatorId,
+      createdByName: creatorName
+    });
+
+    await income.save();
+
+    const populatedDoc = await Income.findById(income._id).populate('client');
+
+    return res.status(201).json({
+      success: true,
+      message: 'Income record saved successfully.',
+      data: populatedDoc || income
+    });
+  } catch (error) {
+    console.error('createIncome Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateIncome = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ success: false, message: 'Invalid income ID.' });
+    }
+
+    const { 
+      title, 
+      amount, 
+      department, 
+      paymentMethod, 
+      date, 
+      referenceNo, 
+      description,
+      sourceType,
+      client,
+      clientName,
+      taxOption,
+      gstRate,
+      gstAmount,
+      totalAmount
+    } = req.body;
+
+    const income = await Income.findById(id);
+    if (!income) {
+      return res.status(404).json({ success: false, message: 'Income record not found.' });
+    }
+
+    if (title !== undefined) income.title = title.trim();
+    if (amount !== undefined) {
+      const parsed = parseFloat(amount);
+      if (!isNaN(parsed) && parsed >= 0) {
+        income.amount = parsed;
+        if (Array.isArray(income.lineItems) && income.lineItems.length > 0) {
+          income.lineItems[0].unitPrice = parsed;
+          income.lineItems[0].amount = parsed * (income.lineItems[0].quantity || 1);
+        }
+      }
+    }
+    if (department !== undefined) income.department = department.trim();
+    if (paymentMethod !== undefined) income.paymentMethod = paymentMethod;
+    if (date !== undefined) income.date = new Date(date);
+    if (referenceNo !== undefined) income.referenceNo = referenceNo.trim();
+    if (description !== undefined) income.description = description.trim();
+    if (sourceType !== undefined) income.sourceType = sourceType;
+    if (client !== undefined) income.client = client && mongoose.Types.ObjectId.isValid(String(client)) ? client : null;
+    if (clientName !== undefined) income.clientName = clientName.trim();
+    if (taxOption !== undefined) income.taxOption = taxOption;
+    if (gstRate !== undefined) income.gstRate = parseFloat(gstRate || 0);
+    if (gstAmount !== undefined) income.gstAmount = parseFloat(gstAmount || 0);
+    if (totalAmount !== undefined) income.totalAmount = parseFloat(totalAmount || income.amount);
+    
+    if (req.body.status !== undefined) {
+      income.status = req.body.status;
+      if ((req.body.status === 'Paid' || req.body.status === 'Partially Paid') && !income.receiptNo) {
+        const sType = income.sourceType || 'General';
+        const recPrefix = sType === 'Client' ? 'REC-KB-C' : sType === 'Academy' ? 'REC-KB-A' : 'REC-KB-G';
+        const rCount = await Income.countDocuments({ receiptNo: { $ne: '' } });
+        income.receiptNo = `${recPrefix}${1001 + rCount}`;
+        income.receiptDate = new Date();
+      }
+    }
+    if (req.body.dueDate !== undefined) income.dueDate = new Date(req.body.dueDate);
+    if (req.body.orderNumber !== undefined) income.orderNumber = req.body.orderNumber.trim();
+    if (req.body.paymentTerms !== undefined) income.paymentTerms = req.body.paymentTerms;
+    if (req.body.accountsReceivable !== undefined) income.accountsReceivable = req.body.accountsReceivable;
+    if (req.body.salesperson !== undefined) income.salesperson = req.body.salesperson.trim();
+    if (req.body.subject !== undefined) income.subject = req.body.subject.trim();
+    if (req.body.discountRate !== undefined) income.discountRate = parseFloat(req.body.discountRate || 0);
+    if (req.body.discountAmount !== undefined) income.discountAmount = parseFloat(req.body.discountAmount || 0);
+    if (req.body.tdsAmount !== undefined) income.tdsAmount = parseFloat(req.body.tdsAmount || 0);
+    if (req.body.tcsAmount !== undefined) income.tcsAmount = parseFloat(req.body.tcsAmount || 0);
+    if (req.body.adjustment !== undefined) income.adjustment = parseFloat(req.body.adjustment || 0);
+    if (req.body.receiptNo !== undefined) income.receiptNo = req.body.receiptNo.trim();
+    if (req.body.receiptDate !== undefined) income.receiptDate = new Date(req.body.receiptDate);
+    
+    if (!Array.isArray(income.payments)) {
+      income.payments = [];
+    }
+
+    if (req.body.newPayment && typeof req.body.newPayment === 'object') {
+      income.payments.push({
+        receiptNo: req.body.newPayment.receiptNo || income.receiptNo || '',
+        receiptDate: req.body.newPayment.receiptDate ? new Date(req.body.newPayment.receiptDate) : new Date(),
+        amount: parseFloat(req.body.newPayment.amount || 0),
+        paymentMethod: req.body.newPayment.paymentMethod || income.paymentMethod || 'Bank Transfer',
+        notes: req.body.newPayment.notes || ''
+      });
+    } else if (req.body.receiptAmount !== undefined) {
+      const parsedRec = parseFloat(req.body.receiptAmount);
+      if (!isNaN(parsedRec) && parsedRec >= 0) {
+        if (req.body.addSettlement === true) {
+          income.payments.push({
+            receiptNo: req.body.receiptNo || income.receiptNo || '',
+            receiptDate: req.body.receiptDate ? new Date(req.body.receiptDate) : new Date(),
+            amount: parsedRec,
+            paymentMethod: req.body.paymentMethod || income.paymentMethod || 'Bank Transfer',
+            notes: req.body.notes || ''
+          });
+        } else if (income.payments.length > 0) {
+          const lastIdx = income.payments.length - 1;
+          income.payments[lastIdx].amount = parsedRec;
+          if (req.body.receiptNo) income.payments[lastIdx].receiptNo = req.body.receiptNo;
+          if (req.body.receiptDate) income.payments[lastIdx].receiptDate = new Date(req.body.receiptDate);
+          if (req.body.paymentMethod) income.payments[lastIdx].paymentMethod = req.body.paymentMethod;
+          if (req.body.notes) income.payments[lastIdx].notes = req.body.notes;
+        } else if (parsedRec > 0) {
+          income.payments.push({
+            receiptNo: req.body.receiptNo || income.receiptNo || '',
+            receiptDate: req.body.receiptDate ? new Date(req.body.receiptDate) : new Date(),
+            amount: parsedRec,
+            paymentMethod: req.body.paymentMethod || income.paymentMethod || 'Bank Transfer',
+            notes: req.body.notes || ''
+          });
+        }
+      }
+    }
+
+    const finalTotAmt = parseFloat(req.body.totalAmount !== undefined ? req.body.totalAmount : (income.totalAmount || income.amount || 0));
+    if (req.body.totalAmount !== undefined) income.totalAmount = finalTotAmt;
+    if (req.body.amount !== undefined) income.amount = parseFloat(req.body.amount || finalTotAmt);
+
+    // Dynamic Status calculated strictly from logged installment payments & balance due
+    const totalCollectedLogs = Array.isArray(income.payments) && income.payments.length > 0
+      ? income.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
+      : parseFloat(req.body.receiptAmount !== undefined ? req.body.receiptAmount : (income.receiptAmount || 0));
+
+    income.receiptAmount = totalCollectedLogs;
+    const balanceDueLogs = Math.max(0, finalTotAmt - totalCollectedLogs);
+
+    if (req.body.status === 'Paid') {
+      income.status = 'Paid';
+      income.receiptAmount = finalTotAmt;
+      if (!income.payments || income.payments.length === 0) {
+        income.payments = [{
+          receiptNo: income.receiptNo || 'REC-KB-1001',
+          receiptDate: income.receiptDate || new Date(),
+          amount: finalTotAmt,
+          paymentMethod: income.paymentMethod || 'Bank Transfer',
+          notes: 'Marked as Paid in full'
+        }];
+      }
+    } else if (req.body.status === 'Pending') {
+      income.status = 'Pending';
+      income.receiptAmount = 0;
+      income.payments = [];
+    } else if (totalCollectedLogs <= 0) {
+      income.status = 'Pending';
+    } else if (balanceDueLogs <= 0.01 || totalCollectedLogs >= (finalTotAmt - 0.01)) {
+      income.status = 'Paid';
+    } else {
+      income.status = 'Partially Paid';
+    }
+    if (Array.isArray(req.body.lineItems) && req.body.lineItems.length > 0) {
+      income.lineItems = req.body.lineItems.map(item => ({
+        description: item.description || income.title || '',
+        quantity: parseFloat(item.quantity || 1),
+        unitPrice: parseFloat(item.unitPrice || 0),
+        amount: parseFloat(item.amount || 0)
+      }));
+    }
+    if (req.body.notes !== undefined) income.notes = req.body.notes.trim();
+    if (req.body.terms !== undefined) income.terms = req.body.terms.trim();
+
+    await income.save();
+
+    const populatedIncome = await Income.findById(income._id).populate('client');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Income record updated successfully.',
+      data: populatedIncome || income
+    });
+  } catch (error) {
+    console.error('updateIncome Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteIncome = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ success: false, message: 'Invalid income ID.' });
+    }
+
+    await Income.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Income record deleted successfully.'
+    });
+  } catch (error) {
+    console.error('deleteIncome Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const recordPaymentSettlement = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, paymentMethod, receiptNo, receiptDate, notes } = req.body;
+
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ success: false, message: 'Invalid income record ID.' });
+    }
+
+    const income = await Income.findById(id);
+    if (!income) {
+      return res.status(404).json({ success: false, message: 'Income record not found.' });
+    }
+
+    const parsedAmount = parseFloat(amount || 0);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid settlement amount.' });
+    }
+
+    if (!Array.isArray(income.payments)) {
+      income.payments = [];
+    }
+
+    let finalRecNo = receiptNo && receiptNo.trim() ? receiptNo.trim() : income.receiptNo;
+    if (!finalRecNo) {
+      const sType = income.sourceType || 'General';
+      const recPrefix = sType === 'Client' ? 'REC-KB-C' : sType === 'Academy' ? 'REC-KB-A' : 'REC-KB-G';
+      const count = income.payments.length + 1;
+      const mongoIdNum = String(income._id).slice(-4).toUpperCase();
+      finalRecNo = `${recPrefix}${mongoIdNum}-${count}`;
+    }
+
+    const newPaymentEntry = {
+      receiptNo: finalRecNo,
+      receiptDate: receiptDate ? new Date(receiptDate) : new Date(),
+      amount: parsedAmount,
+      paymentMethod: paymentMethod || income.paymentMethod || 'Bank Transfer',
+      notes: notes ? notes.trim() : 'Payment settlement logged',
+      createdAt: new Date()
+    };
+
+    income.payments.push(newPaymentEntry);
+    income.receiptNo = finalRecNo;
+    income.receiptDate = newPaymentEntry.receiptDate;
+
+    const totalCollected = income.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
+    income.receiptAmount = totalCollected;
+
+    const totalBilled = income.totalAmount || income.amount || 0;
+    const balanceDue = Math.max(0, totalBilled - totalCollected);
+
+    if (totalCollected <= 0) {
+      income.status = 'Pending';
+    } else if (balanceDue <= 0.01 || totalCollected >= (totalBilled - 0.01)) {
+      income.status = 'Paid';
+    } else {
+      income.status = 'Partially Paid';
+    }
+
+    await income.save();
+
+    const populatedDoc = await Income.findById(income._id).populate('client');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Payment settlement logged successfully.',
+      data: populatedDoc || income
+    });
+  } catch (error) {
+    console.error('recordPaymentSettlement Error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
