@@ -1313,13 +1313,20 @@ export const updateTask = async (req, res, next) => {
 
     const userId = getAuthUserId(req);
 
+    const context = await getUserPermissionContext(req);
+    const { isAdminOrHr, isManagerOrLead } = context;
+
     const isCreator = normalizeId(task.created_by || task.user_id) === String(userId);
-
     const isSuperAdmin = isSuperAdminUser(req);
+    const isAssignee = Array.isArray(task.assigned_to) && task.assigned_to.some((id) => normalizeId(id) === String(userId));
 
-    if (!isCreator && !isSuperAdmin) {
+    // Check if request includes self-assignment
+    const requestAssignees = req.body?.assigned_to ? parseAssigneeIds(req.body.assigned_to) : [];
+    const isSelfAssigning = requestAssignees.includes(String(userId));
+
+    if (!isCreator && !isSuperAdmin && !isAdminOrHr && !isManagerOrLead && !isAssignee && !isSelfAssigning) {
       throw new AppError(
-        "Forbidden: Only the task creator or SuperAdmin can edit this task",
+        "Forbidden: You do not have permission to edit or assign this task",
         403,
       );
     }

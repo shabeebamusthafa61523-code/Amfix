@@ -1107,8 +1107,15 @@ export const sendSalaryPayslipEmail = async (req, res) => {
 
 export const getIncomes = async (req, res) => {
   try {
-    const { department, paymentMethod, startDate, endDate, search } = req.query;
+    const { department, paymentMethod, startDate, endDate, search, status, isInactive } = req.query;
     const query = {};
+
+    if (status === 'Inactive' || isInactive === 'true' || isInactive === true) {
+      query.$or = [{ status: 'Inactive' }, { isDeleted: true }];
+    } else {
+      query.status = { $ne: 'Inactive' };
+      query.isDeleted = { $ne: true };
+    }
 
     if (department && department !== 'all') {
       query.department = { $regex: new RegExp(`^${department.trim()}$`, 'i') };
@@ -1126,13 +1133,25 @@ export const getIncomes = async (req, res) => {
 
     if (search && search.trim()) {
       const q = search.trim();
-      query.$or = [
+      const searchConditions = [
         { title: { $regex: q, $options: 'i' } },
         { description: { $regex: q, $options: 'i' } },
         { referenceNo: { $regex: q, $options: 'i' } },
         { department: { $regex: q, $options: 'i' } },
-        { createdByName: { $regex: q, $options: 'i' } }
+        { createdByName: { $regex: q, $options: 'i' } },
+        { clientName: { $regex: q, $options: 'i' } },
+        { subject: { $regex: q, $options: 'i' } }
       ];
+
+      if (query.$or) {
+        query.$and = [
+          { $or: query.$or },
+          { $or: searchConditions }
+        ];
+        delete query.$or;
+      } else {
+        query.$or = searchConditions;
+      }
     }
 
     const incomes = await Income.find(query).sort({ date: -1, createdAt: -1 }).populate('client');
@@ -1227,19 +1246,46 @@ export const createIncome = async (req, res) => {
     }
 
     let finalReferenceNo = referenceNo ? referenceNo.trim() : '';
-    if (!finalReferenceNo) {
+    if (finalReferenceNo) {
+      // Ensure referenceNo is unique across ALL records (both active and inactive)
+      const existingRef = await Income.findOne({ referenceNo: finalReferenceNo });
+      if (existingRef) {
+        return res.status(400).json({
+          success: false,
+          message: `Invoice No. '${finalReferenceNo}' already exists (in active or inactive records). Invoice numbers cannot be repeated.`
+        });
+      }
+    } else {
       const prefix = finalSourceType === 'Client' ? 'INV-KB-C' : finalSourceType === 'Academy' ? 'INV-KB-A' : 'INV-KB-G';
-      const sCount = await Income.countDocuments({ sourceType: finalSourceType });
-      finalReferenceNo = `${prefix}${1001 + sCount}`;
+      const totalCount = await Income.countDocuments({});
+      let nextNum = 1001 + totalCount;
+      finalReferenceNo = `${prefix}${nextNum}`;
+      while (await Income.findOne({ referenceNo: finalReferenceNo })) {
+        nextNum++;
+        finalReferenceNo = `${prefix}${nextNum}`;
+      }
     }
 
     const inputStatus = req.body.status || 'Pending';
 
     let finalReceiptNo = req.body.receiptNo ? req.body.receiptNo.trim() : '';
-    if (!finalReceiptNo && inputStatus === 'Paid') {
+    if (finalReceiptNo) {
+      const existingRec = await Income.findOne({ receiptNo: finalReceiptNo });
+      if (existingRec) {
+        return res.status(400).json({
+          success: false,
+          message: `Receipt No. '${finalReceiptNo}' already exists (in active or inactive records). Receipt numbers cannot be repeated.`
+        });
+      }
+    } else if (inputStatus === 'Paid') {
       const recPrefix = finalSourceType === 'Client' ? 'REC-KB-C' : finalSourceType === 'Academy' ? 'REC-KB-A' : 'REC-KB-G';
       const rCount = await Income.countDocuments({ receiptNo: { $ne: '' } });
-      finalReceiptNo = `${recPrefix}${1001 + rCount}`;
+      let nextRecNum = 1001 + rCount;
+      finalReceiptNo = `${recPrefix}${nextRecNum}`;
+      while (await Income.findOne({ receiptNo: finalReceiptNo })) {
+        nextRecNum++;
+        finalReceiptNo = `${recPrefix}${nextRecNum}`;
+      }
     }
 
     const income = new Income({
@@ -1350,7 +1396,19 @@ export const updateIncome = async (req, res) => {
     if (department !== undefined) income.department = department.trim();
     if (paymentMethod !== undefined) income.paymentMethod = paymentMethod;
     if (date !== undefined) income.date = new Date(date);
-    if (referenceNo !== undefined) income.referenceNo = referenceNo.trim();
+    if (referenceNo !== undefined) {
+      const trimmedRef = referenceNo.trim();
+      if (trimmedRef && trimmedRef !== income.referenceNo) {
+        const existingRef = await Income.findOne({ referenceNo: trimmedRef, _id: { $ne: id } });
+        if (existingRef) {
+          return res.status(400).json({
+            success: false,
+            message: `Invoice No. '${trimmedRef}' already exists (in active or inactive records). Invoice numbers cannot be repeated.`
+          });
+        }
+      }
+      income.referenceNo = trimmedRef;
+    }
     if (description !== undefined) income.description = description.trim();
     if (sourceType !== undefined) income.sourceType = sourceType;
     if (client !== undefined) income.client = client && mongoose.Types.ObjectId.isValid(String(client)) ? client : null;
@@ -1494,14 +1552,73 @@ export const deleteIncome = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid income ID.' });
     }
 
+    const income = await Income.findById(id);
+    if (!income) {
+      return res.status(404).json({ success: false, message: 'Income record not found.' });
+    }
+
+    income.status = 'Inactive';
+    income.isDeleted = true;
+    income.deletedAt = new Date();
+    await income.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Invoice moved to Inactive tab successfully.'
+    });
+  } catch (error) {
+    console.error('deleteIncome Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const restoreIncome = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ success: false, message: 'Invalid income ID.' });
+    }
+
+    const income = await Income.findById(id);
+    if (!income) {
+      return res.status(404).json({ success: false, message: 'Income record not found.' });
+    }
+
+    const recPaid = parseFloat(income.receiptAmount || 0);
+    const targetStatus = (recPaid > 0 && recPaid >= (income.totalAmount || income.amount || 0))
+      ? 'Paid'
+      : (recPaid > 0 ? 'Partially Paid' : 'Pending');
+
+    income.status = targetStatus;
+    income.isDeleted = false;
+    income.deletedAt = null;
+    await income.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Invoice restored successfully to active list.'
+    });
+  } catch (error) {
+    console.error('restoreIncome Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const permanentDeleteIncome = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(String(id))) {
+      return res.status(400).json({ success: false, message: 'Invalid income ID.' });
+    }
+
     await Income.findByIdAndDelete(id);
 
     return res.status(200).json({
       success: true,
-      message: 'Income record deleted successfully.'
+      message: 'Income record permanently deleted.'
     });
   } catch (error) {
-    console.error('deleteIncome Error:', error);
+    console.error('permanentDeleteIncome Error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

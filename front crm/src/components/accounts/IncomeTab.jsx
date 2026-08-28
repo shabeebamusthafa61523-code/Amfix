@@ -22,10 +22,17 @@ import {
   FileText,
   Eye,
   CheckCircle2,
-  Clock
+  Clock,
+  Archive,
+  RotateCcw,
+  SlidersHorizontal,
+  Filter,
+  ArrowUpDown,
+  Calendar
 } from 'lucide-react';
 import { useToast } from '../ToastProvider';
 import { getClients } from '../../services/clientService';
+import ConfirmModal from '../ConfirmModal';
 import IncomeInvoiceModal from './IncomeInvoiceModal';
 import CreateInvoiceModal from './CreateInvoiceModal';
 
@@ -65,7 +72,7 @@ const PAYMENT_METHODS = [
 
 const DEFAULT_GST_RATES = [0, 5, 12, 18, 28];
 
-const IncomeTab = () => {
+const IncomeTab = ({ mode = 'sales' }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -81,10 +88,25 @@ const IncomeTab = () => {
   // Custom GST rates
   const [gstRatesList, setGstRatesList] = useState(DEFAULT_GST_RATES);
 
-  // Filter States
+  // Filter & Sort States
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('all');
   const [selectedMethodFilter, setSelectedMethodFilter] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [sortBy, setSortBy] = useState('date'); // 'date' | 'amount' | 'referenceNo' | 'company'
+  const [sortOrder, setSortOrder] = useState('desc'); // 'desc' | 'asc'
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
+  // Modal Confirmation state for Deletion, Inactive & Restore
+  const [confirmModalConfig, setConfirmModalConfig] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'danger',
+    confirmText: 'Confirm',
+    onConfirm: null
+  });
 
   // Add Income Form State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -166,14 +188,33 @@ const IncomeTab = () => {
     }
   }, [getAuthHeaders]);
 
+  // Active vs Inactive Tab State ('active' | 'inactive')
+  const [activeIncomeTab, setActiveIncomeTab] = useState('active');
+
+  // Calculate Active Filter Count
+  const activeFilterCount = React.useMemo(() => {
+    let count = 0;
+    if (startDate) count++;
+    if (endDate) count++;
+    if (selectedDeptFilter !== 'all') count++;
+    if (selectedMethodFilter !== 'all') count++;
+    if (sortBy !== 'date' || sortOrder !== 'desc') count++;
+    return count;
+  }, [startDate, endDate, selectedDeptFilter, selectedMethodFilter, sortBy, sortOrder]);
+
   // Fetch Income Records
   const fetchIncomes = useCallback(async () => {
     try {
       setLoading(true);
       const queryParams = new URLSearchParams();
+      if (activeIncomeTab === 'inactive') {
+        queryParams.append('status', 'Inactive');
+      }
       if (selectedDeptFilter !== 'all') queryParams.append('department', selectedDeptFilter);
       if (selectedMethodFilter !== 'all') queryParams.append('paymentMethod', selectedMethodFilter);
       if (searchQuery.trim()) queryParams.append('search', searchQuery.trim());
+      if (startDate) queryParams.append('startDate', startDate);
+      if (endDate) queryParams.append('endDate', endDate);
 
       const res = await fetch(getApiEndpoint(`/accounts/income?${queryParams.toString()}`), {
         headers: getAuthHeaders()
@@ -192,7 +233,161 @@ const IncomeTab = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedDeptFilter, selectedMethodFilter, searchQuery, getAuthHeaders, showToast]);
+  }, [activeIncomeTab, selectedDeptFilter, selectedMethodFilter, searchQuery, startDate, endDate, getAuthHeaders, showToast]);
+
+  const getNetPayableAmount = useCallback((inc) => {
+    if (!inc) return 0;
+    
+    const rawBase = parseFloat(inc.amount || 0) > 0
+      ? parseFloat(inc.amount)
+      : (Array.isArray(inc.lineItems) && inc.lineItems.length > 0 ? inc.lineItems.reduce((s, i) => s + (parseFloat(i.amount) || (parseFloat(i.quantity || 1) * parseFloat(i.unitPrice || 0)) || 0), 0) : 0);
+
+    const gstRate = parseFloat(inc.gstRate || 0);
+    const gstAmt = parseFloat(inc.gstAmount || 0) > 0
+      ? parseFloat(inc.gstAmount)
+      : (inc.taxOption === 'No GST' || !gstRate ? 0 : (rawBase * gstRate) / 100);
+
+    const totalBeforeDisc = rawBase + gstAmt;
+
+    const discAmt = parseFloat(inc.discountAmount || 0) > 0
+      ? parseFloat(inc.discountAmount)
+      : (parseFloat(inc.discountRate || 0) > 0
+        ? (inc.discountType === 'amount' ? parseFloat(inc.discountRate) : (totalBeforeDisc * parseFloat(inc.discountRate)) / 100)
+        : 0);
+
+    const calculatedNetPayable = Math.max(0, totalBeforeDisc - discAmt);
+
+    const storedTotal = parseFloat(inc.totalAmount || 0);
+    if (storedTotal > 0 && storedTotal > rawBase && gstRate > 0) {
+      return storedTotal;
+    }
+
+    return calculatedNetPayable;
+  }, []);
+
+  const salesSummaryMetrics = React.useMemo(() => {
+    let totalPayable = 0;
+    let totalReceived = 0;
+    let totalPendingBalance = 0;
+
+    incomes.forEach((inc) => {
+      const netPayable = getNetPayableAmount(inc);
+      totalPayable += netPayable;
+
+      const recStatus = String(inc.status || '').trim().toLowerCase();
+      const isExplicitlyPaid = recStatus === 'paid' || recStatus === 'completed';
+
+      let paid = 0;
+      if (Array.isArray(inc.payments) && inc.payments.length > 0) {
+        paid = inc.payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+      } else if (parseFloat(inc.receiptAmount || 0) > 0) {
+        paid = parseFloat(inc.receiptAmount);
+      } else if (isExplicitlyPaid) {
+        paid = netPayable;
+      }
+
+      const bal = Math.max(0, netPayable - paid);
+      totalReceived += paid;
+      totalPendingBalance += bal;
+    });
+
+    return { totalPayable, totalReceived, totalPendingBalance };
+  }, [incomes, getNetPayableAmount]);
+
+  // Sort and Filter Incomes Client-Side (Excludes Pending for Income tab; Shows all for Sales tab)
+  const sortedAndFilteredIncomes = React.useMemo(() => {
+    let result = incomes.filter((inc) => {
+      if (mode === 'income') {
+        const st = String(inc.status || '').trim().toLowerCase();
+        return st === 'paid' || st === 'partially paid' || st === 'completed';
+      }
+      return true;
+    });
+
+    result.sort((a, b) => {
+      let valA, valB;
+      if (sortBy === 'amount') {
+        valA = getNetPayableAmount(a);
+        valB = getNetPayableAmount(b);
+      } else if (sortBy === 'referenceNo') {
+        valA = (a.referenceNo || '').toLowerCase();
+        valB = (b.referenceNo || '').toLowerCase();
+      } else if (sortBy === 'company') {
+        valA = (a.clientName || (typeof a.client === 'object' && (a.client?.companyName || a.client?.name)) || a.sourceType || '').toLowerCase();
+        valB = (b.clientName || (typeof b.client === 'object' && (b.client?.companyName || b.client?.name)) || b.sourceType || '').toLowerCase();
+      } else {
+        // Default: 'date'
+        valA = new Date(a.date || a.createdAt).getTime();
+        valB = new Date(b.date || b.createdAt).getTime();
+      }
+
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [incomes, mode, sortBy, sortOrder, getNetPayableAmount]);
+
+  const displayReceiptRows = React.useMemo(() => {
+    if (mode !== 'income') return [];
+
+    const receiptsList = [];
+
+    sortedAndFilteredIncomes.forEach((inc) => {
+      const mongoIdNum = String(inc._id || '').slice(-4).toUpperCase() || '1001';
+      const resolvedSType = inc.sourceType || 'General';
+      const defaultRecNo = inc.receiptNo || (resolvedSType === 'Client' ? `REC-KB-C${mongoIdNum}` : resolvedSType === 'Academy' ? `REC-KB-A${mongoIdNum}` : `REC-KB-G${mongoIdNum}`);
+      const defaultInvNo = inc.referenceNo || (resolvedSType === 'Client' ? `INV-KB-C${mongoIdNum}` : resolvedSType === 'Academy' ? `INV-KB-A${mongoIdNum}` : `INV-KB-G${mongoIdNum}`);
+
+      const companyStr = (
+        inc.clientName ||
+        (typeof inc.client === 'object' && (inc.client?.companyName || inc.client?.clientName || inc.client?.name)) ||
+        inc.companyName ||
+        resolvedSType
+      ).trim();
+
+      if (Array.isArray(inc.payments) && inc.payments.length > 0) {
+        inc.payments.forEach((p, idx) => {
+          const amt = parseFloat(p.amount || 0);
+          if (amt <= 0) return;
+          const recNo = p.receiptNo || (idx === 0 ? defaultRecNo : `${defaultRecNo}-${idx + 1}`);
+          receiptsList.push({
+            id: p._id || `${inc._id}_rec_${idx}`,
+            receiptNo: recNo,
+            invoiceNo: defaultInvNo,
+            company: companyStr,
+            wayOfIncome: p.paymentMethod || inc.paymentMethod || 'Bank Transfer',
+            amountPaid: amt,
+            receiptDate: p.receiptDate || inc.receiptDate || inc.date || inc.createdAt,
+            parentRecord: inc,
+            settlementData: p
+          });
+        });
+      } else {
+        const netPayable = getNetPayableAmount(inc);
+        const recStatus = String(inc.status || '').trim().toLowerCase();
+        const isPaid = recStatus === 'paid' || recStatus === 'completed';
+        const recPaid = parseFloat(inc.receiptAmount || 0);
+        const amt = isPaid ? (recPaid > 0 ? recPaid : netPayable) : (recPaid > 0 ? recPaid : netPayable);
+        if (amt > 0) {
+          receiptsList.push({
+            id: `${inc._id}_rec_single`,
+            receiptNo: defaultRecNo,
+            invoiceNo: defaultInvNo,
+            company: companyStr,
+            wayOfIncome: inc.paymentMethod || 'Bank Transfer',
+            amountPaid: amt,
+            receiptDate: inc.receiptDate || inc.date || inc.createdAt,
+            parentRecord: inc,
+            settlementData: null
+          });
+        }
+      }
+    });
+
+    return receiptsList;
+  }, [sortedAndFilteredIncomes, mode, getNetPayableAmount]);
 
   useEffect(() => {
     fetchDepartments();
@@ -476,45 +671,135 @@ const IncomeTab = () => {
     await handleOpenDocumentModal(inc, 'receipt');
   };
 
-  // Delete Income Handler
-  const handleDeleteIncome = async (id, titleStr) => {
-    if (!window.confirm(`Are you sure you want to delete income entry "${titleStr}"?`)) return;
-
-    try {
-      const res = await fetch(getApiEndpoint(`/accounts/income/${id}`), {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        showToast("Income entry deleted.", "success");
-        fetchIncomes();
-      } else {
-        showToast(data.message || "Failed to delete income entry.", "error");
+  // Soft Delete Handler (Opens Modal to move to Inactive tab)
+  const handleDeleteIncome = (id, titleStr) => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Move Invoice to Inactive Tab?',
+      message: `Are you sure you want to move invoice "${titleStr || 'Record'}" to the Inactive tab? It can be restored anytime.`,
+      type: 'amber',
+      confirmText: 'Move to Inactive',
+      onConfirm: async () => {
+        setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+        try {
+          const res = await fetch(getApiEndpoint(`/accounts/income/${id}`), {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast(data.message || "Invoice moved to Inactive tab.", "success");
+            fetchIncomes();
+          } else {
+            showToast(data.message || "Failed to move invoice to Inactive.", "error");
+          }
+        } catch (err) {
+          console.error("Error deleting income:", err);
+          showToast("Error moving invoice to Inactive.", "error");
+        }
       }
-    } catch (err) {
-      console.error("Error deleting income:", err);
-      showToast("Error deleting income entry.", "error");
-    }
+    });
+  };
+
+  // Restore Income Handler (Opens Modal to re-activate invoice back to Active tab)
+  const handleRestoreIncome = (id, titleStr) => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Restore Invoice to Active List?',
+      message: `Restore invoice "${titleStr || 'Record'}" back to your active income list?`,
+      type: 'emerald',
+      confirmText: 'Restore Invoice',
+      onConfirm: async () => {
+        setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+        try {
+          const res = await fetch(getApiEndpoint(`/accounts/income/${id}/restore`), {
+            method: 'PUT',
+            headers: getAuthHeaders()
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast("Invoice restored to Active list successfully!", "success");
+            fetchIncomes();
+          } else {
+            showToast(data.message || "Failed to restore invoice.", "error");
+          }
+        } catch (err) {
+          console.error("Error restoring income:", err);
+          showToast("Error restoring invoice.", "error");
+        }
+      }
+    });
+  };
+
+  // Permanent Delete Income Handler (Opens Modal for permanent deletion)
+  const handlePermanentDeleteIncome = (id, titleStr) => {
+    setConfirmModalConfig({
+      isOpen: true,
+      title: 'Permanently Delete Invoice?',
+      message: `PERMANENT DELETE WARNING: Are you sure you want to permanently delete invoice "${titleStr || 'Record'}"? This action cannot be undone.`,
+      type: 'danger',
+      confirmText: 'Delete Permanently',
+      onConfirm: async () => {
+        setConfirmModalConfig(prev => ({ ...prev, isOpen: false }));
+        try {
+          const res = await fetch(getApiEndpoint(`/accounts/income/${id}/permanent`), {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast("Invoice permanently deleted.", "success");
+            fetchIncomes();
+          } else {
+            showToast(data.message || "Failed to permanently delete invoice.", "error");
+          }
+        } catch (err) {
+          console.error("Error permanently deleting income:", err);
+          showToast("Error deleting invoice.", "error");
+        }
+      }
+    });
   };
 
   return (
     <div className="space-y-4">
       {/* Sleek 1-Row Compact Header Toolbar */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-3 px-1 py-0.5">
         {/* Left Title & Total Metric Pill */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="w-8 h-8 rounded-xl bg-emerald-600/10 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
             <TrendingUp className="w-4 h-4" />
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-              Income Records
-              <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
-                Total: ₹{Math.round(summary.totalIncome || 0).toLocaleString('en-IN')}
-              </span>
+              {mode === 'income' ? 'Income Records & Received Payments' : 'Sales Records & Billing Ledger'}
             </h3>
+          </div>
+
+          {/* Active vs Inactive Sub-Tabs Switcher */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800 ml-1">
+            <button
+              type="button"
+              onClick={() => setActiveIncomeTab('active')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                activeIncomeTab === 'active'
+                  ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-2xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <TrendingUp size={13} /> Active Incomes
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveIncomeTab('inactive')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                activeIncomeTab === 'inactive'
+                  ? 'bg-white dark:bg-slate-800 text-rose-600 dark:text-rose-400 shadow-2xs'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Archive size={13} /> Inactive Tab
+            </button>
           </div>
         </div>
 
@@ -532,39 +817,36 @@ const IncomeTab = () => {
             <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
           </div>
 
-          {/* Department Filter */}
-          <select
-            value={selectedDeptFilter}
-            onChange={(e) => setSelectedDeptFilter(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
-          >
-            <option value="all">All Departments</option>
-            {departments.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-
-          {/* Payment Method Filter */}
-          <select
-            value={selectedMethodFilter}
-            onChange={(e) => setSelectedMethodFilter(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
-          >
-            <option value="all">All Ways of Income</option>
-            {PAYMENT_METHODS.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-
-          {/* Create Zoho Invoice Builder Page Button */}
+          {/* Single Sort & Filter Button */}
           <button
             type="button"
-            onClick={() => navigate('/accounts/create-invoice')}
-            className="py-1.5 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer active:scale-98 shrink-0"
+            onClick={() => setIsFilterModalOpen(true)}
+            className={`py-1.5 px-3 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer border ${
+              activeFilterCount > 0
+                ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 shadow-2xs'
+                : 'bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
           >
-            <FileText size={14} />
-            + Create Invoice
+            <SlidersHorizontal size={14} className={activeFilterCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500'} />
+            <span>Sort & Filter</span>
+            {activeFilterCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-emerald-600 text-white rounded-full text-[10px] font-extrabold ml-0.5">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
+
+          {/* Create Zoho Invoice Builder Page Button */}
+          {mode !== 'income' && (
+            <button
+              type="button"
+              onClick={() => navigate('/accounts/create-invoice')}
+              className="py-1.5 px-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer active:scale-98 shrink-0"
+            >
+              <FileText size={14} />
+              + Create Invoice
+            </button>
+          )}
         </div>
       </div>
 
@@ -575,7 +857,7 @@ const IncomeTab = () => {
             <Loader2 className="animate-spin text-emerald-600 mr-2" size={20} />
             Loading income records...
           </div>
-        ) : incomes.length === 0 ? (
+        ) : sortedAndFilteredIncomes.length === 0 ? (
           <div className="py-12 text-center text-slate-400 text-xs space-y-1">
             <Coins className="mx-auto text-slate-300 dark:text-slate-700 mb-2" size={28} />
             <p className="font-semibold text-slate-600 dark:text-slate-300">No Income Records Found</p>
@@ -585,33 +867,136 @@ const IncomeTab = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-slate-50/70 dark:bg-slate-950/50 border-b border-slate-200/60 dark:border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <tr>
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Source / Title</th>
-                  <th className="py-3 px-4">Source Type</th>
-                  <th className="py-3 px-4">Department</th>
-                  <th className="py-3 px-4">Way of Income</th>
-                  <th className="py-3 px-4">Ref No.</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Amount (₹)</th>
-                  <th className="py-3 px-4 text-right">Action</th>
-                </tr>
+                {mode === 'income' ? (
+                  <tr>
+                    <th className="py-3 px-4">Receipt No. & Date</th>
+                    <th className="py-3 px-4">Company / Client</th>
+                    <th className="py-3 px-4">Invoice No.</th>
+                    <th className="py-3 px-4">Way of Income</th>
+                    <th className="py-3 px-4 text-right">Amount Paid (₹)</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                ) : (
+                  <tr>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Source / Title</th>
+                    <th className="py-3 px-4">Source Type</th>
+                    <th className="py-3 px-4">Department</th>
+                    <th className="py-3 px-4">Way of Income</th>
+                    <th className="py-3 px-4">Ref No.</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Amount (₹)</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                )}
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-700 dark:text-slate-300 font-medium">
-                {incomes.map((inc) => (
+                {mode === 'income' ? (
+                  displayReceiptRows.map((rec) => (
+                    <tr key={rec.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/30 transition">
+                      <td className="py-3.5 px-4 whitespace-nowrap font-medium text-slate-500 dark:text-slate-400">
+                        <div className="font-mono font-extrabold text-slate-900 dark:text-slate-100 text-xs">
+                          #{rec.receiptNo}
+                        </div>
+                        <div className="text-[11px] text-slate-400">
+                          {new Date(rec.receiptDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <div className="font-extrabold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
+                          <Building2 size={13} className="text-indigo-500 shrink-0" />
+                          <span>{rec.company}</span>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 font-mono font-bold text-slate-700 dark:text-slate-300 text-[11px]">
+                        {rec.invoiceNo}
+                      </td>
+
+                      <td className="py-3.5 px-4">
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px] border border-emerald-200/60 dark:border-emerald-800/60">
+                          {rec.wayOfIncome}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right font-extrabold text-emerald-600 dark:text-emerald-400 text-sm font-mono">
+                        ₹{Math.round(rec.amountPaid).toLocaleString('en-IN')}
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocumentModal(rec.parentRecord, 'invoice')}
+                            className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 font-bold text-[11px] transition cursor-pointer flex items-center gap-1 border border-indigo-200/60 dark:border-indigo-800/60 shadow-2xs"
+                            title="View Tax Invoice"
+                          >
+                            <FileText size={12} className="text-indigo-600 dark:text-indigo-400" />
+                            <span>Invoice</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocumentModal(rec.parentRecord, 'receipt')}
+                            className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-300 font-bold text-[11px] transition cursor-pointer flex items-center gap-1 border border-emerald-200/60 dark:border-emerald-800/60 shadow-2xs"
+                            title="View Receipt Voucher"
+                          >
+                            <Receipt size={12} className="text-emerald-600 dark:text-emerald-400" />
+                            <span>Receipt</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDocumentModal(rec.parentRecord, 'logs')}
+                            className="p-1 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition cursor-pointer"
+                            title="View Logs & History"
+                          >
+                            <Eye size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  sortedAndFilteredIncomes.map((inc) => (
                   <tr key={inc._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/30 transition">
                     <td className="py-3.5 px-4 whitespace-nowrap font-medium text-slate-500 dark:text-slate-400">
                       {new Date(inc.date || inc.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </td>
-                    <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100">
-                      {inc.title}
-                      {inc.clientName && (
-                        <div className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-1 mt-0.5">
-                          <Users size={11} /> {inc.clientName}
+                    <td className="py-3.5 px-4">
+                      {/* 1. Company Name */}
+                      {(() => {
+                        const companyStr = (
+                          inc.clientName ||
+                          (typeof inc.client === 'object' && (inc.client?.companyName || inc.client?.clientName || inc.client?.name)) ||
+                          inc.companyName ||
+                          ''
+                        ).trim();
+
+                        return companyStr ? (
+                          <div className="font-extrabold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
+                            <Building2 size={13} className="text-indigo-500 shrink-0" />
+                            <span>{companyStr}</span>
+                          </div>
+                        ) : (
+                          <div className="font-extrabold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
+                            <Building2 size={13} className="text-slate-400 shrink-0" />
+                            <span>{inc.sourceType || 'General'}</span>
+                          </div>
+                        );
+                      })()}
+
+                      {/* 2. Title */}
+                      {inc.title && (
+                        <div className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mt-0.5 leading-tight">
+                          {inc.title}
                         </div>
                       )}
-                      {inc.description && (
-                        <div className="text-[11px] font-normal text-slate-400 line-clamp-1">{inc.description}</div>
+
+                      {/* 3. Subject */}
+                      {(inc.subject || inc.description) && (
+                        <div className="text-[11px] font-normal text-slate-400 dark:text-slate-500 line-clamp-1 mt-0.5">
+                          {inc.subject || inc.description}
+                        </div>
                       )}
                     </td>
                     <td className="py-3.5 px-4">
@@ -649,9 +1034,21 @@ const IncomeTab = () => {
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       {(() => {
-                        const statusStr = inc.status || 'Pending';
-                        const isFullyPaid = statusStr === 'Paid' || statusStr === 'PAID';
-                        const isPartiallyPaid = statusStr === 'Partially Paid';
+                        const netPayable = getNetPayableAmount(inc);
+                        const recStatus = String(inc.status || '').trim().toLowerCase();
+                        let paidAmt = 0;
+                        if (Array.isArray(inc.payments) && inc.payments.length > 0) {
+                          paidAmt = inc.payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+                        } else if (parseFloat(inc.receiptAmount || 0) > 0) {
+                          paidAmt = parseFloat(inc.receiptAmount);
+                        } else if (recStatus === 'paid' || recStatus === 'completed') {
+                          paidAmt = netPayable;
+                        }
+
+                        const balDue = Math.max(0, netPayable - paidAmt);
+                        const isFullyPaid = balDue <= 0.01 || recStatus === 'paid' || recStatus === 'completed';
+                        const isPartiallyPaid = !isFullyPaid && (paidAmt > 0 || recStatus === 'partially paid');
+
                         return (
                           <span className={`px-2 py-0.5 rounded-lg font-bold text-[10px] flex items-center gap-1 w-fit ${
                             isFullyPaid
@@ -668,13 +1065,47 @@ const IncomeTab = () => {
                         );
                       })()}
                     </td>
-                    <td className="py-3.5 px-4 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                      ₹{parseFloat(inc.amount || 0).toLocaleString('en-IN')}
-                      {inc.taxOption && inc.taxOption !== 'No GST' && (
-                        <div className="text-[10px] font-medium text-slate-400">
-                          {inc.taxOption} ({inc.gstRate}%)
-                        </div>
-                      )}
+                    <td className="py-3.5 px-4 text-right font-bold">
+                      {(() => {
+                        const netPayable = getNetPayableAmount(inc);
+                        const recStatus = String(inc.status || '').trim().toLowerCase();
+                        const isExplicitlyPaid = recStatus === 'paid' || recStatus === 'completed';
+
+                        let paidAmt = 0;
+                        if (Array.isArray(inc.payments) && inc.payments.length > 0) {
+                          paidAmt = inc.payments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+                        } else if (parseFloat(inc.receiptAmount || 0) > 0) {
+                          paidAmt = parseFloat(inc.receiptAmount);
+                        } else if (isExplicitlyPaid) {
+                          paidAmt = netPayable;
+                        }
+
+                        const balDue = Math.max(0, netPayable - paidAmt);
+
+                        return (
+                          <div className="space-y-0.5 text-right">
+                            <div className="text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
+                              ₹{Math.round(netPayable).toLocaleString('en-IN')}
+                            </div>
+                            
+                            <div className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                              Paid: ₹{Math.round(paidAmt).toLocaleString('en-IN')}
+                            </div>
+
+                            {balDue > 0.01 && (
+                              <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                Due: ₹{Math.round(balDue).toLocaleString('en-IN')}
+                              </div>
+                            )}
+
+                            {parseFloat(inc.gstRate || 0) > 0 && (
+                              <div className="text-[9px] font-medium text-slate-400">
+                                Incl. GST ({inc.gstRate}%)
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
@@ -695,24 +1126,46 @@ const IncomeTab = () => {
                         >
                           <Eye size={15} />
                         </button>
-                        <button
-                          onClick={() => handleOpenEdit(inc)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                          title="Edit Income"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteIncome(inc._id, inc.title)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
-                          title="Delete Income"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {activeIncomeTab === 'inactive' ? (
+                          <>
+                            <button
+                              onClick={() => handleRestoreIncome(inc._id, inc.title)}
+                              className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-300 font-bold text-[11px] transition cursor-pointer flex items-center gap-1 border border-emerald-200/60 dark:border-emerald-800/60 shadow-2xs"
+                              title="Restore invoice back to active list"
+                            >
+                              <RotateCcw size={12} />
+                              <span>Restore</span>
+                            </button>
+                            <button
+                              onClick={() => handlePermanentDeleteIncome(inc._id, inc.title)}
+                              className="p-1 rounded-lg text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                              title="Permanently Delete Invoice"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleOpenEdit(inc)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                              title="Edit Income"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteIncome(inc._id, inc.title)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                              title="Move Invoice to Inactive Tab"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>
@@ -1293,6 +1746,192 @@ const IncomeTab = () => {
         onClose={() => setIsCreateInvoiceOpen(false)}
         onInvoiceCreated={fetchIncomes}
         showToast={showToast}
+      />
+
+      {/* Sort & Filter Modal */}
+      {isFilterModalOpen && createPortal(
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl max-w-md w-full space-y-5 animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-600/10 dark:bg-emerald-400/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <SlidersHorizontal size={16} />
+                </div>
+                <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">Sort & Filter Incomes</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFilterModalOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Date From & Date To Filter */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Calendar size={13} className="text-emerald-600" /> Date Range Filter
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-400 block mb-1">Date From</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-400 block mb-1">Date To</span>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    />
+                  </div>
+                </div>
+                {/* Date Presets */}
+                <div className="flex items-center gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      setStartDate(todayStr);
+                      setEndDate(todayStr);
+                    }}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-[11px] font-bold text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const now = new Date();
+                      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+                      const todayStr = now.toISOString().split('T')[0];
+                      setStartDate(firstDay);
+                      setEndDate(todayStr);
+                    }}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg text-[11px] font-bold text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                  >
+                    This Month
+                  </button>
+                  {(startDate || endDate) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStartDate('');
+                        setEndDate('');
+                      }}
+                      className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-lg text-[11px] font-bold transition cursor-pointer"
+                    >
+                      Clear Dates
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Sorting Section */}
+              <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <ArrowUpDown size={13} className="text-indigo-600" /> Sort By
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+                  >
+                    <option value="date">📅 Date</option>
+                    <option value="amount">💰 Amount</option>
+                    <option value="referenceNo">🔢 Invoice / Ref No.</option>
+                    <option value="company">🏢 Company Name</option>
+                  </select>
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+                  >
+                    <option value="desc">⬇️ Newest / Highest First</option>
+                    <option value="asc">⬆️ Oldest / Lowest First</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Department Filter */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Department</label>
+                <select
+                  value={selectedDeptFilter}
+                  onChange={(e) => setSelectedDeptFilter(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+                >
+                  <option value="all">All Departments</option>
+                  {departments.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Payment Method Filter */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Way of Income / Payment Method</label>
+                <select
+                  value={selectedMethodFilter}
+                  onChange={(e) => setSelectedMethodFilter(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
+                >
+                  <option value="all">All Ways of Income</option>
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setSelectedDeptFilter('all');
+                  setSelectedMethodFilter('all');
+                  setSortBy('date');
+                  setSortOrder('desc');
+                }}
+                className="px-3 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer flex items-center gap-1 transition"
+              >
+                <RotateCcw size={13} /> Reset All
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsFilterModalOpen(false)}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer active:scale-98"
+              >
+                Apply & Close
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Interactive Delete, Inactive & Restore Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModalConfig.isOpen}
+        onClose={() => setConfirmModalConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModalConfig.onConfirm}
+        title={confirmModalConfig.title}
+        message={confirmModalConfig.message}
+        confirmText={confirmModalConfig.confirmText}
+        type={confirmModalConfig.type}
       />
     </div>
   );

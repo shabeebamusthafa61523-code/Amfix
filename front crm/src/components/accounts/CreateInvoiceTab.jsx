@@ -56,9 +56,17 @@ const CreateInvoiceTab = () => {
   const [receiptAmount, setReceiptAmount] = useState(0);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-  // Compact Line Items Table
+  // Compact Line Items Table (Specific Item Details choices)
+  const [itemOptions, setItemOptions] = useState([
+    'Poster',
+    'Brochure',
+    'Website',
+    'Domain',
+    'Server'
+  ]);
+
   const [lineItems, setLineItems] = useState([
-    { description: 'Professional Services', quantity: 1.00, unitPrice: 0.00, amount: 0.00 }
+    { description: 'Poster', quantity: 1.00, unitPrice: 0.00, amount: 0.00 }
   ]);
 
   // Tax & GST Configurations
@@ -68,6 +76,7 @@ const CreateInvoiceTab = () => {
 
   // Financial Summary Fields
   const [discountRate, setDiscountRate] = useState(0);
+  const [discountType, setDiscountType] = useState('percent'); // 'percent' or 'amount'
   const [tdsAmount, setTdsAmount] = useState(0);
   const [adjustment, setAdjustment] = useState(0);
 
@@ -408,20 +417,13 @@ const CreateInvoiceTab = () => {
   };
 
   const subtotalBase = lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-  const calcDiscount = (subtotalBase * (parseFloat(discountRate) || 0)) / 100;
-  const afterDiscountBase = Math.max(0, subtotalBase - calcDiscount);
   const numGstRate = parseFloat(gstRate) || 0;
 
   const calcTax = () => {
     if (taxOption === 'No GST' || numGstRate <= 0) {
       return { gstAmount: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0 };
     }
-    let gstAmt = 0;
-    if (taxOption === 'Exclusive GST') {
-      gstAmt = (afterDiscountBase * numGstRate) / 100;
-    } else {
-      gstAmt = afterDiscountBase - (afterDiscountBase / (1 + numGstRate / 100));
-    }
+    let gstAmt = (subtotalBase * numGstRate) / 100;
     let cgst = 0, sgst = 0, igst = 0;
     if (gstCategory === 'CGST_SGST') {
       cgst = gstAmt / 2;
@@ -433,10 +435,14 @@ const CreateInvoiceTab = () => {
   };
 
   const taxCalc = calcTax();
+  const totalBeforeDiscount = subtotalBase + taxCalc.gstAmount;
 
-  const grandTotal = Math.max(0, (
-    taxOption === 'Exclusive GST' ? afterDiscountBase + taxCalc.gstAmount : afterDiscountBase
-  ));
+  const discVal = parseFloat(discountRate) || 0;
+  const calcDiscount = discountType === 'percent'
+    ? (totalBeforeDiscount * discVal) / 100
+    : discVal;
+
+  const grandTotal = Math.max(0, totalBeforeDiscount - calcDiscount);
 
   const handleSubmitInvoice = async (e, overrideStatus = null) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -464,11 +470,13 @@ const CreateInvoiceTab = () => {
       return;
     }
 
-    const titleStr = subject.trim() || (sourceType === 'Client' 
+    const firstLineDesc = lineItems.find(i => i && i.description && i.description.trim())?.description?.trim();
+
+    const titleStr = firstLineDesc || (sourceType === 'Client' 
       ? `Invoice - ${clientName || 'Client'}`
       : sourceType === 'Academy'
       ? 'Academy Fee Invoice'
-      : lineItems[0]?.description || 'General Invoice');
+      : subject.trim() || 'General Invoice');
 
     try {
       setSubmitting(true);
@@ -494,6 +502,7 @@ const CreateInvoiceTab = () => {
         sgstAmount: taxCalc.sgstAmount,
         igstAmount: taxCalc.igstAmount,
         discountRate: parseFloat(discountRate || 0),
+        discountType,
         discountAmount: calcDiscount,
         tdsAmount: parseFloat(tdsAmount || 0),
         adjustment: parseFloat(adjustment || 0),
@@ -763,8 +772,8 @@ const CreateInvoiceTab = () => {
           </div>
         </div>
 
-        {/* Single Row 4-Column Grid: Invoice Date, Due Date, Salesperson, Way of Income */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Single Row 3-Column Grid: Invoice Date, Due Date, Salesperson */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           <div>
             <label className="block text-[9px] font-extrabold uppercase text-slate-400 mb-0.5">Invoice Date</label>
             <input
@@ -794,21 +803,6 @@ const CreateInvoiceTab = () => {
               placeholder="Salesperson / Account Manager"
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-[11px] font-semibold focus:outline-none"
             />
-          </div>
-
-          <div>
-            <label className="block text-[9px] font-extrabold uppercase text-slate-400 mb-0.5">Way of Income (Payment Mode)</label>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1 text-[11px] font-semibold cursor-pointer"
-            >
-              <option value="Bank Transfer">Bank Transfer</option>
-              <option value="UPI / QR Code">UPI / QR Code</option>
-              <option value="Credit Card">Credit Card</option>
-              <option value="Cash">Cash</option>
-              <option value="Cheque">Cheque</option>
-            </select>
           </div>
         </div>
 
@@ -854,14 +848,77 @@ const CreateInvoiceTab = () => {
                 {lineItems.map((item, idx) => (
                   <tr key={idx}>
                     <td className="p-1">
-                      <input
-                        type="text"
-                        value={item.description}
-                        onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
-                        placeholder="Type or select item details..."
-                        className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1 text-[11px] font-semibold focus:outline-none"
-                        required
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={itemOptions.includes(item.description) ? item.description : (item.description ? 'Custom Item' : '')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '__MANAGE_DELETE__') {
+                              if (itemOptions.length === 0) {
+                                showToast('No dropdown items to delete.', 'warning');
+                                return;
+                              }
+                              const itemToDelete = window.prompt(
+                                `Select an item to remove from dropdown:\n\n${itemOptions.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}\n\nEnter the item number (1-${itemOptions.length}) or name to delete:`
+                              );
+                              if (itemToDelete && itemToDelete.trim()) {
+                                const inputStr = itemToDelete.trim();
+                                const idxNum = parseInt(inputStr, 10);
+                                let targetOpt = '';
+                                if (!isNaN(idxNum) && idxNum >= 1 && idxNum <= itemOptions.length) {
+                                  targetOpt = itemOptions[idxNum - 1];
+                                } else {
+                                  targetOpt = itemOptions.find(o => o.toLowerCase() === inputStr.toLowerCase()) || inputStr;
+                                }
+
+                                if (targetOpt && itemOptions.includes(targetOpt)) {
+                                  if (window.confirm(`Delete '${targetOpt}' from dropdown choices?`)) {
+                                    setItemOptions(prev => {
+                                      const updated = prev.filter(o => o !== targetOpt);
+                                      localStorage.setItem('crm_item_options', JSON.stringify(updated));
+                                      return updated;
+                                    });
+                                    handleItemChange(idx, 'description', '');
+                                    showToast(`Deleted '${targetOpt}' from dropdown!`, 'info');
+                                  }
+                                } else {
+                                  showToast('Item not found in dropdown options.', 'warning');
+                                }
+                              }
+                              return;
+                            }
+                            handleItemChange(idx, 'description', val);
+                          }}
+                          className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-md px-2 py-1 text-[11px] font-semibold outline-none cursor-pointer flex-1 min-w-[130px]"
+                        >
+                          <option value="">Select Item / Service...</option>
+                          {itemOptions.map((opt, i) => (
+                            <option key={i} value={opt}>{opt}</option>
+                          ))}
+                          <option value="__MANAGE_DELETE__">🗑️ Delete an Option from Dropdown...</option>
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const customItem = window.prompt("Enter new item / service name to add to dropdown:");
+                            if (customItem && customItem.trim()) {
+                              const trimmed = customItem.trim();
+                              setItemOptions(prev => {
+                                const updated = prev.includes(trimmed) ? prev : [...prev, trimmed];
+                                localStorage.setItem('crm_item_options', JSON.stringify(updated));
+                                return updated;
+                              });
+                              handleItemChange(idx, 'description', trimmed);
+                              showToast(`Added '${trimmed}' to items dropdown!`, 'success');
+                            }
+                          }}
+                          className="p-1 px-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 rounded-md border border-indigo-200 dark:border-indigo-800 transition cursor-pointer shrink-0 flex items-center gap-1 font-bold text-[10px]"
+                          title="Add new item option to dropdown"
+                        >
+                          <Plus size={13} />
+                        </button>
+                      </div>
                     </td>
                     <td className="p-1 text-center">
                       <input
@@ -938,35 +995,18 @@ const CreateInvoiceTab = () => {
 
           <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5 text-[11px]">
             <div className="flex justify-between items-center text-slate-600 dark:text-slate-400">
-              <span className="font-semibold">Sub Total</span>
-              <span className="font-bold text-slate-900 dark:text-slate-100">{Math.round(subtotalBase).toLocaleString('en-IN')}</span>
+              <span className="font-semibold">Subtotal Base:</span>
+              <span className="font-bold text-slate-900 dark:text-slate-100">₹{Math.round(subtotalBase).toLocaleString('en-IN')}</span>
             </div>
 
-            <div className="flex justify-between items-center text-slate-600 dark:text-slate-400 gap-2">
-              <span className="font-semibold shrink-0">Discount</span>
-              <div className="flex items-center gap-1">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={discountRate}
-                  onChange={(e) => setDiscountRate(e.target.value)}
-                  placeholder="0"
-                  className="w-12 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-right focus:outline-none"
-                />
-                <span className="font-bold text-slate-500 text-[10px]">%</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300 w-16 text-right">- {Math.round(calcDiscount).toLocaleString('en-IN')}</span>
-              </div>
-            </div>
-
-            <div className="pt-1.5 border-t border-slate-200/60 dark:border-slate-800 space-y-1">
+            <div className="pt-1 border-t border-slate-200/60 dark:border-slate-800 space-y-1">
               <div className="flex items-center justify-between gap-1.5 flex-wrap">
                 <select
-                  value={taxOption}
+                  value={taxOption === 'No GST' ? 'No GST' : 'Inclusive GST'}
                   onChange={(e) => setTaxOption(e.target.value)}
                   className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-1.5 py-0.5 text-[11px] font-semibold cursor-pointer"
                 >
-                  <option value="Exclusive GST">Exclusive GST</option>
-                  <option value="Inclusive GST">Inclusive GST</option>
+                  <option value="Inclusive GST">Apply GST Tax</option>
                   <option value="No GST">No GST (0%)</option>
                 </select>
 
@@ -1004,14 +1044,43 @@ const CreateInvoiceTab = () => {
                       ? `CGST (${(numGstRate / 2).toFixed(1)}%) + SGST (${(numGstRate / 2).toFixed(1)}%)`
                       : `IGST (${numGstRate}%)`}
                   </span>
-                  <span>+ {Math.round(taxCalc.gstAmount).toLocaleString('en-IN')}</span>
+                  <span>+ ₹{Math.round(taxCalc.gstAmount).toLocaleString('en-IN')}</span>
                 </div>
               )}
             </div>
 
-            <div className="flex justify-between items-center border-t-2 border-slate-300 dark:border-slate-700 pt-1.5 text-sm font-black text-slate-900 dark:text-slate-100">
-              <span>Total ( ₹ )</span>
-              <span className="text-indigo-600 dark:text-indigo-400">{Math.round(grandTotal).toLocaleString('en-IN')}</span>
+            <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 font-bold border-t border-slate-200/60 dark:border-slate-800 pt-1">
+              <span>Total:</span>
+              <span>₹{Math.round(totalBeforeDiscount).toLocaleString('en-IN')}</span>
+            </div>
+
+            <div className="flex justify-between items-center text-slate-600 dark:text-slate-400 gap-2">
+              <span className="font-semibold shrink-0 text-rose-600 dark:text-rose-400">- Discount</span>
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={discountRate}
+                  onChange={(e) => setDiscountRate(e.target.value)}
+                  placeholder="0"
+                  className="w-14 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-1.5 py-0.5 text-[11px] font-bold text-right focus:outline-none"
+                />
+                <select
+                  value={discountType}
+                  onChange={(e) => setDiscountType(e.target.value)}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-1 py-0.5 text-[10px] font-extrabold cursor-pointer text-slate-700 dark:text-slate-200 outline-none"
+                  title="Select Discount Type (Percentage % or Amount ₹)"
+                >
+                  <option value="percent">% (%)</option>
+                  <option value="amount">₹ (₹)</option>
+                </select>
+                <span className="font-bold text-rose-600 dark:text-rose-400 w-16 text-right">- ₹{Math.round(calcDiscount).toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center border-t-2 border-slate-300 dark:border-slate-700 pt-1.5 text-xs font-black text-slate-900 dark:text-slate-100">
+              <span className="uppercase tracking-wider">Total Payable (Incl. GST):</span>
+              <span className="text-sm font-extrabold text-indigo-600 dark:text-indigo-400">₹{Math.round(grandTotal).toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>
@@ -1022,15 +1091,15 @@ const CreateInvoiceTab = () => {
             <div className="flex items-center justify-between border-b border-emerald-200/80 dark:border-emerald-800/80 pb-2 flex-wrap gap-2">
               <h3 className="text-xs font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 uppercase tracking-wider">
                 <Receipt size={14} className="text-emerald-600 dark:text-emerald-400" />
-                Payment Receipt Details (Auto-Generated & Editable)
+                Receipt Voucher Details (Auto-Generated & Editable)
               </h3>
               <button
                 type="button"
                 onClick={() => setIsPreviewModalOpen(true)}
                 className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                title="Preview & View Payment Receipt Document"
+                title="Preview & View Receipt Voucher Document"
               >
-                <Eye size={13} /> View / Print Receipt
+                <Eye size={13} /> View / Print Receipt Voucher
               </button>
             </div>
 
@@ -1107,16 +1176,6 @@ const CreateInvoiceTab = () => {
 
         {/* Bottom Save Action Bar */}
         <div className="pt-3 border-t border-slate-200/80 dark:border-slate-800 flex items-center justify-end gap-2">
-          {status !== 'Paid' && !editingId && (
-            <button
-              type="button"
-              onClick={handleMarkAsPaid}
-              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer flex items-center gap-1.5 shadow-xs"
-              title="Mark Invoice as Paid & Generate Receipt"
-            >
-              <CheckCircle2 size={13} /> Mark as Paid
-            </button>
-          )}
           <button
             type="button"
             onClick={() => navigate('/accounts/income')}
@@ -1143,7 +1202,7 @@ const CreateInvoiceTab = () => {
           onClose={() => setIsPreviewModalOpen(false)}
           incomeRecord={{
             _id: editingId || 'PREVIEW',
-            title: subject.trim() || (sourceType === 'Client' ? `Invoice - ${clientName}` : 'Invoice Services'),
+            title: (lineItems.find(i => i && i.description && i.description.trim())?.description?.trim()) || (sourceType === 'Client' ? `Invoice - ${clientName}` : subject.trim() || 'Invoice Services'),
             amount: subtotalBase,
             department,
             paymentMethod,

@@ -69,11 +69,15 @@ const ALL_SIDEBAR_ITEMS = [
 
   // Finance & Accounts
   { label: 'Accounts', path: '/accounts', category: 'Finance', desc: 'Expense management, salary & cash book overview' },
+  { label: 'Sales', path: '/accounts/income', category: 'Finance', desc: 'Revenue, client invoices & payment receipt records' },
+  { label: 'Income', path: '/accounts/sales', category: 'Finance', desc: 'Client sales deals, billing invoices & revenue tracking' },
+  { label: 'Purchase', path: '/accounts/purchase', category: 'Finance', desc: 'Vendor procurement, purchase orders & stock bills' },
+  { label: 'Create Invoice', path: '/accounts/create-invoice', category: 'Finance', desc: 'Itemized Zoho tax invoice & billing builder' },
   { label: 'Expense Categories', path: '/accounts/categories', category: 'Finance', desc: 'Account expense categories' },
-  { label: 'Add Expense', path: '/accounts/expenses', category: 'Finance', desc: 'Record & upload expense vouchers' },
+  { label: 'Expense', path: '/accounts/expenses', category: 'Finance', desc: 'Record & upload expense vouchers' },
   { label: 'Salary Payment', path: '/accounts/salary', category: 'Finance', desc: 'Salary payment processing & disbursal' },
   { label: 'Cash Book', path: '/accounts/cash-book', category: 'Finance', desc: 'Cash book ledger & transaction history' },
-  { label: 'Expense Report', path: '/accounts/reports', category: 'Finance', desc: 'Financial expense analytics & summaries' },
+  { label: 'Financial Report', path: '/accounts/reports', category: 'Finance', desc: 'Financial expense analytics & summaries' },
   { label: 'Payslips', path: '/payslips', category: 'Finance', desc: 'Employee payslip generation & disbursal records' },
   { label: 'Personal Payslip', path: '/my-payslip', category: 'Finance', desc: 'Personal salary slip portal for individual employees' },
 

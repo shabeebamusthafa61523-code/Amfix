@@ -1,11 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { getDailyReport, getMonthlyReport, getCategoryWiseReport, getSalaryReport } from '../../services/accountsService';
-import { BarChart3, Calendar, PieChart, DollarSign, ArrowDownToLine, RefreshCw, FileSpreadsheet } from 'lucide-react';
+import { BarChart3, Calendar, PieChart, DollarSign, ArrowDownToLine, RefreshCw, TrendingUp, TrendingDown, Coins } from 'lucide-react';
+
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
+const getApiEndpoint = (path) => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (API_BASE.endsWith('/v1')) {
+    return `${API_BASE}${cleanPath}`;
+  }
+  if (API_BASE.endsWith('/api')) {
+    return `${API_BASE}/v1${cleanPath}`;
+  }
+  return `${API_BASE}/api/v1${cleanPath}`;
+};
+
+const getAuthHeaders = () => {
+  const rawToken = localStorage.getItem('token') || '';
+  const cleanToken = rawToken.replace(/^"(.*)"$/, '$1').trim();
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': cleanToken.startsWith('Bearer ') ? cleanToken : `Bearer ${cleanToken}`
+  };
+};
 
 const ExpenseReportsTab = () => {
   const [activeReportSubTab, setActiveReportSubTab] = useState('daily');
   const [loading, setLoading] = useState(true);
   const [reportData, setReportData] = useState(null);
+  const [incomes, setIncomes] = useState([]);
+  const [purchases, setPurchases] = useState([]);
   const [error, setError] = useState('');
 
   // Daily Filter
@@ -22,10 +46,53 @@ const ExpenseReportsTab = () => {
   // Salary Filter
   const [salaryMonth, setSalaryMonth] = useState('');
 
+  const fetchIncomeData = async () => {
+    try {
+      const res = await fetch(getApiEndpoint('/accounts/income'), { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setIncomes(data.data);
+        }
+      }
+    } catch (e) {
+      console.warn('Error fetching income for financial report:', e);
+    }
+  };
+
+  const fetchPurchaseData = async () => {
+    try {
+      const savedLocal = JSON.parse(localStorage.getItem('crm_purchase_records') || '[]');
+      const res = await fetch(getApiEndpoint('/accounts/expenses'), { headers: getAuthHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          const filtered = data.data.filter(item => {
+            const cat = String(item.categoryName || item.category || '').toLowerCase();
+            return cat.includes('purchase') || cat.includes('inventory') || item.isPurchase === true;
+          });
+          const combinedMap = new Map();
+          savedLocal.forEach(p => combinedMap.set(String(p._id || p.id), p));
+          filtered.forEach(p => combinedMap.set(String(p._id || p.id), p));
+          setPurchases(Array.from(combinedMap.values()));
+        } else {
+          setPurchases(savedLocal);
+        }
+      } else {
+        setPurchases(savedLocal);
+      }
+    } catch (e) {
+      const saved = localStorage.getItem('crm_purchase_records');
+      if (saved) setPurchases(JSON.parse(saved));
+    }
+  };
+
   const fetchReport = async () => {
     setLoading(true);
     setError('');
     try {
+      await Promise.all([fetchIncomeData(), fetchPurchaseData()]);
+
       if (activeReportSubTab === 'daily') {
         const res = await getDailyReport({ date: dailyDate });
         if (res.success) setReportData(res);
@@ -55,6 +122,37 @@ const ExpenseReportsTab = () => {
     window.print();
   };
 
+  // Helper calculations for Daily Income vs Expense
+  const getDailyIncomes = () => {
+    if (!dailyDate || !Array.isArray(incomes)) return [];
+    return incomes.filter(inc => {
+      const incDate = inc.date ? new Date(inc.date).toISOString().split('T')[0] : '';
+      return incDate === dailyDate;
+    });
+  };
+
+  const dayIncomesList = getDailyIncomes();
+  const dayIncomeTotal = dayIncomesList.reduce((sum, item) => sum + (Number(item.receiptAmount || item.totalAmount || item.amount) || 0), 0);
+  const dayExpenseTotal = reportData?.summary?.totalAmount || 0;
+  const dayNetSurplus = dayIncomeTotal - dayExpenseTotal;
+
+  // Helper calculations for Monthly Income vs Expense
+  const getMonthlyIncomes = () => {
+    if (!Array.isArray(incomes)) return [];
+    const targetMonth = parseInt(monthlyMonth, 10);
+    const targetYear = parseInt(monthlyYear, 10);
+    return incomes.filter(inc => {
+      if (!inc.date) return false;
+      const d = new Date(inc.date);
+      return d.getMonth() + 1 === targetMonth && d.getFullYear() === targetYear;
+    });
+  };
+
+  const monthIncomesList = getMonthlyIncomes();
+  const monthIncomeTotal = monthIncomesList.reduce((sum, item) => sum + (Number(item.receiptAmount || item.totalAmount || item.amount) || 0), 0);
+  const monthExpenseTotal = reportData?.summary?.totalAmount || 0;
+  const monthNetProfit = monthIncomeTotal - monthExpenseTotal;
+
   return (
     <div className="space-y-6">
       {/* Sub-tab Navigation Header */}
@@ -62,10 +160,10 @@ const ExpenseReportsTab = () => {
         <div>
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-            Accounts & Financial Reports
+            Profit & Loss Statement (P&L Analytics)
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Consolidated analytical reporting for expenses and salary disbursements.
+            Consolidated statement of Sales, Income Receipts, Vendor Procurement Purchases, Operational Expenses, and Net Profit.
           </p>
         </div>
 
@@ -79,55 +177,55 @@ const ExpenseReportsTab = () => {
           </button>
           <button
             onClick={fetchReport}
-            className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
-            title="Refresh Report"
+            className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
+            title="Refresh Financial Report"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
       </div>
 
-      {/* 4 Required Report Selector Buttons */}
+      {/* Report Sub-tab Selectors */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800">
         <button
           onClick={() => setActiveReportSubTab('daily')}
-          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
             activeReportSubTab === 'daily'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
           <Calendar size={15} />
-          <span>Daily Expense</span>
+          <span>Daily Financial Ledger</span>
         </button>
 
         <button
           onClick={() => setActiveReportSubTab('monthly')}
-          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
             activeReportSubTab === 'monthly'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
           <BarChart3 size={15} />
-          <span>Monthly Expense</span>
+          <span>Monthly Income vs Expense</span>
         </button>
 
         <button
           onClick={() => setActiveReportSubTab('category')}
-          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
             activeReportSubTab === 'category'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
           }`}
         >
           <PieChart size={15} />
-          <span>Category-wise</span>
+          <span>Category Breakdown</span>
         </button>
 
         <button
           onClick={() => setActiveReportSubTab('salary')}
-          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
             activeReportSubTab === 'salary'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
@@ -140,13 +238,15 @@ const ExpenseReportsTab = () => {
 
       {/* ── REPORT CONTENT PANEL ── */}
 
-      {/* 1. DAILY EXPENSE REPORT */}
+      {/* 1. DAILY FINANCIAL LEDGER (INCOME + EXPENSES) */}
       {activeReportSubTab === 'daily' && (
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Daily Expense Breakdown</h3>
-              <p className="text-xs text-slate-400">Filter expenses recorded on a specific date.</p>
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                Daily Financial Ledger
+              </h3>
+              <p className="text-xs text-slate-400">Consolidated day-wise view of income receipts and expense outflows.</p>
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-400">Select Date:</label>
@@ -154,62 +254,133 @@ const ExpenseReportsTab = () => {
                 type="date"
                 value={dailyDate}
                 onChange={(e) => setDailyDate(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-medium"
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs font-medium cursor-pointer"
               />
             </div>
           </div>
 
-          {/* Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
-              <p className="text-xs text-slate-400 font-semibold">Total Day Expense</p>
-              <h4 className="text-xl font-black text-slate-900 dark:text-white mt-1">
-                ₹{(reportData?.summary?.totalAmount || 0).toLocaleString('en-IN')}
+          {/* Comprehensive 5-Column Profit & Loss Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="bg-white dark:bg-slate-900 border border-blue-500/20 dark:border-blue-500/30 rounded-2xl p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Sales Billed</p>
+                <TrendingUp size={16} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <h4 className="text-lg font-black text-blue-600 dark:text-blue-400 mt-1.5 font-mono">
+                ₹{dayIncomesList.reduce((s, i) => s + (Number(i.totalAmount || i.amount) || 0), 0).toLocaleString('en-IN')}
               </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Sales Invoices</p>
             </div>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
-              <p className="text-xs text-slate-400 font-semibold">Salary Payments</p>
-              <h4 className="text-xl font-black text-purple-600 dark:text-purple-400 mt-1">
-                ₹{(reportData?.summary?.salaryTotal || 0).toLocaleString('en-IN')}
+
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Income Received</p>
+                <Coins size={16} className="text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <h4 className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1.5 font-mono">
+                ₹{dayIncomeTotal.toLocaleString('en-IN')}
               </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">{dayIncomesList.length} Payment Receipts</p>
             </div>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
-              <p className="text-xs text-slate-400 font-semibold">General Expenses</p>
-              <h4 className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1">
-                ₹{(reportData?.summary?.generalExpenseTotal || 0).toLocaleString('en-IN')}
+
+            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Vendor Purchases</p>
+                <TrendingDown size={16} className="text-purple-600 dark:text-purple-400" />
+              </div>
+              <h4 className="text-lg font-black text-purple-600 dark:text-purple-400 mt-1.5 font-mono">
+                ₹{purchases.filter(p => (p.date ? new Date(p.date).toISOString().split('T')[0] : '') === dailyDate).reduce((s, p) => s + (Number(p.amount || p.totalAmount) || 0), 0).toLocaleString('en-IN')}
               </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Procurement Outflow</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Expenses & Payroll</p>
+                <TrendingDown size={16} className="text-rose-600 dark:text-rose-400" />
+              </div>
+              <h4 className="text-lg font-black text-rose-600 dark:text-rose-400 mt-1.5 font-mono">
+                ₹{dayExpenseTotal.toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Operational Costs</p>
+            </div>
+
+            <div className={`bg-white dark:bg-slate-900 border ${dayNetSurplus >= 0 ? 'border-indigo-500/20 dark:border-indigo-500/30' : 'border-amber-500/20 dark:border-amber-500/30'} rounded-2xl p-4 shadow-2xs`}>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Net Profit / Loss</p>
+                <Coins size={16} className={dayNetSurplus >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-amber-600 dark:text-amber-400"} />
+              </div>
+              <h4 className={`text-lg font-black mt-1.5 font-mono ${dayNetSurplus >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                {dayNetSurplus >= 0 ? '+' : ''}₹{dayNetSurplus.toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">{dayNetSurplus >= 0 ? 'Net Surplus (Profit)' : 'Net Deficit (Loss)'}</p>
             </div>
           </div>
 
-          {/* Table */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Daily Transaction Details</h4>
+          {/* Consolidated Daily Financial Transactions Table */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Consolidated Daily Ledger (Income & Expenses)</h4>
+              <span className="text-[10px] font-bold text-slate-400">{dailyDate}</span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 border-y border-slate-200/60 dark:border-slate-800">
                   <tr>
-                    <th className="py-2.5 px-3">Category</th>
-                    <th className="py-2.5 px-3">Paid To</th>
-                    <th className="py-2.5 px-3">Mode</th>
-                    <th className="py-2.5 px-3">Description</th>
+                    <th className="py-2.5 px-3">Flow</th>
+                    <th className="py-2.5 px-3">Title / Source / Category</th>
+                    <th className="py-2.5 px-3">Client / Payee</th>
+                    <th className="py-2.5 px-3">Payment Mode</th>
                     <th className="py-2.5 px-3 text-right">Amount (₹)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                   {loading ? (
-                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">Loading daily report...</td></tr>
-                  ) : !reportData?.data || reportData.data.length === 0 ? (
-                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">No expenses recorded for this date.</td></tr>
+                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">Loading daily financial ledger...</td></tr>
+                  ) : dayIncomesList.length === 0 && (!reportData?.data || reportData.data.length === 0) ? (
+                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">No income or expense transactions recorded for this date.</td></tr>
                   ) : (
-                    reportData.data.map((e) => (
-                      <tr key={e._id}>
-                        <td className="py-3 px-3 font-semibold">{e.categoryName}</td>
-                        <td className="py-3 px-3">{e.paidTo}</td>
-                        <td className="py-3 px-3">{e.paymentMode}</td>
-                        <td className="py-3 px-3 text-slate-500">{e.description || '—'}</td>
-                        <td className="py-3 px-3 text-right font-bold text-slate-900 dark:text-white">₹{e.amount?.toLocaleString('en-IN')}</td>
-                      </tr>
-                    ))
+                    <>
+                      {/* 1. Day Incomes */}
+                      {dayIncomesList.map((inc) => (
+                        <tr key={inc._id || inc.id} className="bg-emerald-50/30 dark:bg-emerald-950/10">
+                          <td className="py-3 px-3">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                              INCOME
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <strong className="block text-slate-900 dark:text-slate-100">{inc.title || 'Client Revenue'}</strong>
+                            <span className="text-[10px] text-slate-400">{inc.department || 'Income'}</span>
+                          </td>
+                          <td className="py-3 px-3">{inc.clientName || 'Client'}</td>
+                          <td className="py-3 px-3">{inc.paymentMethod || 'Bank Transfer'}</td>
+                          <td className="py-3 px-3 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
+                            + ₹{(Number(inc.receiptAmount || inc.totalAmount || inc.amount) || 0).toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      ))}
+
+                      {/* 2. Day Expenses */}
+                      {(reportData?.data || []).map((exp) => (
+                        <tr key={exp._id} className="bg-rose-50/20 dark:bg-rose-950/10">
+                          <td className="py-3 px-3">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                              EXPENSE
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <strong className="block text-slate-900 dark:text-slate-100">{exp.categoryName || 'Expense'}</strong>
+                            <span className="text-[10px] text-slate-400">{exp.description || 'Outflow'}</span>
+                          </td>
+                          <td className="py-3 px-3">{exp.paidTo || 'Vendor / Employee'}</td>
+                          <td className="py-3 px-3">{exp.paymentMode}</td>
+                          <td className="py-3 px-3 text-right font-mono font-black text-rose-600 dark:text-rose-400">
+                            - ₹{(exp.amount || 0).toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      ))}
+                    </>
                   )}
                 </tbody>
               </table>
@@ -218,19 +389,21 @@ const ExpenseReportsTab = () => {
         </div>
       )}
 
-      {/* 2. MONTHLY EXPENSE REPORT */}
+      {/* 2. MONTHLY FINANCIAL SUMMARY (INCOME VS EXPENSE) */}
       {activeReportSubTab === 'monthly' && (
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Monthly Expense Summary</h3>
-              <p className="text-xs text-slate-400">Monthly financial overview of expenses & salaries.</p>
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                Monthly Income & Expense Summary
+              </h3>
+              <p className="text-xs text-slate-400">Monthly financial overview of revenues, expenses & net operating profit.</p>
             </div>
             <div className="flex items-center gap-2">
               <select
                 value={monthlyMonth}
                 onChange={(e) => setMonthlyMonth(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs"
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold cursor-pointer"
               >
                 {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, idx) => (
                   <option key={idx} value={idx + 1}>{m}</option>
@@ -239,7 +412,7 @@ const ExpenseReportsTab = () => {
               <select
                 value={monthlyYear}
                 onChange={(e) => setMonthlyYear(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs"
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold cursor-pointer"
               >
                 {[2024, 2025, 2026, 2027].map((y) => (
                   <option key={y} value={y}>{y}</option>
@@ -248,57 +421,105 @@ const ExpenseReportsTab = () => {
             </div>
           </div>
 
-          {/* Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
-              <p className="text-xs text-slate-400 font-semibold">Monthly Total Outflow</p>
-              <h4 className="text-xl font-black text-slate-900 dark:text-white mt-1">
-                ₹{(reportData?.summary?.totalAmount || 0).toLocaleString('en-IN')}
+          {/* Monthly Financial Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Monthly Revenue</p>
+                <TrendingUp size={16} className="text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <h4 className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1.5 font-mono">
+                ₹{monthIncomeTotal.toLocaleString('en-IN')}
               </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">{monthIncomesList.length} Revenue Receipts</p>
             </div>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
-              <p className="text-xs text-slate-400 font-semibold">Salary Payments</p>
-              <h4 className="text-xl font-black text-purple-600 dark:text-purple-400 mt-1">
+
+            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Monthly Outflow</p>
+                <TrendingDown size={16} className="text-rose-600 dark:text-rose-400" />
+              </div>
+              <h4 className="text-xl font-black text-rose-600 dark:text-rose-400 mt-1.5 font-mono">
+                ₹{monthExpenseTotal.toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Expenses & Salaries</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-4 shadow-2xs">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Salary Payments</p>
+              <h4 className="text-xl font-black text-purple-600 dark:text-purple-400 mt-1.5 font-mono">
                 ₹{(reportData?.summary?.salaryTotal || 0).toLocaleString('en-IN')}
               </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Total Payroll</p>
             </div>
-            <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
-              <p className="text-xs text-slate-400 font-semibold">General Expenses</p>
-              <h4 className="text-xl font-black text-amber-600 dark:text-amber-400 mt-1">
-                ₹{(reportData?.summary?.generalExpenseTotal || 0).toLocaleString('en-IN')}
+
+            <div className={`bg-white dark:bg-slate-900 border ${monthNetProfit >= 0 ? 'border-indigo-500/20 dark:border-indigo-500/30' : 'border-amber-500/20 dark:border-amber-500/30'} rounded-2xl p-4 shadow-2xs`}>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Net Profit / Surplus</p>
+                <Coins size={16} className={monthNetProfit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-amber-600 dark:text-amber-400"} />
+              </div>
+              <h4 className={`text-xl font-black mt-1.5 font-mono ${monthNetProfit >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                {monthNetProfit >= 0 ? '+' : ''}₹{monthNetProfit.toLocaleString('en-IN')}
               </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">{monthNetProfit >= 0 ? 'Net Operating Profit' : 'Net Deficit'}</p>
             </div>
           </div>
 
-          {/* Table */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Monthly Expense Register</h4>
+          {/* Monthly Consolidated Register */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Financial Register</h4>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 border-y border-slate-200/60 dark:border-slate-800">
                   <tr>
+                    <th className="py-2.5 px-3">Flow</th>
                     <th className="py-2.5 px-3">Date</th>
-                    <th className="py-2.5 px-3">Category</th>
-                    <th className="py-2.5 px-3">Paid To</th>
-                    <th className="py-2.5 px-3">Mode</th>
+                    <th className="py-2.5 px-3">Category / Title</th>
+                    <th className="py-2.5 px-3">Client / Payee</th>
                     <th className="py-2.5 px-3 text-right">Amount (₹)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                   {loading ? (
-                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">Loading monthly report...</td></tr>
-                  ) : !reportData?.data || reportData.data.length === 0 ? (
-                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">No expenses recorded for this month.</td></tr>
+                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">Loading monthly financial register...</td></tr>
+                  ) : monthIncomesList.length === 0 && (!reportData?.data || reportData.data.length === 0) ? (
+                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">No financial transactions recorded for this month.</td></tr>
                   ) : (
-                    reportData.data.map((e) => (
-                      <tr key={e._id}>
-                        <td className="py-3 px-3 font-medium">{new Date(e.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
-                        <td className="py-3 px-3 font-semibold">{e.categoryName}</td>
-                        <td className="py-3 px-3">{e.paidTo}</td>
-                        <td className="py-3 px-3">{e.paymentMode}</td>
-                        <td className="py-3 px-3 text-right font-bold text-slate-900 dark:text-white">₹{e.amount?.toLocaleString('en-IN')}</td>
-                      </tr>
-                    ))
+                    <>
+                      {/* Monthly Incomes */}
+                      {monthIncomesList.map((inc) => (
+                        <tr key={inc._id || inc.id} className="bg-emerald-50/30 dark:bg-emerald-950/10">
+                          <td className="py-3 px-3">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                              INCOME
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-slate-500">{new Date(inc.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
+                          <td className="py-3 px-3 font-semibold text-slate-900 dark:text-slate-100">{inc.title}</td>
+                          <td className="py-3 px-3">{inc.clientName || 'Client'}</td>
+                          <td className="py-3 px-3 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
+                            + ₹{(Number(inc.receiptAmount || inc.totalAmount || inc.amount) || 0).toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      ))}
+
+                      {/* Monthly Expenses */}
+                      {(reportData?.data || []).map((exp) => (
+                        <tr key={exp._id} className="bg-rose-50/20 dark:bg-rose-950/10">
+                          <td className="py-3 px-3">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                              EXPENSE
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-slate-500">{new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
+                          <td className="py-3 px-3 font-semibold text-slate-900 dark:text-slate-100">{exp.categoryName}</td>
+                          <td className="py-3 px-3">{exp.paidTo}</td>
+                          <td className="py-3 px-3 text-right font-mono font-black text-rose-600 dark:text-rose-400">
+                            - ₹{(exp.amount || 0).toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                      ))}
+                    </>
                   )}
                 </tbody>
               </table>
@@ -307,20 +528,20 @@ const ExpenseReportsTab = () => {
         </div>
       )}
 
-      {/* 3. CATEGORY-WISE EXPENSE REPORT */}
+      {/* 3. CATEGORY & REVENUE BREAKDOWN */}
       {activeReportSubTab === 'category' && (
         <div className="space-y-6">
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Category-Wise Expense Analytics</h3>
-              <p className="text-xs text-slate-400">Percentage distribution & breakdown across expense categories.</p>
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Category & Revenue Distribution</h3>
+              <p className="text-xs text-slate-400">Percentage distribution & breakdown across categories.</p>
             </div>
             <div className="flex items-center gap-2">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs"
+                className="px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs cursor-pointer"
                 placeholder="Start Date"
               />
               <span className="text-xs text-slate-400">to</span>
@@ -328,44 +549,58 @@ const ExpenseReportsTab = () => {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs"
+                className="px-3 py-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs cursor-pointer"
                 placeholder="End Date"
               />
             </div>
           </div>
 
-          {/* Grand Total Banner */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-400 font-semibold">Grand Total Expense Across Categories</p>
-              <h4 className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-0.5">
-                ₹{(reportData?.summary?.grandTotal || 0).toLocaleString('en-IN')}
-              </h4>
+          {/* Grand Financial Totals Banner */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-400 font-semibold">Total Revenue Inflows</p>
+                <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5 font-mono">
+                  ₹{incomes.reduce((sum, i) => sum + (Number(i.receiptAmount || i.totalAmount || i.amount) || 0), 0).toLocaleString('en-IN')}
+                </h4>
+              </div>
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600">
+                {incomes.length} Income Receipts
+              </span>
             </div>
-            <span className="text-xs font-semibold px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600">
-              {reportData?.summary?.categoryCount || 0} Categories Active
-            </span>
+
+            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-400 font-semibold">Total Expense Outflows</p>
+                <h4 className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-0.5 font-mono">
+                  ₹{(reportData?.summary?.grandTotal || 0).toLocaleString('en-IN')}
+                </h4>
+              </div>
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600">
+                {reportData?.summary?.categoryCount || 0} Categories Active
+              </span>
+            </div>
           </div>
 
-          {/* Category Progress Bars */}
+          {/* Expense Category Progress Bars */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Distribution Breakdown</h4>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Expense Category Breakdown</h4>
             {loading ? (
-              <p className="text-center py-6 text-slate-400 text-xs">Loading category report...</p>
+              <p className="text-center py-6 text-slate-400 text-xs">Loading category breakdown...</p>
             ) : !reportData?.data || reportData.data.length === 0 ? (
-              <p className="text-center py-6 text-slate-400 text-xs">No category data found.</p>
+              <p className="text-center py-6 text-slate-400 text-xs">No expense category data found.</p>
             ) : (
               reportData.data.map((cat, i) => (
                 <div key={i} className="space-y-1.5">
                   <div className="flex justify-between text-xs font-medium">
                     <span className="text-slate-800 dark:text-slate-200 font-bold">{cat.category}</span>
-                    <span className="text-slate-600 dark:text-slate-400 font-semibold">
+                    <span className="text-slate-600 dark:text-slate-400 font-semibold font-mono">
                       ₹{(cat.totalAmount || 0).toLocaleString('en-IN')} ({cat.percentage}%)
                     </span>
                   </div>
                   <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-full transition-all duration-500"
+                      className="h-full bg-gradient-to-r from-rose-500 to-rose-600 rounded-full transition-all duration-500"
                       style={{ width: `${Math.min(cat.percentage, 100)}%` }}
                     />
                   </div>
@@ -399,7 +634,7 @@ const ExpenseReportsTab = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4">
               <p className="text-xs text-slate-400 font-semibold">Total Disbursed Salary</p>
-              <h4 className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">
+              <h4 className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1 font-mono">
                 ₹{(reportData?.summary?.totalPaid || 0).toLocaleString('en-IN')}
               </h4>
             </div>
@@ -437,9 +672,9 @@ const ExpenseReportsTab = () => {
                         <td className="py-3 px-3 font-medium">{new Date(p.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
                         <td className="py-3 px-3 font-bold text-slate-900 dark:text-slate-100">{p.employeeName || p.employee?.name}</td>
                         <td className="py-3 px-3">{p.month}</td>
-                        <td className="py-3 px-3 text-slate-500">₹{(p.basicSalary || 0).toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-3 text-slate-500 font-mono">₹{(p.basicSalary || 0).toLocaleString('en-IN')}</td>
                         <td className="py-3 px-3">{p.paymentMode}</td>
-                        <td className="py-3 px-3 text-right font-bold text-purple-600 dark:text-purple-400">₹{p.paidAmount?.toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-3 text-right font-bold text-purple-600 dark:text-purple-400 font-mono">₹{p.paidAmount?.toLocaleString('en-IN')}</td>
                       </tr>
                     ))
                   )}

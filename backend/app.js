@@ -86,6 +86,7 @@ app.use('/api/v1/attendance', attendanceRoutes);
 app.use('/api/user', userRoutes); 
 app.use('/api/v1/user', userRoutes); 
 app.use('/api/tasks', taskRoutes);
+app.use('/api/v1/tasks', taskRoutes);
 // app.use('/api/v1/leaves', leaveRoutes);
 app.use('/api/leaves', leaveRoutes);
 app.use('/api/v1/ai', aiRoutes);
