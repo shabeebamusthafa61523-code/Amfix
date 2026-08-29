@@ -136,6 +136,11 @@ const PurchaseTab = () => {
         body: JSON.stringify(newPurchaseEntry)
       });
       if (res.ok) {
+        const data = await res.json();
+        const createdItem = data.data ? { ...newPurchaseEntry, ...data.data } : newPurchaseEntry;
+        const updated = [createdItem, ...purchases.filter(p => p._id !== createdItem._id)];
+        setPurchases(updated);
+        localStorage.setItem('crm_purchase_records', JSON.stringify(updated));
         showToast('Purchase record added successfully!', 'success');
       } else {
         const updated = [newPurchaseEntry, ...purchases];

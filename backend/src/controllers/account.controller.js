@@ -205,6 +205,8 @@ export const createExpense = async (req, res) => {
     const { 
       date, 
       category, 
+      categoryName,
+      isPurchase,
       amount, 
       paymentMode, 
       paidTo, 
@@ -219,21 +221,46 @@ export const createExpense = async (req, res) => {
       totalAmount
     } = req.body;
 
-    if (!category || !amount || !paymentMode || !paidTo) {
+    const expAmount = Number(amount || 0);
+
+    if (!expAmount || !paymentMode || !paidTo) {
       return res.status(400).json({
         success: false,
-        message: 'Expense Category, Amount, Payment Mode, and Paid To fields are required.'
+        message: 'Amount, Payment Mode, and Paid To fields are required.'
       });
     }
 
-    const catObj = await ExpenseCategory.findById(category);
-    if (!catObj) {
-      return res.status(400).json({ success: false, message: 'Invalid Expense Category selected.' });
+    let catObj = null;
+    let resolvedCategoryName = categoryName || '';
+
+    if (category && mongoose.Types.ObjectId.isValid(category)) {
+      catObj = await ExpenseCategory.findById(category);
+      if (catObj) {
+        resolvedCategoryName = catObj.name;
+      }
+    }
+
+    if (!resolvedCategoryName) {
+      if (isPurchase) {
+        resolvedCategoryName = 'Inventory & Purchase';
+      } else {
+        resolvedCategoryName = 'General';
+      }
+    }
+
+    // Auto-seed category if missing
+    if (!catObj && resolvedCategoryName) {
+      catObj = await ExpenseCategory.findOne({ name: { $regex: new RegExp(`^${resolvedCategoryName.trim()}$`, 'i') } });
+      if (!catObj) {
+        catObj = await ExpenseCategory.create({
+          name: resolvedCategoryName.trim(),
+          description: `Auto created category for ${resolvedCategoryName.trim()}`
+        });
+      }
     }
 
     let attachmentUrl = '';
     if (req.file) {
-      // Base64 encoding or file path fallback for attachment display
       attachmentUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
     }
 
@@ -243,15 +270,12 @@ export const createExpense = async (req, res) => {
       if (user) addedByName = user.name;
     }
 
-    const expAmount = Number(amount);
     const userRole = String(req.user?.role || '').toLowerCase();
     const isMdUser = req.user?.isSuperAdmin === true ||
       ['0', 'superadmin', 'md', 'coo', 'executive_director'].includes(userRole);
-    const isSalary = catObj.name.toLowerCase() === 'salary';
+    const isSalary = resolvedCategoryName.toLowerCase() === 'salary';
+    const isPur = isPurchase === true || resolvedCategoryName.toLowerCase().includes('purchase') || resolvedCategoryName.toLowerCase().includes('inventory') || resolvedCategoryName.toLowerCase().includes('vendor');
 
-    // Rule:
-    // Expenses > 1,000 INR require MD approval -> PENDING
-    // Expenses <= 1,000 INR do NOT require approval -> APPROVED
     let initialStatus = expAmount > 1000 ? 'PENDING' : 'APPROVED';
     if (req.body.status && isMdUser) {
       initialStatus = req.body.status;
@@ -259,8 +283,9 @@ export const createExpense = async (req, res) => {
 
     const expense = await Expense.create({
       date: date ? new Date(date) : new Date(),
-      category: catObj._id,
-      categoryName: catObj.name,
+      category: catObj ? catObj._id : null,
+      categoryName: resolvedCategoryName,
+      isPurchase: isPur,
       amount: expAmount,
       paymentMode,
       paidTo: paidTo.trim(),
@@ -268,7 +293,7 @@ export const createExpense = async (req, res) => {
       attachment: attachmentUrl,
       addedBy: req.user?.id || null,
       addedByName,
-      type: isSalary ? 'Salary' : 'Expense',
+      type: isSalary ? 'Salary' : (isPur ? 'Purchase' : 'Expense'),
       taxOption: taxOption || 'No GST',
       gstCategory: gstCategory || 'NONE',
       gstRate: parseFloat(gstRate || 0),
@@ -283,10 +308,8 @@ export const createExpense = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: initialStatus === 'PENDING'
-        ? (expAmount > 1000 
-            ? 'Expense recorded successfully (Submitted for MD approval because amount exceeds ₹1,000).' 
-            : 'Expense recorded successfully (Submitted for Managing Director approval).')
-        : 'Expense added successfully.',
+        ? 'Expense recorded successfully and submitted for MD approval.'
+        : 'Expense recorded successfully.',
       data: expense
     });
   } catch (error) {
@@ -723,24 +746,34 @@ export const getDailyReport = async (req, res) => {
     const endOfDay = new Date(targetDate);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const expenses = await Expense.find({
-      date: { $gte: startOfDay, $lte: endOfDay }
-    }).sort({ date: -1 });
+    const [expenses, incomes] = await Promise.all([
+      Expense.find({ date: { $gte: startOfDay, $lte: endOfDay } }).sort({ date: -1 }),
+      Income.find({ date: { $gte: startOfDay, $lte: endOfDay } }).sort({ date: -1 })
+    ]);
 
-    const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const salaryTotal = expenses.filter(e => e.type === 'Salary').reduce((sum, e) => sum + e.amount, 0);
-    const generalExpenseTotal = totalAmount - salaryTotal;
+    const totalIncome = incomes.reduce((sum, i) => sum + (i.amount || 0), 0);
+    const purchaseTotal = expenses.filter(e => e.isPurchase || String(e.categoryName || '').toLowerCase().includes('purchase') || String(e.categoryName || '').toLowerCase().includes('inventory')).reduce((sum, e) => sum + (e.amount || 0), 0);
+    const salaryTotal = expenses.filter(e => e.type === 'Salary').reduce((sum, e) => sum + (e.amount || 0), 0);
+    const generalExpenseTotal = expenses.filter(e => !e.isPurchase && !String(e.categoryName || '').toLowerCase().includes('purchase') && !String(e.categoryName || '').toLowerCase().includes('inventory') && e.type !== 'Salary').reduce((sum, e) => sum + (e.amount || 0), 0);
+    
+    const totalOutflow = generalExpenseTotal + salaryTotal + purchaseTotal;
+    const netBalance = totalIncome - totalOutflow;
 
     return res.status(200).json({
       success: true,
       date: startOfDay.toISOString().split('T')[0],
       summary: {
-        totalAmount,
+        totalIncome,
+        totalAmount: totalOutflow,
+        totalOutflow,
         salaryTotal,
+        purchaseTotal,
         generalExpenseTotal,
-        count: expenses.length
+        netBalance,
+        count: expenses.length + incomes.length
       },
-      data: expenses
+      data: expenses,
+      incomes
     });
   } catch (error) {
     console.error('getDailyReport Error:', error);
@@ -758,24 +791,34 @@ export const getMonthlyReport = async (req, res) => {
     const startOfMonth = new Date(targetYear, targetMonth - 1, 1);
     const endOfMonth = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
 
-    const expenses = await Expense.find({
-      date: { $gte: startOfMonth, $lte: endOfMonth }
-    }).sort({ date: -1 });
+    const [expenses, incomes] = await Promise.all([
+      Expense.find({ date: { $gte: startOfMonth, $lte: endOfMonth } }).sort({ date: -1 }),
+      Income.find({ date: { $gte: startOfMonth, $lte: endOfMonth } }).sort({ date: -1 })
+    ]);
 
-    const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const salaryTotal = expenses.filter(e => e.type === 'Salary').reduce((sum, e) => sum + e.amount, 0);
-    const generalExpenseTotal = totalAmount - salaryTotal;
+    const totalIncome = incomes.reduce((sum, i) => sum + (i.amount || 0), 0);
+    const purchaseTotal = expenses.filter(e => e.isPurchase || String(e.categoryName || '').toLowerCase().includes('purchase') || String(e.categoryName || '').toLowerCase().includes('inventory')).reduce((sum, e) => sum + (e.amount || 0), 0);
+    const salaryTotal = expenses.filter(e => e.type === 'Salary').reduce((sum, e) => sum + (e.amount || 0), 0);
+    const generalExpenseTotal = expenses.filter(e => !e.isPurchase && !String(e.categoryName || '').toLowerCase().includes('purchase') && !String(e.categoryName || '').toLowerCase().includes('inventory') && e.type !== 'Salary').reduce((sum, e) => sum + (e.amount || 0), 0);
+    
+    const totalOutflow = generalExpenseTotal + salaryTotal + purchaseTotal;
+    const netBalance = totalIncome - totalOutflow;
 
     return res.status(200).json({
       success: true,
       period: `${targetYear}-${String(targetMonth).padStart(2, '0')}`,
       summary: {
-        totalAmount,
+        totalIncome,
+        totalAmount: totalOutflow,
+        totalOutflow,
         salaryTotal,
+        purchaseTotal,
         generalExpenseTotal,
-        count: expenses.length
+        netBalance,
+        count: expenses.length + incomes.length
       },
-      data: expenses
+      data: expenses,
+      incomes
     });
   } catch (error) {
     console.error('getMonthlyReport Error:', error);
