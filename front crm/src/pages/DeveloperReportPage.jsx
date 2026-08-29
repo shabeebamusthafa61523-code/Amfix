@@ -12,7 +12,18 @@ import { fetchCompletedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
 import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const RAW_API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
+const getApiEndpoint = (path) => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (RAW_API_BASE.endsWith('/v1')) {
+    return `${RAW_API_BASE}${cleanPath}`;
+  }
+  if (RAW_API_BASE.endsWith('/api')) {
+    return `${RAW_API_BASE}/v1${cleanPath}`;
+  }
+  return `${RAW_API_BASE}/api/v1${cleanPath}`;
+};
 
 // Default items for Daily Task Summary (matching the mockup)
 const DEFAULT_TASK_SUMMARY = [
@@ -408,7 +419,7 @@ const DeveloperReportPage = () => {
     if (isPrivileged) {
       const fetchDevs = async () => {
         try {
-          const res = await fetch(`${API_BASE}/v1/developer-reports/developers`, {
+          const res = await fetch(getApiEndpoint('/developer-reports/developers'), {
             headers: getAuthHeaders()
           });
           const data = await res.json();
@@ -430,7 +441,7 @@ const DeveloperReportPage = () => {
   const fetchSubmittedDates = useCallback(async (userId) => {
     if (!userId) return;
     try {
-      const res = await fetch(`${API_BASE}/v1/developer-reports/submitted-dates?userId=${userId}`, {
+      const res = await fetch(getApiEndpoint(`/developer-reports/submitted-dates?userId=${userId}`), {
         headers: getAuthHeaders()
       });
       const data = await res.json();
@@ -454,7 +465,7 @@ const DeveloperReportPage = () => {
     if (!userId || !dateStr) return;
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/v1/developer-reports/by-date?userId=${userId}&dateString=${dateStr}`, {
+      const res = await fetch(getApiEndpoint(`/developer-reports/by-date?userId=${userId}&dateString=${dateStr}`), {
         headers: getAuthHeaders()
       });
       
@@ -718,19 +729,25 @@ const DeveloperReportPage = () => {
         approval
       };
 
-      const res = await fetch(`${API_BASE}/v1/developer-reports`, {
+      const res = await fetch(getApiEndpoint('/developer-reports'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        console.warn("Could not parse JSON response:", jsonErr);
+      }
+
       if (res.ok && data.success) {
         showToast("Daily Shift Report saved successfully!", 'success');
         // Refresh status indicators
         fetchSubmittedDates(selectedUserId);
       } else {
-        showToast(data.message || "Failed to save the report.", 'error');
+        showToast(data.message || `Failed to save the report (Status: ${res.status}).`, 'error');
       }
     } catch (err) {
       console.error(err);
@@ -764,7 +781,7 @@ const DeveloperReportPage = () => {
       }
       
       const promises = dates.map(dateStr => 
-        fetch(`${API_BASE}/v1/developer-reports/by-date?userId=${selectedUserId}&dateString=${dateStr}`, {
+        fetch(getApiEndpoint(`/developer-reports/by-date?userId=${selectedUserId}&dateString=${dateStr}`), {
           headers: getAuthHeaders()
         })
         .then(res => {

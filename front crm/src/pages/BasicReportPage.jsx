@@ -13,6 +13,8 @@ import SignatureUpload from '../components/SignatureUpload';
 import { useNavigate } from 'react-router-dom';
 import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
+import { isUserAssigned } from '../utils/taskUtils';
+
 const RAW_API_BASE = import.meta.env.VITE_API_URL || '/api';
 const API_BASE = RAW_API_BASE.replace(/\/v1\/?$/, '').replace(/\/+$/, '');
 
@@ -134,24 +136,31 @@ const BasicReportPage = () => {
           // Filter tasks for current user (excluding tasks completed prior to today)
           const todayStr = new Date().toISOString().split('T')[0];
           const myTasks = allTasks.filter(t => {
-            const aId = t.assigned_to && typeof t.assigned_to === 'object' ? (t.assigned_to.id || t.assigned_to._id) : t.assigned_to;
-            if (String(aId).trim() !== String(userId).trim()) return false;
+            if (!isUserAssigned(t.assigned_to || t.assignedTo, userId)) return false;
 
             const statusLower = String(t.status || '').toLowerCase();
             const isDone = ['done', 'completed'].includes(statusLower);
             if (isDone) {
-              const compDate = t.updatedAt || t.completedAt;
-              if (compDate) {
-                try {
-                  const dObj = new Date(compDate);
-                  if (!isNaN(dObj.getTime())) {
-                    const locY = dObj.getFullYear();
-                    const locM = String(dObj.getMonth() + 1).padStart(2, '0');
-                    const locD = String(dObj.getDate()).padStart(2, '0');
-                    const compStr = `${locY}-${locM}-${locD}`;
-                    if (compStr < todayStr) return false;
-                  }
-                } catch (e) {}
+              const compDate = t.completedAt || t.updatedAt;
+              if (!compDate) return false;
+              try {
+                const dObj = new Date(compDate);
+                if (isNaN(dObj.getTime())) return false;
+                const locY = dObj.getFullYear();
+                const locM = String(dObj.getMonth() + 1).padStart(2, '0');
+                const locD = String(dObj.getDate()).padStart(2, '0');
+                const locStr = `${locY}-${locM}-${locD}`;
+
+                const utcY = dObj.getUTCFullYear();
+                const utcM = String(dObj.getUTCMonth() + 1).padStart(2, '0');
+                const utcD = String(dObj.getUTCDate()).padStart(2, '0');
+                const utcStr = `${utcY}-${utcM}-${utcD}`;
+
+                if (locStr !== selectedDate && utcStr !== selectedDate) {
+                  return false;
+                }
+              } catch (e) {
+                return false;
               }
             }
             return true;

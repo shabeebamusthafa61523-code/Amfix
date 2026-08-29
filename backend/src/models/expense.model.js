@@ -9,11 +9,15 @@ const expenseSchema = new mongoose.Schema({
   category: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ExpenseCategory',
-    required: true
+    required: false
   },
   categoryName: {
     type: String,
     required: true
+  },
+  isPurchase: {
+    type: Boolean,
+    default: false
   },
   amount: {
     type: Number,
@@ -51,6 +55,39 @@ const expenseSchema = new mongoose.Schema({
     type: String,
     enum: ['Expense', 'Salary'],
     default: 'Expense'
+  },
+  taxOption: {
+    type: String,
+    default: 'No GST'
+  },
+  gstCategory: {
+    type: String,
+    enum: ['CGST_SGST', 'IGST', 'UTGST', 'EXEMPT', 'NONE'],
+    default: 'NONE'
+  },
+  gstRate: {
+    type: Number,
+    default: 0
+  },
+  gstAmount: {
+    type: Number,
+    default: 0
+  },
+  cgstAmount: {
+    type: Number,
+    default: 0
+  },
+  sgstAmount: {
+    type: Number,
+    default: 0
+  },
+  igstAmount: {
+    type: Number,
+    default: 0
+  },
+  totalAmount: {
+    type: Number,
+    default: 0
   },
   salaryPaymentId: {
     type: mongoose.Schema.Types.ObjectId,

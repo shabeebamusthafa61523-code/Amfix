@@ -2,6 +2,7 @@ import OpsReport from '../models/opsReport.model.js';
 import User from '../models/user.model.js';
 import Lead from '../models/lead.model.js';
 import LeadFollowup from '../models/leadFollowup.model.js';
+import ClientLead from '../models/clientLead.model.js';
 
 /**
  * 1. GET OPERATIONS REPORT BY DATE
@@ -306,6 +307,152 @@ export const getLeadStats = async (req, res, next) => {
     return res.status(200).json({ success: true, data: salesActivity });
   } catch (error) {
     console.error('Error in getLeadStats:', error);
+    next(error);
+  }
+};
+
+/**
+ * 6. GET CLIENT LEAD STATS FOR REPORT
+ * GET /api/v1/ops-reports/client-lead-stats?date=YYYY-MM-DD
+ * Auto-fetches client lead counts from ClientLead for Daily Client Leads Activity table.
+ */
+export const getClientLeadStats = async (req, res, next) => {
+  try {
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ success: false, message: 'date parameter is required (YYYY-MM-DD)' });
+    }
+
+    const matchesDate = (d) => {
+      if (!d) return false;
+      try {
+        const dateObj = new Date(d);
+        if (isNaN(dateObj.getTime())) return false;
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const localDate = `${y}-${m}-${day}`;
+        const utcY = dateObj.getUTCFullYear();
+        const utcM = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+        const utcD = String(dateObj.getUTCDate()).padStart(2, '0');
+        const utcDate = `${utcY}-${utcM}-${utcD}`;
+        return localDate === date || utcDate === date;
+      } catch (e) {
+        return false;
+      }
+    };
+
+    const allClientLeads = await ClientLead.find({}).lean();
+
+    // Combined search string per lead across priority, service, interest, status, and remarks
+    const getCombinedTags = (l) => `${l.priority || ''} ${l.interestedService || ''} ${l.courseIntrests || ''} ${l.courseInterests || ''} ${l.status || ''} ${l.remarks || ''}`.toLowerCase();
+
+    // STRICT DATE FILTER: Only count client leads created, received, or updated TODAY (on report date)
+    const leadsActiveToday = allClientLeads.filter(l => 
+      matchesDate(l.createdAt) || 
+      matchesDate(l.leadsReceivedDate) || 
+      matchesDate(l.updatedAt) ||
+      matchesDate(l.followUpDate1) || 
+      matchesDate(l.followUpDate2) || 
+      matchesDate(l.followUpDate3) || 
+      matchesDate(l.followUpDate4) || 
+      matchesDate(l.followUpDate5)
+    );
+
+    // 1. New client leads created/received on date
+    const newClientLeadsToday = allClientLeads.filter(l => 
+      matchesDate(l.createdAt) || matchesDate(l.leadsReceivedDate)
+    );
+    const totalNewClientLeads = newClientLeadsToday.length;
+
+    // 2. Qualified client leads updated today (Interested or Converted)
+    const qualifiedClientLeads = leadsActiveToday.filter(l => {
+      const tags = getCombinedTags(l);
+      return tags.includes('interested') || tags.includes('convert');
+    }).length;
+
+    // 3. Total Client Calls / Contacted today (Total leads worked on / updated today)
+    const totalContacted = leadsActiveToday.length;
+
+    // 4. Total Client Follow ups today
+    const totalFollowUps = leadsActiveToday.filter(l => {
+      const tags = getCombinedTags(l);
+      return tags.includes('follow') || matchesDate(l.followUpDate1) || matchesDate(l.followUpDate2) || matchesDate(l.followUpDate3) || matchesDate(l.followUpDate4) || matchesDate(l.followUpDate5);
+    }).length;
+
+    // 5. Priority counts for leads updated today ("HOT LEAD", "HOT", "HIGH", "WARM LEAD", "MEDIUM", "COLD LEAD", "LOW")
+    const getLeadPriorityCategory = (l) => {
+      const interestVal = String(l.interestedService || l.courseIntrests || l.courseInterests || '').trim().toLowerCase();
+      const priorityVal = String(l.priority || '').trim().toLowerCase();
+
+      // Check explicit interest dropdown tag first (as rendered in Client Leads table pills)
+      if (interestVal.includes('hot') || interestVal.includes('high')) return 'HOT';
+      if (interestVal.includes('warm') || interestVal.includes('med')) return 'WARM';
+      if (interestVal.includes('cold') || interestVal.includes('low')) return 'COLD';
+
+      // Check priority field ONLY if explicitly tagged hot/warm/cold (ignoring schema default Medium)
+      if (priorityVal.includes('hot')) return 'HOT';
+      if (priorityVal.includes('warm')) return 'WARM';
+      if (priorityVal.includes('cold')) return 'COLD';
+
+      return 'OTHER';
+    };
+
+    const hotClientLeads = leadsActiveToday.filter(l => getLeadPriorityCategory(l) === 'HOT').length;
+    const warmClientLeads = leadsActiveToday.filter(l => getLeadPriorityCategory(l) === 'WARM').length;
+    const coldClientLeads = leadsActiveToday.filter(l => getLeadPriorityCategory(l) === 'COLD').length;
+
+    // 6. Total pending client leads updated today
+    const pendingClientLeads = leadsActiveToday.filter(l => {
+      const tags = getCombinedTags(l);
+      return tags.includes('new') || tags.includes('contact') || tags.includes('follow') || (!tags.includes('convert') && !tags.includes('lost'));
+    }).length;
+
+    // 7. Client Meetings Fixed today
+    const meetingsFixed = leadsActiveToday.filter(l => {
+      const m = String(l.clientMeetingFixed || '').toLowerCase();
+      const tags = getCombinedTags(l);
+      return m === 'yes' || m === 'fixed' || m === 'done' || tags.includes('meeting fixed');
+    }).length;
+
+    // 8. Client Closings / Onboarding Done today
+    const closingsDone = leadsActiveToday.filter(l => {
+      const o = String(l.clientOnboarding || '').toLowerCase();
+      const tags = getCombinedTags(l);
+      return o === 'yes' || tags.includes('convert') || tags.includes('closed') || tags.includes('onboard');
+    }).length;
+
+    // 9. Digital Mktg vs Web source breakdown for leads created/active today
+    const digitalMktgSources = ['facebook', 'instagram', 'google ads', 'meta', 'social media', 'digital', 'fb', 'ig', 'marketing'];
+    const webSources = ['website', 'web', 'landing page', 'seo', 'organic'];
+
+    const countBySource = (leads, sources) =>
+      leads.filter(l => {
+        const src = String(l.source || '').toLowerCase().trim();
+        const platform = String(l.leadPlatform || '').toLowerCase().trim();
+        return sources.some(s => src.includes(s) || platform.includes(s));
+      }).length;
+
+    const targetForSource = newClientLeadsToday.length > 0 ? newClientLeadsToday : leadsActiveToday;
+    const totalDigital = countBySource(targetForSource, digitalMktgSources);
+    const totalWeb = countBySource(targetForSource, webSources);
+
+    const clientSalesActivity = [
+      { activity: 'New Client Leads Generated', count: String(totalNewClientLeads), digitalMktg: String(totalDigital), web: String(totalWeb), dueDate: '', remarks: '' },
+      { activity: 'Qualified Client Leads', count: String(qualifiedClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Total Client Calls / Contacted', count: String(totalContacted), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Total Client Follow ups', count: String(totalFollowUps), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Hot Client Leads (High Priority)', count: String(hotClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Warm Client Leads (Medium Priority)', count: String(warmClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Cold Client Leads (Low Priority)', count: String(coldClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Total Pending Client Leads', count: String(pendingClientLeads), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Client Meetings Fixed', count: String(meetingsFixed), digitalMktg: '', web: '', dueDate: '', remarks: '' },
+      { activity: 'Client Closings / Onboarding Done', count: String(closingsDone), digitalMktg: '', web: '', dueDate: '', remarks: '' }
+    ];
+
+    return res.status(200).json({ success: true, data: clientSalesActivity });
+  } catch (error) {
+    console.error('Error in getClientLeadStats:', error);
     next(error);
   }
 };

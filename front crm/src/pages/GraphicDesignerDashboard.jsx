@@ -12,6 +12,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/ToastProvider';
 
+import { isUserAssigned } from '../utils/taskUtils';
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 /* ─── Status config ─── */
@@ -197,10 +199,7 @@ const GraphicDesignerDashboard = () => {
   /* ── derived data ── */
   const myTasks = useMemo(() => {
     if (!currentUserId) return [];
-    return tasks.filter(t => {
-      const aId = t.assigned_to && typeof t.assigned_to === 'object' ? (t.assigned_to.id || t.assigned_to._id) : t.assigned_to;
-      return String(aId).trim() === String(currentUserId).trim();
-    });
+    return tasks.filter(t => isUserAssigned(t.assigned_to || t.assignedTo, currentUserId));
   }, [tasks, currentUserId]);
 
   const statusCounts = useMemo(() => {

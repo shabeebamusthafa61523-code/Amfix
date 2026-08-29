@@ -7,7 +7,18 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
+const getApiEndpoint = (path) => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (API_BASE.endsWith('/v1')) {
+    return `${API_BASE}${cleanPath}`;
+  }
+  if (API_BASE.endsWith('/api')) {
+    return `${API_BASE}/v1${cleanPath}`;
+  }
+  return `${API_BASE}/api/v1${cleanPath}`;
+};
 
 const SidebarPermissionsPage = () => {
   const navigate = useNavigate();
@@ -27,9 +38,13 @@ const SidebarPermissionsPage = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/users`, {
+      const res = await fetch(getApiEndpoint('/users'), {
         headers: getAuthHeaders()
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (res.ok && data.data) {
         setUsers(Array.isArray(data.data) ? data.data : []);

@@ -8,7 +8,18 @@ import {
 import { useToast } from '../components/ToastProvider';
 import { useUser } from '../contexts/UserContext';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
+const getApiEndpoint = (path) => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (API_BASE.endsWith('/v1')) {
+    return `${API_BASE}${cleanPath}`;
+  }
+  if (API_BASE.endsWith('/api')) {
+    return `${API_BASE}/v1${cleanPath}`;
+  }
+  return `${API_BASE}/api/v1${cleanPath}`;
+};
 
 const ALL_SIDEBAR_ITEMS = [
   // Dashboards
@@ -69,11 +80,15 @@ const ALL_SIDEBAR_ITEMS = [
 
   // Finance & Accounts
   { label: 'Accounts', path: '/accounts', category: 'Finance', desc: 'Expense management, salary & cash book overview' },
+  { label: 'Sales', path: '/accounts/income', category: 'Finance', desc: 'Revenue, client invoices & payment receipt records' },
+  { label: 'Income', path: '/accounts/sales', category: 'Finance', desc: 'Client sales deals, billing invoices & revenue tracking' },
+  { label: 'Purchase', path: '/accounts/purchase', category: 'Finance', desc: 'Vendor procurement, purchase orders & stock bills' },
+  { label: 'Create Invoice', path: '/accounts/create-invoice', category: 'Finance', desc: 'Itemized Zoho tax invoice & billing builder' },
   { label: 'Expense Categories', path: '/accounts/categories', category: 'Finance', desc: 'Account expense categories' },
-  { label: 'Add Expense', path: '/accounts/expenses', category: 'Finance', desc: 'Record & upload expense vouchers' },
+  { label: 'Expense', path: '/accounts/expenses', category: 'Finance', desc: 'Record & upload expense vouchers' },
   { label: 'Salary Payment', path: '/accounts/salary', category: 'Finance', desc: 'Salary payment processing & disbursal' },
   { label: 'Cash Book', path: '/accounts/cash-book', category: 'Finance', desc: 'Cash book ledger & transaction history' },
-  { label: 'Expense Report', path: '/accounts/reports', category: 'Finance', desc: 'Financial expense analytics & summaries' },
+  { label: 'Financial Report', path: '/accounts/reports', category: 'Finance', desc: 'Financial expense analytics & summaries' },
   { label: 'Payslips', path: '/payslips', category: 'Finance', desc: 'Employee payslip generation & disbursal records' },
   { label: 'Personal Payslip', path: '/my-payslip', category: 'Finance', desc: 'Personal salary slip portal for individual employees' },
 
@@ -103,9 +118,13 @@ const UserPermissionsPage = () => {
   const fetchUser = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/users/${userId}`, {
+      const res = await fetch(getApiEndpoint(`/users/${userId}`), {
         headers: getAuthHeaders()
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (res.ok && data.data) {
         const u = data.data;
@@ -130,7 +149,6 @@ const UserPermissionsPage = () => {
         const userObj = JSON.parse(savedUser);
         const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
         const designation = String(userObj.designation || '').toLowerCase().trim();
-        const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
         const isHr = role === 'hr' || designation.includes('hr');
         if (isHr) {
           showToast("HR users cannot edit permissions.", "error");
@@ -167,7 +185,7 @@ const UserPermissionsPage = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/users/${userId}/permissions`, {
+      const res = await fetch(getApiEndpoint(`/users/${userId}/permissions`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

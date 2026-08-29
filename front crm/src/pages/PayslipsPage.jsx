@@ -25,17 +25,19 @@ const PayslipsPage = () => {
   // ── Role checks ──────────────────────────────────────────────
   const role = String(user?.role_id || user?.roleId || user?.role || '').toLowerCase().trim();
   const designation = String(user?.designation || '').toLowerCase().trim();
+  const isSuperAdmin = user?.isSuperAdmin === true;
 
   const isHr = role === 'hr' || designation.includes('hr');
   const isPrivileged =
+    isSuperAdmin ||
     isHr ||
-    role === 'superadmin' || role === 'accountant' || role === 'md' || role === 'coo' ||
-    designation.includes('accountant') || designation.includes('accounts') ||
-    designation.includes('finance') || designation.includes('superadmin') ||
-    ['1', '2', 'admin'].includes(role);
+    ['0', '1', '2', 'admin', 'superadmin', 'md', 'coo', 'executive_director', 'accountant', 'hr', 'manager'].includes(role) ||
+    designation.includes('accountant') || designation.includes('accounts') || designation.includes('hr') ||
+    designation.includes('finance') || designation.includes('superadmin') || designation.includes('admin') || designation.includes('director') ||
+    ['0', '1', '2'].includes(String(user?.role_id || ''));
 
-  // HR can only view & download — NOT create
-  const canCreate = isPrivileged && !isHr;
+  // All privileged users (Admin, SuperAdmin, HR, Accountant, MD, Manager) can create payslips
+  const canCreate = isPrivileged;
 
   // ── Fetch (silent = no loading spinner after first load) ──────
   const fetchSalaryRecords = useCallback(async (silent = false) => {

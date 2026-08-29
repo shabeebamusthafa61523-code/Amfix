@@ -1,6 +1,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getCashBook, getExpenseCategories } from '../../services/accountsService';
-import { BookOpen, ArrowUpRight, RefreshCw, FileSpreadsheet, FileText, Download, Wallet, CreditCard, DollarSign, ArrowUpDown } from 'lucide-react';
+import { 
+  BookOpen, 
+  ArrowDownLeft,
+  ArrowUpRight, 
+  RefreshCw, 
+  FileSpreadsheet, 
+  FileText, 
+  Wallet, 
+  CreditCard,
+  Search,
+  Filter,
+  Loader2,
+  TrendingUp,
+  TrendingDown,
+  Coins,
+  ShoppingCart
+} from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -8,31 +24,82 @@ import autoTable from 'jspdf-autotable';
 const CashBookTab = () => {
   const [cashBookData, setCashBookData] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [summary, setSummary] = useState({ totalOutflow: 0, totalEntries: 0 });
+  const [summary, setSummary] = useState({ totalIncome: 0, totalGeneralExpense: 0, totalPurchase: 0, totalExpense: 0, netBalance: 0, totalEntries: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   // Filters & Sorting
+  const [entryTypeFilter, setEntryTypeFilter] = useState(''); // '' (All), 'INCOME', 'EXPENSE', 'PURCHASE'
   const [filterType, setFilterType] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
-  const [filterMode, setFilterMode] = useState(''); // 'Cash', 'UPI', 'Bank'
-  const [sortBy, setSortBy] = useState('date-desc'); // 'date-desc', 'date-asc', 'amount-desc', 'amount-asc'
+  const [filterMode, setFilterMode] = useState('');
+  const [sortBy, setSortBy] = useState('date-desc');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fetchCashBook = async () => {
     setLoading(true);
     setError('');
     try {
       const [cashRes, catRes] = await Promise.all([
-        getCashBook({ type: filterType, category: filterCategory, paymentMode: filterMode, startDate, endDate }),
+        getCashBook({ entryType: entryTypeFilter === 'PURCHASE' ? 'PURCHASE' : entryTypeFilter, type: filterType, category: filterCategory, paymentMode: filterMode, startDate, endDate }),
         getExpenseCategories()
       ]);
 
-      if (cashRes.success) {
-        setCashBookData(cashRes.data || []);
-        setSummary(cashRes.summary || { totalOutflow: 0, totalEntries: 0 });
+      let backendEntries = cashRes.success ? (cashRes.data || []) : [];
+
+      // Merge local purchases from crm_purchase_records if available
+      try {
+        const localPurchasesRaw = JSON.parse(localStorage.getItem('crm_purchase_records') || '[]');
+        if (localPurchasesRaw.length > 0) {
+          const formattedLocalPurchases = localPurchasesRaw.map(p => ({
+            _id: p._id || p.id,
+            entryType: 'EXPENSE',
+            isPurchase: true,
+            type: 'Purchase',
+            categoryName: 'Inventory & Purchase',
+            paidTo: p.paidTo || p.vendorName || 'N/A',
+            paymentMode: p.paymentMode || p.paymentMethod || 'Cash',
+            amount: p.amount || 0,
+            date: p.date || p.purchaseDate || p.createdAt,
+            referenceNo: p.billNo || p.referenceNo || 'PUR-LOCAL',
+            description: p.description || p.itemName || p.remarks || ''
+          }));
+
+          const existingIds = new Set(backendEntries.map(e => String(e._id)));
+          formattedLocalPurchases.forEach(p => {
+            if (!existingIds.has(String(p._id))) {
+              backendEntries.push(p);
+            }
+          });
+        }
+      } catch (localErr) {
+        console.warn('Error reading local purchase records:', localErr);
       }
+
+      // Sort combined entries by date descending
+      backendEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      setCashBookData(backendEntries);
+
+      // Compute summary metrics
+      const totInc = backendEntries.filter(e => e.entryType === 'INCOME').reduce((s, i) => s + (i.amount || 0), 0);
+      const totPur = backendEntries.filter(e => e.entryType === 'EXPENSE' && (e.isPurchase || (e.categoryName || '').toLowerCase().includes('purchase') || e.type === 'Purchase')).reduce((s, i) => s + (i.amount || 0), 0);
+      const totGenExp = backendEntries.filter(e => e.entryType === 'EXPENSE' && !e.isPurchase && !(e.categoryName || '').toLowerCase().includes('purchase') && e.type !== 'Purchase').reduce((s, i) => s + (i.amount || 0), 0);
+      const totOutflow = totGenExp + totPur;
+      const netBal = totInc - totOutflow;
+
+      setSummary({
+        totalIncome: totInc,
+        totalGeneralExpense: totGenExp,
+        totalPurchase: totPur,
+        totalExpense: totOutflow,
+        totalOutflow: totOutflow,
+        netBalance: netBal,
+        totalEntries: backendEntries.length
+      });
+
       if (catRes.success) {
         setCategories(catRes.data || []);
       }
@@ -46,11 +113,31 @@ const CashBookTab = () => {
 
   useEffect(() => {
     fetchCashBook();
-  }, [filterType, filterCategory, filterMode, startDate, endDate]);
+  }, [entryTypeFilter, filterType, filterCategory, filterMode, startDate, endDate]);
 
-  // Client-side sorting logic
-  const sortedCashBookData = useMemo(() => {
-    const data = [...cashBookData];
+  // Client-side search & sorting logic
+  const filteredAndSortedData = useMemo(() => {
+    let data = [...cashBookData];
+
+    if (entryTypeFilter === 'PURCHASE') {
+      data = data.filter(item => item.isPurchase || (item.categoryName || '').toLowerCase().includes('purchase') || item.type === 'Purchase');
+    } else if (entryTypeFilter === 'INCOME') {
+      data = data.filter(item => item.entryType === 'INCOME');
+    } else if (entryTypeFilter === 'EXPENSE') {
+      data = data.filter(item => item.entryType === 'EXPENSE' && !item.isPurchase && !(item.categoryName || '').toLowerCase().includes('purchase'));
+    }
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      data = data.filter(item => 
+        (item.paidTo || '').toLowerCase().includes(q) ||
+        (item.description || '').toLowerCase().includes(q) ||
+        (item.type || '').toLowerCase().includes(q) ||
+        (item.categoryName || '').toLowerCase().includes(q) ||
+        (item.entryType || '').toLowerCase().includes(q)
+      );
+    }
+
     if (sortBy === 'date-desc') {
       return data.sort((a, b) => new Date(b.date) - new Date(a.date));
     }
@@ -64,96 +151,82 @@ const CashBookTab = () => {
       return data.sort((a, b) => (a.amount || 0) - (b.amount || 0));
     }
     return data;
-  }, [cashBookData, sortBy]);
-
-  // Payment mode summary breakdown
-  const modeBreakdown = useMemo(() => {
-    let cash = 0;
-    let upi = 0;
-    let bank = 0;
-    cashBookData.forEach(item => {
-      const mode = String(item.paymentMode || '').toUpperCase();
-      const amt = item.amount || 0;
-      if (mode === 'CASH') cash += amt;
-      else if (mode === 'UPI') upi += amt;
-      else if (mode === 'BANK') bank += amt;
-    });
-    return { cash, upi, bank };
-  }, [cashBookData]);
+  }, [cashBookData, entryTypeFilter, searchTerm, sortBy]);
 
   // Export to Excel
   const handleExportExcel = () => {
-    if (sortedCashBookData.length === 0) {
+    if (filteredAndSortedData.length === 0) {
       alert('No cash book records to export.');
       return;
     }
 
-    const exportData = sortedCashBookData.map((item, idx) => ({
+    const exportData = filteredAndSortedData.map((item, idx) => ({
       'S.No': idx + 1,
       'Date': new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-      'Type': item.type || 'Expense',
-      'Category': item.type === 'Salary' ? 'Employee Salary' : (item.categoryName || item.category?.name || 'General'),
-      'Paid To / Recipient': item.paidTo || 'N/A',
+      'Entry Type': item.entryType === 'INCOME' ? 'INCOME (INFLOW)' : (item.isPurchase ? 'PURCHASE (PROCUREMENT)' : 'EXPENSE (OUTFLOW)'),
+      'Category / Dept': item.categoryName || 'General',
+      'Party / Vendor / Source': item.paidTo || 'N/A',
       'Payment Mode': item.paymentMode || 'Cash',
-      'Amount (INR)': item.amount || 0,
-      'Description': item.description || ''
+      'Inflow Amount (INR)': item.entryType === 'INCOME' ? (item.amount || 0) : 0,
+      'Outflow Amount (INR)': item.entryType === 'EXPENSE' ? (item.amount || 0) : 0,
+      'Description / Notes': item.description || ''
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Cash Book Outflow');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Cash Book Income Expense Purchase');
 
-    // Auto-set column widths
     worksheet['!cols'] = [
       { wch: 6 },
       { wch: 15 },
-      { wch: 12 },
+      { wch: 24 },
       { wch: 22 },
       { wch: 28 },
       { wch: 15 },
-      { wch: 16 },
+      { wch: 18 },
+      { wch: 18 },
       { wch: 35 }
     ];
 
-    XLSX.writeFile(workbook, `Cash_Book_Outflow_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `Cash_Book_Ledger_Profit_Loss_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   // Export to PDF
   const handleExportPDF = () => {
-    if (sortedCashBookData.length === 0) {
+    if (filteredAndSortedData.length === 0) {
       alert('No cash book records to export.');
       return;
     }
 
     const doc = new jsPDF('p', 'pt', 'a4');
 
-    // PDF Header Title & Meta
-    doc.setFontSize(16);
-    doc.setTextColor(30, 41, 59); // slate-800
-    doc.text('CASH BOOK OUTFLOW LEDGER REPORT', 40, 40);
+    doc.setFontSize(15);
+    doc.setTextColor(30, 41, 59);
+    doc.text('CASH BOOK LEDGER & PROFIT AND LOSS STATEMENT', 40, 40);
 
     doc.setFontSize(9);
-    doc.setTextColor(100, 116, 139); // slate-500
+    doc.setTextColor(100, 116, 139);
     doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 40, 55);
-    doc.text(`Total Outflow: RS. ${(summary.totalOutflow || 0).toLocaleString('en-IN')} | Total Transactions: ${sortedCashBookData.length}`, 40, 68);
+    doc.text(`Total Income: RS. ${(summary.totalIncome || 0).toLocaleString('en-IN')} | General Expense: RS. ${(summary.totalGeneralExpense || 0).toLocaleString('en-IN')} | Purchases: RS. ${(summary.totalPurchase || 0).toLocaleString('en-IN')} | Net Profit/Loss: RS. ${(summary.netBalance || 0).toLocaleString('en-IN')}`, 40, 68);
 
-    const tableRows = sortedCashBookData.map((item, idx) => [
+    const tableRows = filteredAndSortedData.map((item, idx) => [
       idx + 1,
       new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-      item.type || 'Expense',
-      item.type === 'Salary' ? 'Employee Salary' : (item.categoryName || item.category?.name || 'General'),
+      item.entryType === 'INCOME' ? 'INCOME' : (item.isPurchase ? 'PURCHASE' : 'EXPENSE'),
+      item.categoryName || 'General',
       item.paidTo || 'N/A',
       item.paymentMode || 'Cash',
-      `RS. ${(item.amount || 0).toLocaleString('en-IN')}`
+      item.entryType === 'INCOME' ? `+ RS. ${(item.amount || 0).toLocaleString('en-IN')}` : '-',
+      item.entryType === 'EXPENSE' ? `- RS. ${(item.amount || 0).toLocaleString('en-IN')}` : '-'
     ]);
 
     autoTable(doc, {
       startY: 85,
-      head: [['#', 'Date', 'Type', 'Category', 'Paid To / Recipient', 'Mode', 'Amount']],
+      head: [['#', 'Date', 'Type', 'Category / Dept', 'Party / Source', 'Mode', 'Inflow (₹)', 'Outflow (₹)']],
       body: tableRows,
       theme: 'grid',
       headStyles: {
-        fillColor: [79, 70, 229], // Indigo 600
+        fillColor: [79, 70, 229],
         textColor: [255, 255, 255],
         fontSize: 9,
         fontStyle: 'bold'
@@ -168,248 +241,258 @@ const CashBookTab = () => {
       columnStyles: {
         0: { cellWidth: 25 },
         1: { cellWidth: 65 },
-        2: { cellWidth: 55 },
-        3: { cellWidth: 90 },
-        4: { cellWidth: 140 },
+        2: { cellWidth: 60 },
+        3: { cellWidth: 85 },
+        4: { cellWidth: 120 },
         5: { cellWidth: 55 },
-        6: { cellWidth: 85, halign: 'right' }
+        6: { cellWidth: 65, halign: 'right' },
+        7: { cellWidth: 65, halign: 'right' }
       }
     });
 
-    doc.save(`Cash_Book_Outflow_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`Cash_Book_Profit_Loss_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   return (
-    <div className="space-y-6">
-      {/* Outflow Summary Banner */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center justify-between">
+    <div className="space-y-4">
+      {/* Sleek 1-Row Compact Stats Strip */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Total Income Stat Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Total Outflow</p>
-            <h3 className="text-xl font-black text-rose-600 dark:text-rose-400 mt-1">
-              ₹{(summary.totalOutflow || 0).toLocaleString('en-IN')}
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Income (Inflow)</p>
+            <h3 className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+              +₹{(summary.totalIncome || 0).toLocaleString('en-IN')}
             </h3>
           </div>
-          <div className="p-2.5 bg-rose-50 dark:bg-rose-950/30 text-rose-600 rounded-xl">
-            <ArrowUpRight size={20} />
+          <div className="p-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 rounded-xl shrink-0">
+            <ArrowDownLeft size={16} />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center justify-between">
+        {/* Total Expenses Stat Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Cash Outflow</p>
-            <h3 className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
-              ₹{modeBreakdown.cash.toLocaleString('en-IN')}
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Expense (Outflow)</p>
+            <h3 className="text-base font-black text-rose-600 dark:text-rose-400 mt-0.5">
+              -₹{(summary.totalGeneralExpense || 0).toLocaleString('en-IN')}
             </h3>
           </div>
-          <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 rounded-xl">
-            <Wallet size={20} />
+          <div className="p-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 rounded-xl shrink-0">
+            <ArrowUpRight size={16} />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center justify-between">
+        {/* Total Purchases Stat Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">UPI / Bank Outflow</p>
-            <h3 className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
-              ₹{(modeBreakdown.upi + modeBreakdown.bank).toLocaleString('en-IN')}
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Purchases</p>
+            <h3 className="text-base font-black text-amber-600 dark:text-amber-400 mt-0.5">
+              -₹{(summary.totalPurchase || 0).toLocaleString('en-IN')}
             </h3>
           </div>
-          <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 rounded-xl">
-            <CreditCard size={20} />
+          <div className="p-2 bg-amber-50 dark:bg-amber-950/30 text-amber-600 rounded-xl shrink-0">
+            <ShoppingCart size={16} />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-xs flex items-center justify-between">
+        {/* Net Profit & Loss Balance Stat Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-bold uppercase text-slate-400 tracking-wider">Total Transactions</p>
-            <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 mt-1">
-              {sortedCashBookData.length}
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Net Profit / Loss</p>
+            <h3 className={`text-base font-black mt-0.5 ${
+              (summary.netBalance || 0) >= 0 
+                ? 'text-indigo-600 dark:text-indigo-400' 
+                : 'text-rose-600 dark:text-rose-400'
+            }`}>
+              ₹{(summary.netBalance || 0).toLocaleString('en-IN')}
             </h3>
           </div>
-          <div className="p-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl">
-            <BookOpen size={20} />
+          <div className="p-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 rounded-xl shrink-0">
+            <Wallet size={16} />
           </div>
         </div>
       </div>
 
-      {/* Cash Book Main Ledger Table Card */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-4">
-        {/* Header & Filter Toolbar */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-              Cash Book Outflow Ledger
-            </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Real-time audit log of all outgoing payments with mode filtering & export tools.
-            </p>
+      {/* Sleek Toolbar & Filter Bar */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+        {/* Left Title */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-indigo-600/10 dark:bg-indigo-400/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+            <BookOpen className="w-4 h-4" />
           </div>
-
-          {/* Export Buttons */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleExportExcel}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
-              title="Export Cash Book to Excel"
-            >
-              <FileSpreadsheet size={14} />
-              <span>Export Excel</span>
-            </button>
-            <button
-              onClick={handleExportPDF}
-              className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
-              title="Export Cash Book to PDF"
-            >
-              <FileText size={14} />
-              <span>Export PDF</span>
-            </button>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
+              Profit & Loss / Cash Book (Income, Expense & Purchase)
+            </h3>
           </div>
         </div>
 
-        {/* Filter Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Payment Mode Sorting / Filter (CASH / UPI / BANK) */}
-            <select
-              value={filterMode}
-              onChange={(e) => setFilterMode(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 text-xs font-semibold focus:border-indigo-500 outline-none cursor-pointer"
-            >
-              <option value="">All Payment Modes</option>
-              <option value="Cash">💵 CASH</option>
-              <option value="UPI_BANK">📱 / 🏦 UPI / BANK</option>
-            </select>
-
-            {/* Type filter */}
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 text-xs font-semibold outline-none"
-            >
-              <option value="">All Types</option>
-              <option value="Expense">Expense Only</option>
-              <option value="Salary">Salary Only</option>
-            </select>
-
-            {/* Category filter */}
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 text-xs font-semibold outline-none"
-            >
-              <option value="">All Categories</option>
-              {categories.map((c) => (
-                <option key={c._id} value={c._id}>{c.name}</option>
-              ))}
-            </select>
-
-            {/* Sort Order */}
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 text-xs font-semibold outline-none"
-            >
-              <option value="date-desc">📅 Date: Newest First</option>
-              <option value="date-asc">📅 Date: Oldest First</option>
-              <option value="amount-desc">💰 Amount: High to Low</option>
-              <option value="amount-asc">💰 Amount: Low to High</option>
-            </select>
+        {/* Right Search, Filters & Export Actions */}
+        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap justify-end">
+          {/* Search Input */}
+          <div className="relative w-full md:w-44">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search vendor, party..."
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+            />
+            <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Date Start */}
+          {/* Entry Type Filter (All / Income / Expense / Purchase) */}
+          <select
+            value={entryTypeFilter}
+            onChange={(e) => setEntryTypeFilter(e.target.value)}
+            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+          >
+            <option value="">All Ledger Entries</option>
+            <option value="INCOME">🟢 Income Only (Inflow)</option>
+            <option value="EXPENSE">🔴 Expense Only (Outflow)</option>
+            <option value="PURCHASE">🛒 Purchase Only (Procurement)</option>
+          </select>
+
+          {/* Payment Mode Filter */}
+          <select
+            value={filterMode}
+            onChange={(e) => setFilterMode(e.target.value)}
+            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+          >
+            <option value="">All Payment Modes</option>
+            <option value="Cash">Cash</option>
+            <option value="UPI_BANK">UPI / Bank</option>
+          </select>
+
+          {/* Date Pickers */}
+          <div className="flex items-center gap-1">
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 text-xs font-semibold outline-none"
+              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none"
+              title="Start Date"
             />
-
-            {/* Date End */}
+            <span className="text-slate-400 text-xs">-</span>
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 text-xs font-semibold outline-none"
+              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none"
+              title="End Date"
             />
-
-            <button
-              onClick={fetchCashBook}
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition cursor-pointer"
-              title="Refresh Ledger"
-            >
-              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            </button>
           </div>
-        </div>
 
-        {/* Ledger Table */}
+          {/* Refresh Button */}
+          <button
+            type="button"
+            onClick={fetchCashBook}
+            className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
+            title="Refresh Ledger"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          </button>
+
+          {/* Export Excel Button */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition border border-emerald-200 dark:border-emerald-900 cursor-pointer"
+          >
+            <FileSpreadsheet size={13} />
+            Excel
+          </button>
+
+          {/* Export PDF Button */}
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-bold transition border border-indigo-200 dark:border-indigo-900 cursor-pointer"
+          >
+            <FileText size={13} />
+            PDF
+          </button>
+        </div>
+      </div>
+
+      {/* Main Ledger Table */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 border-y border-slate-200/60 dark:border-slate-800">
-              <tr>
-                <th className="py-3 px-3 font-semibold">Date</th>
-                <th className="py-3 px-3 font-semibold">Type</th>
-                <th className="py-3 px-3 font-semibold">Category</th>
-                <th className="py-3 px-3 font-semibold">Paid To / Recipient</th>
-                <th className="py-3 px-3 font-semibold">Payment Mode</th>
-                <th className="py-3 px-3 font-semibold text-right">Amount (₹)</th>
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50/80 dark:bg-slate-950/60 text-slate-400 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                <th className="py-3 px-4">Date</th>
+                <th className="py-3 px-4">Type</th>
+                <th className="py-3 px-4">Category / Dept</th>
+                <th className="py-3 px-4">Party / Vendor / Source</th>
+                <th className="py-3 px-4">Mode</th>
+                <th className="py-3 px-4 text-right">Inflow (₹)</th>
+                <th className="py-3 px-4 text-right">Outflow (₹)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-700 dark:text-slate-300">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-700 dark:text-slate-300 font-medium">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    Loading cash book entries...
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <Loader2 className="animate-spin text-indigo-600 mx-auto mb-2" size={24} />
+                    Loading entries...
                   </td>
                 </tr>
-              ) : sortedCashBookData.length === 0 ? (
+              ) : filteredAndSortedData.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    No money outflow entries recorded yet.
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                    No entries found.
                   </td>
                 </tr>
               ) : (
-                sortedCashBookData.map((item) => (
-                  <tr key={item._id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                    <td className="py-3.5 px-3 whitespace-nowrap font-medium text-slate-900 dark:text-slate-100">
-                      {new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </td>
-                    <td className="py-3.5 px-3">
-                      <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold ${
-                        item.type === 'Salary' 
-                          ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400' 
-                          : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
-                      }`}>
-                        {item.type || 'Expense'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-3 font-medium">
-                      {item.type === 'Salary' ? 'Employee Salary' : (item.categoryName || item.category?.name || 'General')}
-                    </td>
-                    <td className="py-3.5 px-3 font-medium text-slate-900 dark:text-slate-100">
-                      {item.paidTo}
-                      {item.description && (
-                        <p className="text-[11px] text-slate-400 font-normal line-clamp-1">{item.description}</p>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-3">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider ${
-                        String(item.paymentMode || '').toUpperCase() === 'CASH'
-                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/80'
-                          : String(item.paymentMode || '').toUpperCase() === 'UPI'
-                          ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/80'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200'
-                      }`}>
-                        {item.paymentMode || 'Cash'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-3 text-right font-black text-slate-900 dark:text-white whitespace-nowrap">
-                      ₹{(item.amount || 0).toLocaleString('en-IN')}
-                    </td>
-                  </tr>
-                ))
+                filteredAndSortedData.map((item) => {
+                  const isIncome = item.entryType === 'INCOME';
+                  const isPur = item.isPurchase || (item.categoryName || '').toLowerCase().includes('purchase') || item.type === 'Purchase';
+
+                  return (
+                    <tr key={`${item.entryType}-${item._id}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/30 transition">
+                      <td className="py-3.5 px-4 whitespace-nowrap font-medium text-slate-500 dark:text-slate-400">
+                        {new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold tracking-wider ${
+                          isIncome 
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/80' 
+                            : isPur
+                              ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80'
+                              : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-800/80'
+                        }`}>
+                          {isIncome ? '🟢 INCOME' : isPur ? '🛒 PURCHASE' : '🔴 EXPENSE'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-semibold text-slate-700 dark:text-slate-300">
+                        {item.categoryName || 'General'}
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-slate-900 dark:text-slate-100">
+                        {item.paidTo}
+                        {item.description && (
+                          <p className="text-[11px] font-normal text-slate-400 line-clamp-1">{item.description}</p>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${
+                          String(item.paymentMode || '').toUpperCase() === 'CASH'
+                            ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                            : 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300'
+                        }`}>
+                          {item.paymentMode || 'Cash'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                        {isIncome ? `+₹${(item.amount || 0).toLocaleString('en-IN')}` : '—'}
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-bold text-rose-600 dark:text-rose-400 whitespace-nowrap">
+                        {!isIncome ? `-₹${(item.amount || 0).toLocaleString('en-IN')}` : '—'}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

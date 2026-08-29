@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, X, CheckCircle2 } from 'lucide-react';
 
 const ConfirmModal = ({
   isOpen,
@@ -47,9 +47,11 @@ const ConfirmModal = ({
             <div className={`p-4 rounded-full mb-4 ${
               type === 'danger'
                 ? 'bg-rose-50 dark:bg-rose-950/20 text-rose-500 dark:text-rose-400'
+                : type === 'emerald'
+                ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400'
                 : 'bg-amber-50 dark:bg-amber-950/20 text-amber-500 dark:text-amber-400'
             }`}>
-              <AlertTriangle className="animate-bounce" size={32} />
+              {type === 'emerald' ? <CheckCircle2 size={32} /> : <AlertTriangle className="animate-bounce" size={32} />}
             </div>
 
             {/* Title */}
@@ -77,6 +79,8 @@ const ConfirmModal = ({
                 className={`flex-1 py-2.5 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-lg ${
                   type === 'danger'
                     ? 'bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 shadow-rose-500/20'
+                    : type === 'emerald'
+                    ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-emerald-600/20'
                     : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 shadow-amber-500/20'
                 }`}
               >

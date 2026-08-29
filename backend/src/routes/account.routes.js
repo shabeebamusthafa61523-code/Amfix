@@ -20,7 +20,15 @@ import {
   getDailyReport,
   getMonthlyReport,
   getCategoryWiseReport,
-  getSalaryReport
+  getSalaryReport,
+  getIncomes,
+  getIncomeById,
+  createIncome,
+  updateIncome,
+  deleteIncome,
+  restoreIncome,
+  permanentDeleteIncome,
+  recordPaymentSettlement
 } from '../controllers/account.controller.js';
 import protectRoute from '../middleware/auth.middleware.js';
 import upload from '../middleware/upload.middleware.js';
@@ -29,6 +37,17 @@ const router = Router();
 
 // Protect all account routes
 router.use(protectRoute);
+
+// ── Income Routes ──
+router.get('/income', getIncomes);
+router.get('/income/:id', getIncomeById);
+router.post('/income', createIncome);
+router.post('/income/:id/payment', recordPaymentSettlement);
+router.put('/income/:id/payment', recordPaymentSettlement);
+router.put('/income/:id/restore', restoreIncome);
+router.put('/income/:id', updateIncome);
+router.delete('/income/:id/permanent', permanentDeleteIncome);
+router.delete('/income/:id', deleteIncome);
 
 // ── Categories Routes ──
 router.get('/categories', getCategories);

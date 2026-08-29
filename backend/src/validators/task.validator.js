@@ -27,13 +27,19 @@ const objectIdSchema = (fieldName) =>
 
 const TASK_STATUSES = [
   'pending',
+  'current',
+  'preview',
   'in-progress',
   'in_progress',
   'completed',
   'done',
   'cancelled',
   'on-hold',
-  'on_hold'
+  'on_hold',
+  'review',
+  'under-review',
+  'under_review',
+  'testing'
 ];
 
 const TASK_PRIORITIES = [

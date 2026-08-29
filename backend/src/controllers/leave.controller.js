@@ -31,20 +31,32 @@ const isHrOrAdmin = (userObj) => {
 /**
  * Helper to check if a user is a Team Lead / Manager
  */
-const isTlOrManager = (userObj) => {
+const isTlOrManager = async (userObj) => {
   if (!userObj) return false;
-  if (userObj.isTeamLead === true || userObj.is_team_lead === true) return true;
-  const role = String(userObj.role || '').toLowerCase().trim();
-  const roleId = String(userObj.role_id || userObj.roleId || '').trim();
-  const desig = String(userObj.designation || '').toLowerCase().trim();
+  
+  // 1. Explicit check on user model boolean flags (authoritative)
+  if (userObj.isTeamLead === false || userObj.is_team_lead === false || String(userObj.isTeamLead).toLowerCase() === 'false' || String(userObj.is_team_lead).toLowerCase() === 'false') {
+    return false;
+  }
 
-  return (
-    ['3', 'manager', 'team_lead', 'teamlead', 'tl', 'hod'].includes(role) ||
-    ['3', '10'].includes(roleId) ||
-    desig.includes('manager') ||
-    desig.includes('lead') ||
-    desig.includes('hod')
-  );
+  if (userObj.isTeamLead === true || userObj.is_team_lead === true || String(userObj.isTeamLead).toLowerCase() === 'true' || String(userObj.is_team_lead).toLowerCase() === 'true') {
+    return true;
+  }
+
+  // 2. Check if user is assigned as manager of any department
+  try {
+    const Department = (await import('../modules/departments/department.model.js')).default;
+    if (Department && userObj._id) {
+      const isDeptManager = await Department.exists({ managerId: userObj._id });
+      if (isDeptManager) return true;
+    }
+  } catch (e) {
+    console.warn('Error checking department manager status:', e.message);
+  }
+
+  // 3. Fallback check ONLY on explicit role strings (strictly excluding role_id: 3 default staff)
+  const role = String(userObj.role || '').toLowerCase().trim();
+  return ['manager', 'team_lead', 'teamlead', 'tl', 'hod'].includes(role);
 };
 
 /**
@@ -154,7 +166,7 @@ export const createLeaveRequest = async (req, res) => {
     }
 
 
-    const requesterIsTl = isTlOrManager(userObj);
+    const requesterIsTl = await isTlOrManager(userObj);
     const initialTeamLeadStatus = requesterIsTl ? 'APPROVED' : 'PENDING';
     const initialTeamLeadActionBy = requesterIsTl ? userId : undefined;
     const initialTeamLeadActionAt = requesterIsTl ? new Date() : undefined;
@@ -496,7 +508,7 @@ export const approveOrRejectLeave = async (req, res) => {
       leaveObj.reportingManager.toLowerCase() !== 'unassigned';
 
     const requesterUser = await User.findById(leaveObj.user);
-    const requesterIsTl = isTlOrManager(requesterUser);
+    const requesterIsTl = await isTlOrManager(requesterUser);
 
     // STAGE 2 ENFORCEMENT: HR can only approve/reject after Team Lead has APPROVED Stage 1
     if (targetType === 'hr' && hasReportingManager && leaveObj.teamLeadStatus !== 'APPROVED' && !requesterIsTl) {

@@ -17,13 +17,24 @@ import {
   X,
   CheckSquare,
   Square,
+  Pencil,
   Image as ImageIcon
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { sendEmail } from '../services/emailService';
 import { NOTIFICATION_THEMES, getNotificationTheme } from '../utils/notificationThemes';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const rawApiBase = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+const getApiEndpoint = (path) => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (rawApiBase.endsWith('/v1')) {
+    return `${rawApiBase}${cleanPath}`;
+  }
+  if (rawApiBase.endsWith('/api')) {
+    return `${rawApiBase}/v1${cleanPath}`;
+  }
+  return `${rawApiBase}/api/v1${cleanPath}`;
+};
 
 const NotificationPage = () => {
   const { showToast } = useToast();
@@ -39,6 +50,14 @@ const NotificationPage = () => {
   // Image Upload State
   const [imagePreview, setImagePreview] = useState('');
   const [selectedImageModal, setSelectedImageModal] = useState(null);
+
+  // Edit Notification Modal State
+  const [editingNotification, setEditingNotification] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editCategory, setEditCategory] = useState('official');
+  const [editImagePreview, setEditImagePreview] = useState('');
+  const [updating, setUpdating] = useState(false);
 
   const handleImageFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -128,7 +147,7 @@ const NotificationPage = () => {
   const fetchUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
-      const res = await fetch(`${API_BASE}/v1/users`, {
+      const res = await fetch(getApiEndpoint('/users'), {
         headers: getAuthHeaders()
       });
       const data = await res.json();
@@ -152,8 +171,8 @@ const NotificationPage = () => {
     try {
       setLoadingNotifications(true);
       const endpoint = activeTab === 'received' 
-        ? `${API_BASE}/v1/notifications/my-notifications`
-        : `${API_BASE}/v1/notifications`;
+        ? getApiEndpoint('/notifications/my-notifications')
+        : getApiEndpoint('/notifications');
         
       const res = await fetch(endpoint, {
         headers: getAuthHeaders()
@@ -273,7 +292,7 @@ const NotificationPage = () => {
     try {
       setSending(true);
       // Send notification record to backend
-      const res = await fetch(`${API_BASE}/v1/notifications`, {
+      const res = await fetch(getApiEndpoint('/notifications'), {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -332,7 +351,7 @@ const NotificationPage = () => {
   // Mark single as read
   const handleMarkAsRead = async (id) => {
     try {
-      const res = await fetch(`${API_BASE}/v1/notifications/${id}/read`, {
+      const res = await fetch(getApiEndpoint(`/notifications/${id}/read`), {
         method: 'PUT',
         headers: getAuthHeaders()
       });
@@ -350,7 +369,7 @@ const NotificationPage = () => {
   // Mark all as read
   const handleMarkAllRead = async () => {
     try {
-      const res = await fetch(`${API_BASE}/v1/notifications/mark-all-read`, {
+      const res = await fetch(getApiEndpoint('/notifications/mark-all-read'), {
         method: 'PUT',
         headers: getAuthHeaders()
       });
@@ -368,7 +387,7 @@ const NotificationPage = () => {
   // Delete Notification
   const handleDeleteNotification = async (id) => {
     try {
-      const res = await fetch(`${API_BASE}/v1/notifications/${id}`, {
+      const res = await fetch(getApiEndpoint(`/notifications/${id}`), {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
@@ -380,6 +399,100 @@ const NotificationPage = () => {
       }
     } catch (err) {
       console.error("Error deleting notification:", err);
+    }
+  };
+
+  const handleOpenEditModal = (notification) => {
+    setEditingNotification(notification);
+    setEditTitle(notification.title || '');
+    setEditDescription(notification.description || notification.desc || '');
+    setEditCategory(notification.category || 'official');
+    setEditImagePreview(notification.imageUrl || notification.image || '');
+  };
+
+  const handleEditImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast("Please select a valid image file (PNG, JPG, WEBP, etc.)", "warning");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      showToast("Image file size must be under 10MB", "warning");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1200;
+
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setEditImagePreview(compressedDataUrl);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUpdateNotification = async (e) => {
+    e.preventDefault();
+
+    if (!editingNotification) return;
+
+    if (!editDescription.trim()) {
+      showToast("Please enter a notification description.", "warning");
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      const targetId = editingNotification._id || editingNotification.id;
+      const res = await fetch(getApiEndpoint(`/notifications/${targetId}`), {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          title: editTitle.trim() || "Notification",
+          description: editDescription.trim(),
+          category: editCategory,
+          image: editImagePreview || null,
+          imageUrl: editImagePreview || null
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        showToast("Notification updated successfully!", "success");
+        setEditingNotification(null);
+        fetchNotifications();
+      } else {
+        showToast(data.message || "Failed to update notification.", "error");
+      }
+    } catch (err) {
+      console.error("Error updating notification:", err);
+      showToast("An error occurred while updating the notification.", "error");
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -702,6 +815,25 @@ const NotificationPage = () => {
               <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
                 {displayedNotifications.map((n) => {
                   const th = getNotificationTheme(n.category);
+                  const currentUserId = String(currentUser?._id || currentUser?.id || currentUser?.user_id || localStorage.getItem('user_id') || '');
+                  const currentUserName = (currentUser?.name || currentUser?.username || '').toLowerCase().trim();
+                  const userRole = String(currentUser?.role?.name || currentUser?.role || '').toLowerCase();
+                  const isAdmin = ['admin', '1', '2', 'superadmin', 'md'].includes(userRole);
+
+                  const createdById = String(
+                    typeof n.createdBy === 'object' 
+                      ? (n.createdBy?._id || n.createdBy?.id || '') 
+                      : (n.createdBy || n.senderId || n.userId || '')
+                  );
+
+                  const isCreator = Boolean(
+                    (currentUserId && createdById && createdById === currentUserId) ||
+                    (n.createdByName && currentUserName && n.createdByName.toLowerCase().trim() === currentUserName) ||
+                    (n.createdBy?.name && currentUserName && n.createdBy.name.toLowerCase().trim() === currentUserName) ||
+                    activeTab === 'assigned_by' ||
+                    isAdmin
+                  );
+
                   return (
                     <motion.div
                       key={n._id}
@@ -735,7 +867,7 @@ const NotificationPage = () => {
                             )}
                           </div>
 
-                          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium whitespace-pre-wrap break-words">
                             {n.description}
                           </p>
 
@@ -783,6 +915,15 @@ const NotificationPage = () => {
                               <Check size={16} />
                             </button>
                           )}
+                          {isCreator && (
+                            <button
+                              onClick={() => handleOpenEditModal(n)}
+                              title="Edit notification"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition-colors cursor-pointer"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDeleteNotification(n._id)}
                             title="Delete notification"
@@ -800,6 +941,159 @@ const NotificationPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Edit Notification Modal */}
+      <AnimatePresence>
+        {editingNotification && (
+          <div className="fixed inset-0 z-[110] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Pencil size={18} className="text-indigo-600 dark:text-indigo-400" />
+                  Edit Notification
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setEditingNotification(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateNotification} className="space-y-4">
+                {/* Title */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Title / Subject
+                    </label>
+
+                    {/* Category Selector */}
+                    <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800 shrink-0">
+                      {NOTIFICATION_THEMES && Object.values(NOTIFICATION_THEMES).map((th) => {
+                        const isSelected = editCategory === th.id;
+                        return (
+                          <button
+                            key={th.id}
+                            type="button"
+                            onClick={() => setEditCategory(th.id)}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                              isSelected
+                                ? `${th.badgeClass} shadow-xs`
+                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                            }`}
+                          >
+                            <span>{th.emoji}</span>
+                            <span>{th.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    placeholder="Title"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-3.5 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+                    Description <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="Enter description..."
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-y"
+                    required
+                  />
+                </div>
+
+                {/* Image */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Image Attachment
+                    </label>
+                    {editImagePreview && (
+                      <button
+                        type="button"
+                        onClick={() => setEditImagePreview('')}
+                        className="text-[11px] font-bold text-rose-500 hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <X size={12} /> Remove Image
+                      </button>
+                    )}
+                  </div>
+
+                  {editImagePreview ? (
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-2">
+                      <img
+                        src={editImagePreview}
+                        alt="Edit Attachment Preview"
+                        className="w-full h-40 object-cover rounded-xl"
+                      />
+                    </div>
+                  ) : (
+                    <label htmlFor="edit-notification-image-input" className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer bg-slate-50/50 dark:bg-slate-950/50 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 hover:border-indigo-500/50 transition-all group">
+                      <div className="flex flex-col items-center justify-center pt-2.5 pb-2.5">
+                        <ImageIcon className="w-6 h-6 text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 mb-1 transition-colors" />
+                        <p className="text-xs text-slate-600 dark:text-slate-300 font-bold">
+                          Click to upload new image
+                        </p>
+                      </div>
+                      <input
+                        id="edit-notification-image-input"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleEditImageFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Submit Buttons */}
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingNotification(null)}
+                    className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updating}
+                    className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-lg shadow-indigo-600/20 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {updating ? (
+                      <>
+                        <Loader2 className="animate-spin" size={14} />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Changes'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Fullscreen Image Preview Modal */}
       <AnimatePresence>

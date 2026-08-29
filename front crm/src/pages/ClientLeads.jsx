@@ -16,7 +16,18 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
+const getApiEndpoint = (path) => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (API_BASE.endsWith('/v1')) {
+    return `${API_BASE}${cleanPath}`;
+  }
+  if (API_BASE.endsWith('/api')) {
+    return `${API_BASE}/v1${cleanPath}`;
+  }
+  return `${API_BASE}/api/v1${cleanPath}`;
+};
 
 const getISTDate = () => {
   return new Intl.DateTimeFormat('en-CA', {
@@ -324,6 +335,17 @@ export default function ClientLeads() {
     return isOperationManager;
   }, [isAdmin, isAcademicCounselor, isOperationManager]);
 
+  const canDeleteLead = useMemo(() => {
+    if (!currentUser) return true;
+    const roleId = String(currentUser.role_id || currentUser.roleId || currentUser.role || '').toLowerCase().trim();
+    return (
+      currentUser.isSuperAdmin ||
+      ['0', '1', '2', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'tl', 'hr'].includes(roleId) ||
+      isOperationManager ||
+      canEditLead
+    );
+  }, [currentUser, isOperationManager, canEditLead]);
+
   // Form State
   const [formData, setFormData] = useState({
     leadName: '',
@@ -357,7 +379,11 @@ export default function ClientLeads() {
   // Fetch Staff
   const fetchStaff = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/v1/users`, { headers: getAuthHeaders() });
+      const res = await fetch(getApiEndpoint('/users'), { headers: getAuthHeaders() });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setStaff(data.data);
@@ -404,7 +430,11 @@ export default function ClientLeads() {
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads?limit=1000`, { headers: getAuthHeaders() });
+      const res = await fetch(getApiEndpoint('/client-leads?limit=1000'), { headers: getAuthHeaders() });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setLeads(data.data);
@@ -426,7 +456,11 @@ export default function ClientLeads() {
   const fetchLeadDetails = async (id) => {
     setDetailsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads/${id}`, { headers: getAuthHeaders() });
+      const res = await fetch(getApiEndpoint(`/client-leads/${id}`), { headers: getAuthHeaders() });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success && data.data) {
         setSelectedLeadDetails(data.data);
@@ -445,11 +479,15 @@ export default function ClientLeads() {
       assignedTo: formData.assignedTo && formData.assignedTo.trim() ? formData.assignedTo : null
     };
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads`, {
+      const res = await fetch(getApiEndpoint('/client-leads'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         showToast("Client lead created successfully!", "success");
@@ -473,11 +511,15 @@ export default function ClientLeads() {
       assignedTo: formData.assignedTo && formData.assignedTo.trim() ? formData.assignedTo : null
     };
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads/${selectedLead.id || selectedLead._id}`, {
+      const res = await fetch(getApiEndpoint(`/client-leads/${selectedLead.id || selectedLead._id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         showToast("Client lead updated successfully!", "success");
@@ -503,11 +545,15 @@ export default function ClientLeads() {
     setLeads(prev => prev.map(l => ((l.id === leadId || l._id === leadId) ? { ...l, [field]: cleanValue, ...extraFields } : l)));
 
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads/${leadId}`, {
+      const res = await fetch(getApiEndpoint(`/client-leads/${leadId}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ [field]: cleanValue, ...extraFields })
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         showToast(`Client lead ${field} updated!`, "success");
@@ -533,11 +579,15 @@ export default function ClientLeads() {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads/${selectedLead.id || selectedLead._id}`, {
+      const res = await fetch(getApiEndpoint(`/client-leads/${selectedLead.id || selectedLead._id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(updateObj)
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         showToast(`Follow-up ${followUpData.followUpNum} updated!`, "success");
@@ -555,10 +605,14 @@ export default function ClientLeads() {
   const handleDeleteLead = async () => {
     if (!deleteConfirm.id) return;
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads/${deleteConfirm.id}`, {
+      const res = await fetch(getApiEndpoint(`/client-leads/${deleteConfirm.id}`), {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         showToast("Client lead deleted successfully", "success");
@@ -1240,7 +1294,7 @@ export default function ClientLeads() {
                         </button>
                       </>
                     )}
-                    {(isOperationManager || currentUser?.role_id === '1' || currentUser?.role_id === '2') && (
+                    {canDeleteLead && (
                       <button
                         onClick={() => setDeleteConfirm({ isOpen: true, id: lead.id || lead._id, name: lead.leadName })}
                         className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
@@ -1555,7 +1609,7 @@ export default function ClientLeads() {
                               </button>
                             </>
                           )}
-                          {(isOperationManager || currentUser?.role_id === '1' || currentUser?.role_id === '2') && (
+                          {canDeleteLead && (
                             <button
                               onClick={() => setDeleteConfirm({ isOpen: true, id: lead.id || lead._id, name: lead.leadName })}
                               className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition cursor-pointer"
@@ -1868,20 +1922,36 @@ export default function ClientLeads() {
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsEditOpen(false)}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-500 shadow-md"
-                >
-                  Update Lead
-                </button>
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                {canDeleteLead ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const lId = selectedLead?.id || selectedLead?._id;
+                      const lName = selectedLead?.leadName || 'Lead';
+                      setIsEditOpen(false);
+                      setDeleteConfirm({ isOpen: true, id: lId, name: lName });
+                    }}
+                    className="px-3.5 py-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold hover:bg-rose-100 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 size={14} /> Delete Lead
+                  </button>
+                ) : <div />}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditOpen(false)}
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-500 shadow-md cursor-pointer"
+                  >
+                    Update Lead
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -1965,10 +2035,24 @@ export default function ClientLeads() {
               </div>
             ) : null}
 
-            <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              {canDeleteLead ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const lId = selectedLeadDetails?.id || selectedLeadDetails?._id || selectedLead?.id || selectedLead?._id;
+                    const lName = selectedLeadDetails?.leadName || selectedLead?.leadName || 'Lead';
+                    setIsViewOpen(false);
+                    setDeleteConfirm({ isOpen: true, id: lId, name: lName });
+                  }}
+                  className="px-3.5 py-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold hover:bg-rose-100 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 size={14} /> Delete Lead
+                </button>
+              ) : <div />}
               <button
                 onClick={() => setIsViewOpen(false)}
-                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800"
+                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 cursor-pointer"
               >
                 Close
               </button>

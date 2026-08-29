@@ -67,11 +67,18 @@ const NavbarNotificationPopup = ({
           </div>
 
           {/* Notification Title & Body */}
-          <div className="space-y-1 pl-1">
+          <div 
+            onClick={() => {
+              if (onMarkAsRead) onMarkAsRead(notification._id || notification.id);
+              onClose();
+              navigate('/notifications');
+            }}
+            className="space-y-1 pl-1 cursor-pointer"
+          >
             <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 line-clamp-1">
               {notification.title || 'Notification Alert'}
             </h4>
-            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-3">
+            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-3 whitespace-pre-wrap break-words">
               {notification.description || notification.desc}
             </p>
 

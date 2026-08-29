@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Printer, Download, FileText, Pencil, Check, XCircle, Loader2, Mail, Send } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
@@ -152,35 +153,96 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
   const handleDownloadPDF = async () => {
     if (!payslipRef.current) return;
     setDownloading(true);
+    const filename = `Payslip_${edited.empName?.replace(/\s+/g, '_')}_${edited.month?.replace(/\s+/g, '_')}.pdf`;
     try {
-      const opt = {
-        margin: [5, 5, 5, 5],
-        filename: `Payslip_${edited.empName?.replace(/\s+/g, '_')}_${edited.month?.replace(/\s+/g, '_')}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          onclone: (clonedDoc) => {
-            // Strip or sanitize any Tailwind v4 oklch CSS color declarations from stylesheet rules
-            const styleElements = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
-            styleElements.forEach((style) => {
-              try {
-                if (style.textContent && style.textContent.includes('oklch')) {
-                  style.textContent = style.textContent.replace(/oklch\([^)]+\)/g, '#475569');
-                }
-              } catch (e) {
-                console.warn('CSS oklch replacement warning:', e);
+      const element = payslipRef.current;
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        onclone: (clonedDoc) => {
+          const styleElements = clonedDoc.querySelectorAll('style');
+          styleElements.forEach((style) => {
+            try {
+              if (style.textContent) {
+                style.textContent = style.textContent
+                  .replace(/oklab\([^)]+\)/gi, '#475569')
+                  .replace(/oklch\([^)]+\)/gi, '#475569')
+                  .replace(/color-mix\([^)]+\)/gi, '#475569');
               }
-            });
-          }
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-      await html2pdf().set(opt).from(payslipRef.current).save();
+            } catch (e) {}
+          });
+
+          const linkElements = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
+          linkElements.forEach((link) => {
+            try {
+              let cssText = '';
+              const sheet = Array.from(document.styleSheets).find(s => s.href === link.href || (s.ownerNode && s.ownerNode.href === link.href));
+              if (sheet) {
+                try {
+                  const rules = sheet.cssRules || sheet.rules;
+                  if (rules) {
+                    cssText = Array.from(rules).map(r => r.cssText).join('\n');
+                  }
+                } catch (e) {}
+              }
+              if (cssText) {
+                const cleanCss = cssText
+                  .replace(/oklab\([^)]+\)/gi, '#475569')
+                  .replace(/oklch\([^)]+\)/gi, '#475569')
+                  .replace(/color-mix\([^)]+\)/gi, '#475569');
+                const newStyle = clonedDoc.createElement('style');
+                newStyle.textContent = cleanCss;
+                if (link.parentNode) link.parentNode.replaceChild(newStyle, link);
+              } else if (link.parentNode) {
+                link.parentNode.removeChild(link);
+              }
+            } catch (e) {
+              if (link.parentNode) link.parentNode.removeChild(link);
+            }
+          });
+
+          const allElements = clonedDoc.querySelectorAll('*');
+          allElements.forEach((el) => {
+            try {
+              const inlineStyle = el.getAttribute('style');
+              if (inlineStyle && (inlineStyle.includes('oklab') || inlineStyle.includes('oklch') || inlineStyle.includes('color-mix'))) {
+                const cleanedStyle = inlineStyle
+                  .replace(/oklab\([^)]+\)/gi, '#475569')
+                  .replace(/oklch\([^)]+\)/gi, '#475569')
+                  .replace(/color-mix\([^)]+\)/gi, '#475569');
+                el.setAttribute('style', cleanedStyle);
+              }
+            } catch (e) {}
+          });
+        }
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(filename);
+      if (showToast) showToast(`Downloaded ${filename} to your system!`, 'success');
     } catch (err) {
-      console.error('Error generating PDF:', err);
-      showToast('Error generating PDF.', 'error');
+      console.error('Direct PDF export failed, trying fallback:', err);
+      try {
+        const opt = {
+          margin: [5, 5, 5, 5],
+          filename,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        await html2pdf().set(opt).from(payslipRef.current).save();
+      } catch (fallbackErr) {
+        console.error('All PDF generation failed:', fallbackErr);
+        if (showToast) showToast('Error generating PDF.', 'error');
+      }
     } finally {
       setDownloading(false);
     }
@@ -240,9 +302,9 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
       <span>{num(field).toLocaleString('en-IN')}</span>
     );
 
-  return (
+  return createPortal(
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-1.5 sm:p-2 bg-slate-950/95 backdrop-blur-md overflow-hidden">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-1.5 sm:p-2 bg-slate-950/70 overflow-hidden">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -536,7 +598,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
 
       {/* ── Share via Email Dialog ──────────────────────── */}
       {showEmailModal && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/70">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -599,7 +661,8 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 
