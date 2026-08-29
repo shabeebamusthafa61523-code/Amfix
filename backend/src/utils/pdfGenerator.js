@@ -277,24 +277,31 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
             if (key === 'performanceKpis') title = 'Performance KPI';
             if (key === 'issuesFeedback') title = 'Issues & Feedback';
             
-            // Extract unique field names from all items in array (excluding mongoose _id/id)
-            const allKeys = [];
-            filledRows.forEach(item => {
-              Object.keys(item).forEach(k => {
-                if (k !== '_id' && k !== 'id' && !allKeys.includes(k)) {
-                  allKeys.push(k);
-                }
+            // For salesActivity and clientSalesActivity, explicitly preserve the standard schema columns including 'remarks'
+            let activeKeys = [];
+            if (key === 'salesActivity' || key === 'clientSalesActivity') {
+              activeKeys = ['activity', 'count', 'digitalMktg', 'web', 'remarks'];
+            } else if (key === 'dailyOperations') {
+              activeKeys = ['activity', 'dueDate', 'startDate', 'endDate', 'status', 'remarks'];
+            } else {
+              const allKeys = [];
+              filledRows.forEach(item => {
+                Object.keys(item).forEach(k => {
+                  if (k !== '_id' && k !== 'id' && !allKeys.includes(k)) {
+                    allKeys.push(k);
+                  }
+                });
               });
-            });
 
-            // Filter columns: keep keys that have at least one non-empty value across filledRows
-            const activeKeys = allKeys.filter(k => {
-              if (k === '_id' || k === 'id' || k === '__v') return false;
-              return filledRows.some(item => {
-                const v = item[k];
-                return v !== null && v !== undefined && String(v).trim() !== '';
+              activeKeys = allKeys.filter(k => {
+                if (k === '_id' || k === 'id' || k === '__v') return false;
+                if (k === 'remarks' || k === 'remark' || k === 'statusRemarks') return true;
+                return filledRows.some(item => {
+                  const v = item[k];
+                  return v !== null && v !== undefined && String(v).trim() !== '';
+                });
               });
-            });
+            }
 
             if (activeKeys.length > 0) {
               drawSectionHeader(`${sectionIndex}. ${title}`);
@@ -309,6 +316,12 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
                 startDate: 'Start Date',
                 endDate: 'End Date',
                 statusRemarks: 'Remarks',
+                remarks: 'Remarks',
+                remark: 'Remarks',
+                digitalMktg: 'Digital Mktg',
+                web: 'Web',
+                count: 'Count',
+                activity: 'Activity',
                 hrAdminComments: 'HR Comments',
                 incomes: 'Incomes',
                 expense: 'Expense',
@@ -321,12 +334,18 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
               // Row data
               const rows = filledRows.map(item => activeKeys.map(k => item[k] || ''));
 
-              // Distribute columns evenly
-              const columnWidths = activeKeys.map(() => Math.floor(515 / activeKeys.length));
-              // Adjust last column to ensure total is exactly 515
-              const totalWidth = columnWidths.reduce((sum, w) => sum + w, 0);
-              if (totalWidth < 515) {
-                columnWidths[columnWidths.length - 1] += (515 - totalWidth);
+              // Custom column width distribution for sales activities
+              let columnWidths;
+              if (key === 'salesActivity' || key === 'clientSalesActivity') {
+                columnWidths = [165, 55, 70, 70, 155];
+              } else if (key === 'dailyOperations') {
+                columnWidths = [140, 65, 65, 65, 60, 120];
+              } else {
+                columnWidths = activeKeys.map(() => Math.floor(515 / activeKeys.length));
+                const totalWidth = columnWidths.reduce((sum, w) => sum + w, 0);
+                if (totalWidth < 515) {
+                  columnWidths[columnWidths.length - 1] += (515 - totalWidth);
+                }
               }
 
               drawTable(headers, rows, columnWidths);

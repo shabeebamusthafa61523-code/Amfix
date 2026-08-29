@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getDailyReport, getMonthlyReport, getCategoryWiseReport, getSalaryReport } from '../../services/accountsService';
-import { BarChart3, Calendar, PieChart, DollarSign, ArrowDownToLine, RefreshCw, TrendingUp, TrendingDown, Coins, ShoppingCart } from 'lucide-react';
+import { BarChart3, Calendar, PieChart, DollarSign, ArrowDownToLine, RefreshCw, TrendingUp, TrendingDown, Coins, ShoppingCart, Search, Filter, ArrowUpDown } from 'lucide-react';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
@@ -45,6 +45,11 @@ const ExpenseReportsTab = () => {
 
   // Salary Filter
   const [salaryMonth, setSalaryMonth] = useState('');
+
+  // Search, Filter & Sort Controls
+  const [searchTerm, setSearchTerm] = useState('');
+  const [flowFilter, setFlowFilter] = useState('ALL'); // 'ALL' | 'INCOME' | 'EXPENSE' | 'PURCHASE'
+  const [sortBy, setSortBy] = useState('date-desc'); // 'date-desc' | 'date-asc' | 'amount-desc' | 'amount-asc'
 
   const fetchIncomeData = async () => {
     try {
@@ -141,10 +146,76 @@ const ExpenseReportsTab = () => {
 
   const dayIncomesList = getDailyIncomes();
   const dayPurchasesList = getDailyPurchases();
+
+  const dayBackendList = reportData?.data || [];
+  const dayBackendPurchases = dayBackendList.filter(e => e.isPurchase || String(e.categoryName || '').toLowerCase().includes('purchase') || String(e.categoryName || '').toLowerCase().includes('inventory'));
+  const dayBackendGenExp = dayBackendList.filter(e => !e.isPurchase && !String(e.categoryName || '').toLowerCase().includes('purchase') && !String(e.categoryName || '').toLowerCase().includes('inventory'));
+
+  const allDayPurchasesMap = new Map();
+  dayPurchasesList.forEach(p => allDayPurchasesMap.set(String(p._id || p.id), p));
+  dayBackendPurchases.forEach(p => allDayPurchasesMap.set(String(p._id || p.id), p));
+  const dayPurchaseTotal = Array.from(allDayPurchasesMap.values()).reduce((sum, item) => sum + (Number(item.amount || item.totalAmount) || 0), 0);
+
   const dayIncomeTotal = dayIncomesList.reduce((sum, item) => sum + (Number(item.receiptAmount || item.totalAmount || item.amount) || 0), 0);
-  const dayPurchaseTotal = dayPurchasesList.reduce((sum, item) => sum + (Number(item.amount || item.totalAmount) || 0), 0);
-  const dayExpenseTotal = reportData?.summary?.totalAmount || 0;
-  const dayNetSurplus = dayIncomeTotal - (dayExpenseTotal + dayPurchaseTotal);
+  const dayExpenseTotal = dayBackendGenExp.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const dayTotalOutflow = dayExpenseTotal + dayPurchaseTotal;
+  const dayNetSurplus = dayIncomeTotal - dayTotalOutflow;
+
+  const getDailyCombinedRegister = () => {
+    const combined = [];
+
+    // 1. Day Incomes
+    dayIncomesList.forEach(inc => {
+      combined.push({
+        _id: inc._id || inc.id,
+        flowType: 'INCOME',
+        date: inc.date || dailyDate,
+        title: inc.title || 'Client Revenue',
+        category: inc.department || 'Income',
+        payee: inc.clientName || 'Client',
+        paymentMode: inc.paymentMethod || 'Bank Transfer',
+        amount: Number(inc.receiptAmount || inc.totalAmount || inc.amount) || 0
+      });
+    });
+
+    // 2. Day Expenses from backend reportData
+    const addedIds = new Set();
+    dayBackendList.forEach(exp => {
+      addedIds.add(String(exp._id));
+      const cat = String(exp.categoryName || '').toLowerCase();
+      const isPur = exp.isPurchase || cat.includes('purchase') || cat.includes('inventory');
+      combined.push({
+        _id: exp._id,
+        flowType: isPur ? 'PURCHASE' : 'EXPENSE',
+        date: exp.date || dailyDate,
+        title: exp.categoryName || (isPur ? 'Inventory Procurement' : 'General Expense'),
+        category: isPur ? 'Inventory & Purchase' : (exp.type === 'Salary' ? 'Employee Payroll' : (exp.categoryName || 'General')),
+        payee: exp.paidTo || 'Vendor / Employee',
+        paymentMode: exp.paymentMode || 'Cash',
+        amount: exp.amount || 0
+      });
+    });
+
+    // 3. Day Purchases from dayPurchasesList not in addedIds
+    dayPurchasesList.forEach(pur => {
+      const pId = String(pur._id || pur.id);
+      if (!addedIds.has(pId)) {
+        addedIds.add(pId);
+        combined.push({
+          _id: pId,
+          flowType: 'PURCHASE',
+          date: pur.date || pur.purchaseDate || dailyDate,
+          title: pur.description || pur.itemName || 'Vendor Procurement',
+          category: 'Inventory & Purchase',
+          payee: pur.paidTo || pur.vendorName || 'Vendor',
+          paymentMode: pur.paymentMode || pur.paymentMethod || 'Bank Transfer',
+          amount: Number(pur.amount || pur.totalAmount) || 0
+        });
+      }
+    });
+
+    return combined;
+  };
 
   // Helper calculations for Monthly Income, Purchases & Expense
   const getMonthlyIncomes = () => {
@@ -173,9 +244,111 @@ const ExpenseReportsTab = () => {
   const monthIncomesList = getMonthlyIncomes();
   const monthPurchasesList = getMonthlyPurchases();
   const monthIncomeTotal = monthIncomesList.reduce((sum, item) => sum + (Number(item.receiptAmount || item.totalAmount || item.amount) || 0), 0);
-  const monthPurchaseTotal = monthPurchasesList.reduce((sum, item) => sum + (Number(item.amount || item.totalAmount) || 0), 0);
-  const monthExpenseTotal = reportData?.summary?.totalAmount || 0;
-  const monthNetProfit = monthIncomeTotal - (monthExpenseTotal + monthPurchaseTotal);
+
+  // Consolidated Backend + Local Expense & Purchase Lists
+  const backendExpList = reportData?.data || [];
+  const monthBackendPurchases = backendExpList.filter(e => e.isPurchase || String(e.categoryName || '').toLowerCase().includes('purchase') || String(e.categoryName || '').toLowerCase().includes('inventory'));
+  const monthBackendGenExp = backendExpList.filter(e => !e.isPurchase && !String(e.categoryName || '').toLowerCase().includes('purchase') && !String(e.categoryName || '').toLowerCase().includes('inventory'));
+
+  const allMonthlyPurchasesMap = new Map();
+  monthPurchasesList.forEach(p => allMonthlyPurchasesMap.set(String(p._id || p.id), p));
+  monthBackendPurchases.forEach(p => allMonthlyPurchasesMap.set(String(p._id || p.id), p));
+  const monthPurchaseTotal = Array.from(allMonthlyPurchasesMap.values()).reduce((sum, item) => sum + (Number(item.amount || item.totalAmount) || 0), 0);
+
+  const monthGeneralExpenseTotal = monthBackendGenExp.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const monthTotalOutflow = monthGeneralExpenseTotal + monthPurchaseTotal;
+  const monthNetProfit = monthIncomeTotal - monthTotalOutflow;
+
+  const getMonthlyCombinedRegister = () => {
+    const combined = [];
+    monthIncomesList.forEach(inc => {
+      combined.push({
+        _id: inc._id || inc.id,
+        flowType: 'INCOME',
+        date: inc.date,
+        title: inc.title || 'Client Revenue',
+        category: inc.department || 'Income',
+        payee: inc.clientName || 'Client',
+        paymentMode: inc.paymentMethod || 'Bank Transfer',
+        amount: Number(inc.receiptAmount || inc.totalAmount || inc.amount) || 0
+      });
+    });
+
+    const addedIds = new Set();
+    backendExpList.forEach(exp => {
+      addedIds.add(String(exp._id));
+      const cat = String(exp.categoryName || '').toLowerCase();
+      const isPur = exp.isPurchase || cat.includes('purchase') || cat.includes('inventory');
+      combined.push({
+        _id: exp._id,
+        flowType: isPur ? 'PURCHASE' : 'EXPENSE',
+        date: exp.date,
+        title: exp.categoryName || (isPur ? 'Inventory Procurement' : 'General Expense'),
+        category: isPur ? 'Inventory & Purchase' : (exp.type === 'Salary' ? 'Employee Payroll' : (exp.categoryName || 'General')),
+        payee: exp.paidTo || 'Vendor / Employee',
+        paymentMode: exp.paymentMode || 'Cash',
+        amount: exp.amount || 0
+      });
+    });
+
+    monthPurchasesList.forEach(pur => {
+      const pId = String(pur._id || pur.id);
+      if (!addedIds.has(pId)) {
+        addedIds.add(pId);
+        combined.push({
+          _id: pId,
+          flowType: 'PURCHASE',
+          date: pur.date || pur.purchaseDate,
+          title: pur.description || pur.itemName || 'Vendor Procurement',
+          category: 'Inventory & Purchase',
+          payee: pur.paidTo || pur.vendorName || 'Vendor',
+          paymentMode: pur.paymentMode || pur.paymentMethod || 'Bank Transfer',
+          amount: Number(pur.amount || pur.totalAmount) || 0
+        });
+      }
+    });
+
+    return combined;
+  };
+
+  const applyFilterAndSort = (items) => {
+    let result = [...items];
+
+    if (flowFilter && flowFilter !== 'ALL') {
+      result = result.filter(item => item.flowType === flowFilter);
+    }
+
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase().trim();
+      result = result.filter(item => 
+        (item.title || '').toLowerCase().includes(q) ||
+        (item.payee || '').toLowerCase().includes(q) ||
+        (item.category || '').toLowerCase().includes(q) ||
+        (item.paymentMode || '').toLowerCase().includes(q)
+      );
+    }
+
+    result.sort((a, b) => {
+      if (sortBy === 'amount-desc') {
+        return (b.amount || 0) - (a.amount || 0);
+      }
+      if (sortBy === 'amount-asc') {
+        return (a.amount || 0) - (b.amount || 0);
+      }
+      if (sortBy === 'date-asc') {
+        return new Date(a.date || 0) - new Date(b.date || 0);
+      }
+      return new Date(b.date || 0) - new Date(a.date || 0);
+    });
+
+    return result;
+  };
+
+  const dayRawList = getDailyCombinedRegister();
+  const dayCombinedList = applyFilterAndSort(dayRawList);
+
+  const monthRawList = getMonthlyCombinedRegister();
+  const monthCombinedList = applyFilterAndSort(monthRawList);
 
   return (
     <div className="space-y-6">
@@ -353,10 +526,56 @@ const ExpenseReportsTab = () => {
             </div>
           </div>
 
+          {/* Filter & Sort Controls Toolbar for Daily View */}
+          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex-1 relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search daily transactions by title, payee, category, payment mode..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <Filter size={13} className="text-slate-400" />
+                <span className="text-[11px] font-bold text-slate-500">Flow:</span>
+                <select
+                  value={flowFilter}
+                  onChange={(e) => setFlowFilter(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold text-slate-800 dark:text-slate-100 cursor-pointer"
+                >
+                  <option value="ALL">All Flows</option>
+                  <option value="INCOME">Income Inflow (+)</option>
+                  <option value="EXPENSE">General Expense (-)</option>
+                  <option value="PURCHASE">Vendor Purchase (-)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <ArrowUpDown size={13} className="text-slate-400" />
+                <span className="text-[11px] font-bold text-slate-500">Sort:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold text-slate-800 dark:text-slate-100 cursor-pointer"
+                >
+                  <option value="date-desc">Date (Newest First)</option>
+                  <option value="date-asc">Date (Oldest First)</option>
+                  <option value="amount-desc">Amount (High → Low)</option>
+                  <option value="amount-asc">Amount (Low → High)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           {/* Consolidated Daily Financial Transactions Table */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Consolidated Daily Ledger (Income & Expenses)</h4>
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Consolidated Daily Ledger (All Inflows & Outflows)</h4>
               <span className="text-[10px] font-bold text-slate-400">{dailyDate}</span>
             </div>
             <div className="overflow-x-auto">
@@ -373,50 +592,56 @@ const ExpenseReportsTab = () => {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                   {loading ? (
                     <tr><td colSpan={5} className="py-6 text-center text-slate-400">Loading daily financial ledger...</td></tr>
-                  ) : dayIncomesList.length === 0 && (!reportData?.data || reportData.data.length === 0) ? (
-                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">No income or expense transactions recorded for this date.</td></tr>
+                  ) : dayCombinedList.length === 0 ? (
+                    <tr><td colSpan={5} className="py-6 text-center text-slate-400">No matching income, expense, or purchase transactions found for this date.</td></tr>
                   ) : (
-                    <>
-                      {/* 1. Day Incomes */}
-                      {dayIncomesList.map((inc) => (
-                        <tr key={inc._id || inc.id} className="bg-emerald-50/30 dark:bg-emerald-950/10">
+                    dayCombinedList.map((item) => {
+                      const isIncome = item.flowType === 'INCOME';
+                      const isPurchase = item.flowType === 'PURCHASE';
+                      return (
+                        <tr
+                          key={item._id}
+                          className={
+                            isIncome
+                              ? 'bg-emerald-50/30 dark:bg-emerald-950/10'
+                              : isPurchase
+                              ? 'bg-purple-50/30 dark:bg-purple-950/10'
+                              : 'bg-rose-50/20 dark:bg-rose-950/10'
+                          }
+                        >
                           <td className="py-3 px-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                              INCOME
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                isIncome
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                  : isPurchase
+                                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                                  : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                              }`}
+                            >
+                              {item.flowType}
                             </span>
                           </td>
                           <td className="py-3 px-3">
-                            <strong className="block text-slate-900 dark:text-slate-100">{inc.title || 'Client Revenue'}</strong>
-                            <span className="text-[10px] text-slate-400">{inc.department || 'Income'}</span>
+                            <strong className="block text-slate-900 dark:text-slate-100">{item.title}</strong>
+                            <span className="text-[10px] text-slate-400">{item.category}</span>
                           </td>
-                          <td className="py-3 px-3">{inc.clientName || 'Client'}</td>
-                          <td className="py-3 px-3">{inc.paymentMethod || 'Bank Transfer'}</td>
-                          <td className="py-3 px-3 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
-                            + ₹{(Number(inc.receiptAmount || inc.totalAmount || inc.amount) || 0).toLocaleString('en-IN')}
-                          </td>
-                        </tr>
-                      ))}
-
-                      {/* 2. Day Expenses */}
-                      {(reportData?.data || []).map((exp) => (
-                        <tr key={exp._id} className="bg-rose-50/20 dark:bg-rose-950/10">
-                          <td className="py-3 px-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
-                              EXPENSE
-                            </span>
-                          </td>
-                          <td className="py-3 px-3">
-                            <strong className="block text-slate-900 dark:text-slate-100">{exp.categoryName || 'Expense'}</strong>
-                            <span className="text-[10px] text-slate-400">{exp.description || 'Outflow'}</span>
-                          </td>
-                          <td className="py-3 px-3">{exp.paidTo || 'Vendor / Employee'}</td>
-                          <td className="py-3 px-3">{exp.paymentMode}</td>
-                          <td className="py-3 px-3 text-right font-mono font-black text-rose-600 dark:text-rose-400">
-                            - ₹{(exp.amount || 0).toLocaleString('en-IN')}
+                          <td className="py-3 px-3">{item.payee}</td>
+                          <td className="py-3 px-3">{item.paymentMode}</td>
+                          <td
+                            className={`py-3 px-3 text-right font-mono font-black ${
+                              isIncome
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : isPurchase
+                                ? 'text-purple-600 dark:text-purple-400'
+                                : 'text-rose-600 dark:text-rose-400'
+                            }`}
+                          >
+                            {isIncome ? '+' : '-'} ₹{(item.amount || 0).toLocaleString('en-IN')}
                           </td>
                         </tr>
-                      ))}
-                    </>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -457,36 +682,50 @@ const ExpenseReportsTab = () => {
             </div>
           </div>
 
-          {/* Monthly Financial Metrics */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          {/* Comprehensive 5-Column Monthly Financial Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
             <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-4 shadow-2xs">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Monthly Revenue</p>
                 <TrendingUp size={16} className="text-emerald-600 dark:text-emerald-400" />
               </div>
-              <h4 className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1.5 font-mono">
+              <h4 className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1.5 font-mono">
                 ₹{monthIncomeTotal.toLocaleString('en-IN')}
               </h4>
               <p className="text-[10px] text-slate-400 mt-0.5">{monthIncomesList.length} Revenue Receipts</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-4 shadow-2xs">
+            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-4 shadow-2xs">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Monthly Outflow</p>
-                <TrendingDown size={16} className="text-rose-600 dark:text-rose-400" />
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Vendor Purchases</p>
+                <TrendingDown size={16} className="text-purple-600 dark:text-purple-400" />
               </div>
-              <h4 className="text-xl font-black text-rose-600 dark:text-rose-400 mt-1.5 font-mono">
-                ₹{monthExpenseTotal.toLocaleString('en-IN')}
+              <h4 className="text-lg font-black text-purple-600 dark:text-purple-400 mt-1.5 font-mono">
+                ₹{monthPurchaseTotal.toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Expenses & Salaries</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Procurement Outflow</p>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-4 shadow-2xs">
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Salary Payments</p>
-              <h4 className="text-xl font-black text-purple-600 dark:text-purple-400 mt-1.5 font-mono">
-                ₹{(reportData?.summary?.salaryTotal || 0).toLocaleString('en-IN')}
+            <div className="bg-white dark:bg-slate-900 border border-rose-500/20 dark:border-rose-500/30 rounded-2xl p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Expenses & Payroll</p>
+                <TrendingDown size={16} className="text-rose-600 dark:text-rose-400" />
+              </div>
+              <h4 className="text-lg font-black text-rose-600 dark:text-rose-400 mt-1.5 font-mono">
+                ₹{monthGeneralExpenseTotal.toLocaleString('en-IN')}
               </h4>
-              <p className="text-[10px] text-slate-400 mt-0.5">Total Payroll</p>
+              <p className="text-[10px] text-slate-400 mt-0.5">Operational Costs</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-slate-500/20 dark:border-slate-500/30 rounded-2xl p-4 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Outflow</p>
+                <TrendingDown size={16} className="text-slate-600 dark:text-slate-400" />
+              </div>
+              <h4 className="text-lg font-black text-slate-700 dark:text-slate-200 mt-1.5 font-mono">
+                ₹{monthTotalOutflow.toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">All Cash Outflows</p>
             </div>
 
             <div className={`bg-white dark:bg-slate-900 border ${monthNetProfit >= 0 ? 'border-indigo-500/20 dark:border-indigo-500/30' : 'border-amber-500/20 dark:border-amber-500/30'} rounded-2xl p-4 shadow-2xs`}>
@@ -494,16 +733,62 @@ const ExpenseReportsTab = () => {
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Net Profit / Surplus</p>
                 <Coins size={16} className={monthNetProfit >= 0 ? "text-indigo-600 dark:text-indigo-400" : "text-amber-600 dark:text-amber-400"} />
               </div>
-              <h4 className={`text-xl font-black mt-1.5 font-mono ${monthNetProfit >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              <h4 className={`text-lg font-black mt-1.5 font-mono ${monthNetProfit >= 0 ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}`}>
                 {monthNetProfit >= 0 ? '+' : ''}₹{monthNetProfit.toLocaleString('en-IN')}
               </h4>
               <p className="text-[10px] text-slate-400 mt-0.5">{monthNetProfit >= 0 ? 'Net Operating Profit' : 'Net Deficit'}</p>
             </div>
           </div>
 
+          {/* Filter & Sort Controls Toolbar for Monthly View */}
+          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="flex-1 relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search monthly transactions by title, payee, category, payment mode..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <Filter size={13} className="text-slate-400" />
+                <span className="text-[11px] font-bold text-slate-500">Flow:</span>
+                <select
+                  value={flowFilter}
+                  onChange={(e) => setFlowFilter(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold text-slate-800 dark:text-slate-100 cursor-pointer"
+                >
+                  <option value="ALL">All Flows</option>
+                  <option value="INCOME">Income Inflow (+)</option>
+                  <option value="EXPENSE">General Expense (-)</option>
+                  <option value="PURCHASE">Vendor Purchase (-)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <ArrowUpDown size={13} className="text-slate-400" />
+                <span className="text-[11px] font-bold text-slate-500">Sort:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-xs font-semibold text-slate-800 dark:text-slate-100 cursor-pointer"
+                >
+                  <option value="date-desc">Date (Newest First)</option>
+                  <option value="date-asc">Date (Oldest First)</option>
+                  <option value="amount-desc">Amount (High → Low)</option>
+                  <option value="amount-asc">Amount (Low → High)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           {/* Monthly Consolidated Register */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Financial Register</h4>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Monthly Consolidated Register (All Inflows & Outflows)</h4>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 border-y border-slate-200/60 dark:border-slate-800">
@@ -518,44 +803,58 @@ const ExpenseReportsTab = () => {
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
                   {loading ? (
                     <tr><td colSpan={5} className="py-6 text-center text-slate-400">Loading monthly financial register...</td></tr>
-                  ) : monthIncomesList.length === 0 && (!reportData?.data || reportData.data.length === 0) ? (
+                  ) : monthCombinedList.length === 0 ? (
                     <tr><td colSpan={5} className="py-6 text-center text-slate-400">No financial transactions recorded for this month.</td></tr>
                   ) : (
-                    <>
-                      {/* Monthly Incomes */}
-                      {monthIncomesList.map((inc) => (
-                        <tr key={inc._id || inc.id} className="bg-emerald-50/30 dark:bg-emerald-950/10">
+                    monthCombinedList.map((item) => {
+                      const isIncome = item.flowType === 'INCOME';
+                      const isPurchase = item.flowType === 'PURCHASE';
+                      return (
+                        <tr
+                          key={item._id}
+                          className={
+                            isIncome
+                              ? 'bg-emerald-50/30 dark:bg-emerald-950/10'
+                              : isPurchase
+                              ? 'bg-purple-50/30 dark:bg-purple-950/10'
+                              : 'bg-rose-50/20 dark:bg-rose-950/10'
+                          }
+                        >
                           <td className="py-3 px-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                              INCOME
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                                isIncome
+                                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                                  : isPurchase
+                                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                                  : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                              }`}
+                            >
+                              {item.flowType}
                             </span>
                           </td>
-                          <td className="py-3 px-3 text-slate-500">{new Date(inc.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
-                          <td className="py-3 px-3 font-semibold text-slate-900 dark:text-slate-100">{inc.title}</td>
-                          <td className="py-3 px-3">{inc.clientName || 'Client'}</td>
-                          <td className="py-3 px-3 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
-                            + ₹{(Number(inc.receiptAmount || inc.totalAmount || inc.amount) || 0).toLocaleString('en-IN')}
+                          <td className="py-3 px-3 text-slate-500">
+                            {item.date ? new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'N/A'}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-slate-900 dark:text-slate-100">
+                            {item.title}
+                            <span className="block text-[10px] text-slate-400 font-normal">{item.category}</span>
+                          </td>
+                          <td className="py-3 px-3">{item.payee}</td>
+                          <td
+                            className={`py-3 px-3 text-right font-mono font-black ${
+                              isIncome
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : isPurchase
+                                ? 'text-purple-600 dark:text-purple-400'
+                                : 'text-rose-600 dark:text-rose-400'
+                            }`}
+                          >
+                            {isIncome ? '+' : '-'} ₹{(item.amount || 0).toLocaleString('en-IN')}
                           </td>
                         </tr>
-                      ))}
-
-                      {/* Monthly Expenses */}
-                      {(reportData?.data || []).map((exp) => (
-                        <tr key={exp._id} className="bg-rose-50/20 dark:bg-rose-950/10">
-                          <td className="py-3 px-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
-                              EXPENSE
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-slate-500">{new Date(exp.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
-                          <td className="py-3 px-3 font-semibold text-slate-900 dark:text-slate-100">{exp.categoryName}</td>
-                          <td className="py-3 px-3">{exp.paidTo}</td>
-                          <td className="py-3 px-3 text-right font-mono font-black text-rose-600 dark:text-rose-400">
-                            - ₹{(exp.amount || 0).toLocaleString('en-IN')}
-                          </td>
-                        </tr>
-                      ))}
-                    </>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

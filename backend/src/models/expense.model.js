@@ -9,11 +9,15 @@ const expenseSchema = new mongoose.Schema({
   category: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ExpenseCategory',
-    required: true
+    required: false
   },
   categoryName: {
     type: String,
     required: true
+  },
+  isPurchase: {
+    type: Boolean,
+    default: false
   },
   amount: {
     type: Number,
