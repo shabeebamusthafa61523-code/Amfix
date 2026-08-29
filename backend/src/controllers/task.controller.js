@@ -18,6 +18,8 @@ import {
 
 const VALID_STATUSES = [
   "pending",
+  "current",
+  "preview",
   "in-progress",
   "in_progress",
   "completed",
@@ -25,6 +27,10 @@ const VALID_STATUSES = [
   "cancelled",
   "on-hold",
   "on_hold",
+  "review",
+  "under-review",
+  "under_review",
+  "testing",
 ];
 
 const VALID_PRIORITIES = ["low", "medium", "high"];

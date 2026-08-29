@@ -77,6 +77,8 @@ const NotificationPopover = ({
                     key={n._id || n.id} 
                     onClick={() => {
                       if (!n.isRead && onMarkAsRead) onMarkAsRead(n._id || n.id);
+                      onClose();
+                      navigate('/notifications');
                     }}
                     className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-950/40 transition-all cursor-pointer relative group ${
                       !n.isRead ? 'bg-indigo-50/30 dark:bg-indigo-950/20' : ''
@@ -95,7 +97,7 @@ const NotificationPopover = ({
                       </span>
                     </div>
 
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2 whitespace-pre-wrap break-words">
                       {n.description || n.desc}
                     </p>
 

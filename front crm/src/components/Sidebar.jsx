@@ -125,6 +125,7 @@ const menuItems = [
 
   // --- FINANCE & PAYROLL ---
   { icon: Wallet, label: 'Accounts', path: '/accounts', category: 'Finance & Payroll', children: [
+      { icon: TrendingUp, label: 'Income', path: '/accounts/income' },
       { icon: Tag, label: 'Expense Categories', path: '/accounts/categories' },
       { icon: PlusCircle, label: 'Add Expense', path: '/accounts/expenses' },
       { icon: DollarSign, label: 'Salary Payment', path: '/accounts/salary' },
@@ -132,6 +133,7 @@ const menuItems = [
       { icon: BarChart3, label: 'Expense Report', path: '/accounts/reports' }
     ]
   },
+  { icon: TrendingUp, label: 'Income', path: '/accounts/income', category: 'Finance & Payroll', allowedRoles: ['0', '1', '2', '10', 'hr', 'admin', 'accountant', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'accounts', 'finance'], allowedDesignationNames: ['hr', 'recruiter', 'accountant', 'finance', 'accounts'] },
   { icon: Receipt, label: 'Payslips', path: '/payslips', category: 'Finance & Payroll', allowedRoles: ['0', '1', '2', '10', 'hr', 'admin', 'accountant', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'accounts', 'finance'], allowedDesignationNames: ['hr', 'recruiter', 'accountant', 'finance', 'accounts'] },
   { icon: CreditCard, label: 'Personal Payslip', path: '/my-payslip', category: 'Finance & Payroll' },
 
