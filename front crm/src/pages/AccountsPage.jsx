@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Tag, PlusCircle, DollarSign, BookOpen, BarChart3, Wallet, TrendingUp, FileText } from 'lucide-react';
+import { Tag, PlusCircle, DollarSign, BookOpen, BarChart3, Wallet, TrendingUp, FileText, ShoppingBag, ShoppingCart } from 'lucide-react';
 
 import ExpenseCategoriesTab from '../components/accounts/ExpenseCategoriesTab';
 import AddExpenseTab from '../components/accounts/AddExpenseTab';
@@ -9,6 +9,8 @@ import CashBookTab from '../components/accounts/CashBookTab';
 import ExpenseReportsTab from '../components/accounts/ExpenseReportsTab';
 import IncomeTab from '../components/accounts/IncomeTab';
 import CreateInvoiceTab from '../components/accounts/CreateInvoiceTab';
+import SalesTab from '../components/accounts/SalesTab';
+import PurchaseTab from '../components/accounts/PurchaseTab';
 
 const AccountsPage = () => {
   const location = useLocation();
@@ -18,8 +20,9 @@ const AccountsPage = () => {
   const getTabFromPath = (path) => {
     if (path.includes('/accounts/create-invoice')) return 'create-invoice';
     if (path.includes('/accounts/income') || path === '/income') return 'income';
-    if (path.includes('/accounts/categories')) return 'categories';
-    if (path.includes('/accounts/expenses')) return 'expenses';
+    if (path.includes('/accounts/sales')) return 'sales';
+    if (path.includes('/accounts/purchase')) return 'purchase';
+    if (path.includes('/accounts/categories') || path.includes('/accounts/expenses')) return 'expenses';
     if (path.includes('/accounts/salary')) return 'salary';
     if (path.includes('/accounts/cash-book')) return 'cash-book';
     if (path.includes('/accounts/reports')) return 'reports';
@@ -53,6 +56,18 @@ const AccountsPage = () => {
         {/* Compact Navigation Tabs Bar */}
         <div className="flex items-center gap-1 overflow-x-auto w-full md:w-auto scrollbar-none">
           <button
+            onClick={() => handleTabChange('sales', '/accounts/sales')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+              activeTab === 'sales'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+            }`}
+          >
+            <TrendingUp size={14} />
+            <span>Sales</span>
+          </button>
+
+          <button
             onClick={() => handleTabChange('income', '/accounts/income')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
               activeTab === 'income'
@@ -60,20 +75,20 @@ const AccountsPage = () => {
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
-            <TrendingUp size={14} />
+            <ShoppingBag size={14} />
             <span>Income</span>
           </button>
 
           <button
-            onClick={() => handleTabChange('categories', '/accounts/categories')}
+            onClick={() => handleTabChange('purchase', '/accounts/purchase')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-              activeTab === 'categories'
-                ? 'bg-indigo-600 text-white shadow-xs'
+              activeTab === 'purchase'
+                ? 'bg-purple-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
-            <Tag size={14} />
-            <span>Expense Categories</span>
+            <ShoppingCart size={14} />
+            <span>Purchase</span>
           </button>
 
           <button
@@ -85,7 +100,7 @@ const AccountsPage = () => {
             }`}
           >
             <PlusCircle size={14} />
-            <span>Add Expense</span>
+            <span>Expense</span>
           </button>
 
           <button
@@ -121,7 +136,7 @@ const AccountsPage = () => {
             }`}
           >
             <BarChart3 size={14} />
-            <span>Expense Report</span>
+            <span>Profit and Loss</span>
           </button>
         </div>
       </div>
@@ -129,7 +144,9 @@ const AccountsPage = () => {
       {/* Main Tab View */}
       <div className="transition-all duration-300">
         {activeTab === 'create-invoice' && <CreateInvoiceTab />}
-        {activeTab === 'income' && <IncomeTab />}
+        {activeTab === 'sales' && <IncomeTab mode="sales" />}
+        {activeTab === 'income' && <IncomeTab mode="income" />}
+        {activeTab === 'purchase' && <PurchaseTab />}
         {activeTab === 'categories' && <ExpenseCategoriesTab />}
         {activeTab === 'expenses' && <AddExpenseTab />}
         {activeTab === 'salary' && <SalaryPaymentTab />}

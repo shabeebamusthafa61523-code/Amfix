@@ -13,7 +13,7 @@ import { useUser } from '../contexts/UserContext';
 import { sendEmail } from '../services/emailService';
 import TaskCollaboration from '../components/TaskCollaboration';
 
-const API_BASE = import.meta.env.VITE_API_URL;// --- UTILS & CONSTANTS ---
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, ''); // --- UTILS & CONSTANTS ---
 const getTaskImageUrl = (path) => {
   if (!path) return null;
   if (typeof path === 'object') {
@@ -170,6 +170,7 @@ const PRIORITY_META = {
 };
 
 const Todo = () => {
+  const { showToast } = useToast();
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [designations, setDesignations] = useState([]);
@@ -296,12 +297,20 @@ const fetchData = useCallback(async () => {
     if (!destination) return;
     const newStatus = destination.droppableId;
     const oldTasks = [...tasks];
-    setTasks(prev => prev.map(t => t.id.toString() === draggableId ? { ...t, status: newStatus } : t));
+    setTasks(prev => prev.map(t => (t.id || t._id || '').toString() === draggableId ? { ...t, status: newStatus } : t));
     try {
-      await fetch(`${API_BASE}/tasks/task-status/${draggableId}?status=${newStatus}`, {
+      const res = await fetch(`${API_BASE}/tasks/task-status/${draggableId}?status=${newStatus}`, {
         method: 'PUT', headers: getAuthHeaders()
       });
-    } catch (err) { setTasks(oldTasks); }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setTasks(oldTasks);
+        showToast(errData.message || 'Failed to update task status', 'error');
+      }
+    } catch (err) {
+      setTasks(oldTasks);
+      showToast('Network error while updating task status', 'error');
+    }
   };
 
   if (loading) return (
@@ -468,6 +477,7 @@ const fetchData = useCallback(async () => {
             onClose={() => setIsModalOpen(false)} 
             users={users} refresh={fetchData} getAuthHeaders={getAuthHeaders} 
             designations={designations}
+            currentUserId={currentUserId}
           />
         )}
         {selectedTask && (
@@ -491,7 +501,7 @@ const fetchData = useCallback(async () => {
 };
 
 // --- CREATE MODAL COMPONENT ---
-const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) => {
+const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations, currentUserId }) => {
   const { showToast } = useToast();
 
   const [form, setForm] = useState({ title: '', description: '', assigned_to: '', designation_id: '', dueDate: '', client: '', project: '', priority: 'medium' });
@@ -634,9 +644,12 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
 
     showToast("Task successfully created!", "success");
 
-    // Send email notification via Brevo to assigned user
-    const assignedUser = users?.find(u => String(u.id || u._id) === String(form.assigned_to));
-    if (assignedUser && assignedUser.email) {
+    // Send email notification via Brevo to assigned user(s)
+    const assignedUsers = selectedAssignees
+      .map(id => users?.find(u => String(u.id || u._id) === String(id)))
+      .filter(u => u && u.email);
+
+    for (const assignedUser of assignedUsers) {
       try {
         await sendEmail({
           to: { email: assignedUser.email, name: assignedUser.name || assignedUser.username },
@@ -887,9 +900,25 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
               <label className="text-[9px] font-black uppercase text-indigo-500 tracking-[0.2em] ml-1">
                 Assign To (Select Staff Members) *
               </label>
-              <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
-                {(Array.isArray(form.assigned_to) ? form.assigned_to : (form.assigned_to ? [form.assigned_to] : [])).length} Selected
-              </span>
+              <div className="flex items-center gap-2">
+                {currentUserId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const current = Array.isArray(form.assigned_to) ? form.assigned_to : (form.assigned_to ? [form.assigned_to] : []);
+                      const exists = current.map(String).includes(String(currentUserId));
+                      const next = exists ? current.filter(id => String(id) !== String(currentUserId)) : [...current, currentUserId];
+                      setForm({ ...form, assigned_to: next });
+                    }}
+                    className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition cursor-pointer flex items-center gap-1"
+                  >
+                    <User size={11} /> {(Array.isArray(form.assigned_to) ? form.assigned_to : [form.assigned_to]).map(String).includes(String(currentUserId)) ? '✓ Self Assigned' : '+ Assign to Me'}
+                  </button>
+                )}
+                <span className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+                  {(Array.isArray(form.assigned_to) ? form.assigned_to : (form.assigned_to ? [form.assigned_to] : [])).length} Selected
+                </span>
+              </div>
             </div>
 
             {/* Selected Assignee Chips */}
@@ -960,11 +989,12 @@ const CreateModal = ({ onClose, users, refresh, getAuthHeaders, designations }) 
               <option value="">+ Click to add / remove assigned staff member...</option>
               {users.map(u => {
                 const uId = u.id || u._id;
+                const isYou = currentUserId && String(uId) === String(currentUserId);
                 const isSel = (Array.isArray(form.assigned_to) ? form.assigned_to : [form.assigned_to]).some(id => String(id) === String(uId));
                 const desigName = getUserDesignationName(u, designations, users);
                 return (
                   <option key={uId} value={uId} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium">
-                    {isSel ? `✓ ${u.name}` : u.name}{desigName ? ` — (${desigName})` : ''}{isSel ? ' [Selected]' : ''}
+                    {isSel ? `✓ ${u.name}` : u.name}{isYou ? ' (You)' : ''}{desigName ? ` — (${desigName})` : ''}{isSel ? ' [Selected]' : ''}
                   </option>
                 );
               })}
@@ -1494,10 +1524,23 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
         });
       }
 
-      // Send email if task reassigned to a new user
-      const assignedUser = users?.find(u => String(u.id || u._id) === String(editForm.assigned_to));
-      const oldAssignedId = typeof task.assigned_to === 'object' ? (task.assigned_to?._id || task.assigned_to?.id) : task.assigned_to;
-      if (assignedUser && assignedUser.email && String(editForm.assigned_to) !== String(oldAssignedId)) {
+      // Send email if task reassigned to new user(s)
+      const currentAssigneeIds = Array.isArray(editForm.assigned_to)
+        ? editForm.assigned_to.map(String)
+        : (editForm.assigned_to ? [String(editForm.assigned_to)] : []);
+
+      const oldAssignees = Array.isArray(task.assigned_to)
+        ? task.assigned_to
+        : (task.assigned_to ? [task.assigned_to] : []);
+
+      const oldAssigneeIds = oldAssignees.map(u => (u && typeof u === 'object') ? String(u._id || u.id) : String(u));
+
+      const newAssigneeIds = currentAssigneeIds.filter(id => !oldAssigneeIds.includes(id));
+      const newAssignedUsers = newAssigneeIds
+        .map(id => users?.find(u => String(u.id || u._id) === String(id)))
+        .filter(u => u && u.email);
+
+      for (const assignedUser of newAssignedUsers) {
         try {
           await sendEmail({
             to: { email: assignedUser.email, name: assignedUser.name || assignedUser.username },
@@ -1849,7 +1892,48 @@ const DetailModal = ({ task, currentUserId, onClose, onUpdate, getAuthHeaders, D
 
           <div className="grid grid-cols-2 gap-3 py-3 border-y border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/20 rounded-xl px-3 mt-3">
             <div>
-              <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.3em] block mb-2">Staff</span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.3em] block">Staff</span>
+                {effectiveUserId && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const currentList = Array.isArray(editForm?.assigned_to)
+                        ? editForm.assigned_to.map(String)
+                        : (editForm?.assigned_to ? [String(editForm.assigned_to)] : []);
+                      
+                      const isSelfAssigned = currentList.includes(String(effectiveUserId));
+                      const nextList = isSelfAssigned
+                        ? currentList.filter(id => id !== String(effectiveUserId))
+                        : [...currentList, String(effectiveUserId)];
+
+                      setEditForm(prev => ({ ...prev, assigned_to: nextList }));
+
+                      try {
+                        const fd = new FormData();
+                        fd.append('assigned_to', JSON.stringify(nextList));
+                        const res = await fetch(`${API_BASE}/tasks/update/${task.id}`, {
+                          method: "PUT",
+                          headers: getAuthHeaders(),
+                          body: fd
+                        });
+                        if (res.ok) {
+                          showToast(isSelfAssigned ? "Removed self assignment" : "Successfully self-assigned to this task!", "success");
+                          await onUpdate();
+                        } else {
+                          showToast("Failed to update self assignment", "error");
+                        }
+                      } catch (e) {
+                        console.error("Self assign error:", e);
+                        showToast("Network error during self-assignment", "error");
+                      }
+                    }}
+                    className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition cursor-pointer flex items-center gap-1"
+                  >
+                    <User size={10} /> {(Array.isArray(editForm?.assigned_to) ? editForm.assigned_to : [editForm?.assigned_to]).map(String).includes(String(effectiveUserId)) ? '✓ Self Assigned' : '+ Self Assign'}
+                  </button>
+                )}
+              </div>
               {isEditing ? (
                 <div className="space-y-2">
                   {(Array.isArray(editForm.assigned_to) ? editForm.assigned_to : (editForm.assigned_to ? [editForm.assigned_to] : [])).length > 0 && (

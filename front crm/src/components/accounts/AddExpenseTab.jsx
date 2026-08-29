@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { getExpenseCategories, getExpenses, createExpense, deleteExpense, approveOrRejectExpense } from '../../services/accountsService';
+import ExpenseCategoriesTab from './ExpenseCategoriesTab';
 import { 
   PlusCircle, 
   Search, 
@@ -16,12 +17,26 @@ import {
   AlertCircle, 
   RefreshCw, 
   Loader2,
-  DollarSign
+  DollarSign,
+  Tag
 } from 'lucide-react';
 import { useToast } from '../ToastProvider';
 
 const AddExpenseTab = () => {
   const { showToast } = useToast();
+  const [expenseSubTab, setExpenseSubTab] = useState(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.includes('/accounts/categories')) {
+      return 'categories';
+    }
+    return 'expenses';
+  });
+
+  useEffect(() => {
+    if (expenseSubTab === 'expenses') {
+      loadData();
+    }
+  }, [expenseSubTab]);
+
   const [categories, setCategories] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -242,8 +257,39 @@ const AddExpenseTab = () => {
 
   return (
     <div className="space-y-4">
-      {/* Sleek 1-Row Toolbar Header */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
+      {/* Sub-tab Navigation Header inside Add Expense */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-2 shadow-xs flex items-center gap-1.5 w-fit">
+        <button
+          onClick={() => setExpenseSubTab('expenses')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            expenseSubTab === 'expenses'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <PlusCircle size={14} />
+          <span>Expenses List</span>
+        </button>
+
+        <button
+          onClick={() => setExpenseSubTab('categories')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            expenseSubTab === 'categories'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <Tag size={14} />
+          <span>Expense Categories</span>
+        </button>
+      </div>
+
+      {expenseSubTab === 'categories' ? (
+        <ExpenseCategoriesTab />
+      ) : (
+        <>
+          {/* Sleek 1-Row Toolbar Header */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Left Title */}
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-indigo-600/10 dark:bg-indigo-400/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
@@ -737,6 +783,8 @@ const AddExpenseTab = () => {
           </div>
         </div>,
         document.body
+      )}
+        </>
       )}
     </div>
   );

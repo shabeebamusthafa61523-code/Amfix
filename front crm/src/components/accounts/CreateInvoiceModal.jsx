@@ -26,9 +26,17 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
   const [notes, setNotes] = useState('Thank you for your business!');
   const [terms, setTerms] = useState('Payment due within 15 days.');
 
-  // Zoho-Style Line Items
+  // Zoho-Style Line Items (Specific Item Details choices)
+  const [itemOptions, setItemOptions] = useState([
+    'Poster',
+    'Brochure',
+    'Website',
+    'Domain',
+    'Server'
+  ]);
+
   const [lineItems, setLineItems] = useState([
-    { description: 'Professional Software & CRM Services', quantity: 1, unitPrice: 10000, amount: 10000 }
+    { description: 'Poster', quantity: 1, unitPrice: 0, amount: 0 }
   ]);
 
   // Tax & GST States
@@ -82,7 +90,6 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
       setSelectedClientId('');
       setClientName('');
       setDepartment('Academy & LMS');
-      setLineItems([{ description: 'Academy Course & Skill Program Fee', quantity: 1, unitPrice: 5000, amount: 5000 }]);
     } else if (type === 'Client') {
       setDepartment('Sales & CRM');
       if (clients.length > 0) {
@@ -92,12 +99,10 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
         setSelectedClientId(cId);
         setClientName(nameStr);
       }
-      setLineItems([{ description: 'Software Development & CRM Implementation', quantity: 1, unitPrice: 10000, amount: 10000 }]);
     } else {
       setSelectedClientId('');
       setClientName('');
       setDepartment('General');
-      setLineItems([{ description: 'General Revenue & Consulting Services', quantity: 1, unitPrice: 2000, amount: 2000 }]);
     }
   };
 
@@ -132,24 +137,24 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
     setLineItems(lineItems.filter((_, i) => i !== index));
   };
 
+  const [discountRate, setDiscountRate] = useState(0);
+  const [discountType, setDiscountType] = useState('percent'); // 'percent' or 'amount'
+
   // Subtotal Base Amount Calculation
   const subtotalBase = lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+  const discVal = parseFloat(discountRate) || 0;
+  const calcDiscount = discountType === 'percent'
+    ? (subtotalBase * discVal) / 100
+    : discVal;
+  const afterDiscountBase = Math.max(0, subtotalBase - calcDiscount);
 
   // Tax Calculations
   const calcTax = () => {
     if (taxOption === 'No GST' || gstRate <= 0) {
-      return { gstAmount: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, totalAmount: subtotalBase };
+      return { gstAmount: 0, cgstAmount: 0, sgstAmount: 0, igstAmount: 0, totalAmount: afterDiscountBase };
     }
-    let gstAmt = 0;
-    let totalAmt = 0;
-    if (taxOption === 'Exclusive GST') {
-      gstAmt = (subtotalBase * gstRate) / 100;
-      totalAmt = subtotalBase + gstAmt;
-    } else {
-      // Inclusive GST
-      gstAmt = subtotalBase - (subtotalBase / (1 + gstRate / 100));
-      totalAmt = subtotalBase;
-    }
+    let gstAmt = afterDiscountBase - (afterDiscountBase / (1 + gstRate / 100));
+    let totalAmt = afterDiscountBase;
 
     let cgst = 0, sgst = 0, igst = 0;
     if (gstCategory === 'CGST_SGST') {
@@ -183,11 +188,13 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
       return;
     }
 
-    const titleStr = sourceType === 'Client' 
+    const firstLineDesc = lineItems.find(i => i && i.description && i.description.trim())?.description?.trim();
+
+    const titleStr = firstLineDesc || (sourceType === 'Client' 
       ? `Invoice - ${clientName || 'Client'}`
       : sourceType === 'Academy'
       ? 'Academy Course & LMS Fee Invoice'
-      : lineItems[0]?.description || 'General Income Invoice';
+      : 'General Income Invoice');
 
     try {
       setSubmitting(true);
@@ -389,8 +396,8 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
             </div>
           </div>
 
-          {/* Row 3: Dates & Payment Mode */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Row 3: Dates */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Invoice Date</label>
               <input
@@ -408,20 +415,6 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
                 onChange={(e) => setDueDate(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none cursor-pointer"
               />
-            </div>
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1">Way of Income (Payment Mode)</label>
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none cursor-pointer"
-              >
-                <option value="Bank Transfer">Bank Transfer (NEFT/RTGS/IMPS)</option>
-                <option value="UPI / QR Code">UPI / QR Code / Google Pay</option>
-                <option value="Credit Card">Credit Card / Debit Card</option>
-                <option value="Cash">Cash Voucher</option>
-                <option value="Cheque">Cheque Payment</option>
-              </select>
             </div>
           </div>
 
@@ -456,14 +449,71 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
                   {lineItems.map((item, idx) => (
                     <tr key={idx}>
                       <td className="p-2">
-                        <input
-                          type="text"
-                          value={item.description}
-                          onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
-                          placeholder="Item or service description..."
-                          className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:outline-none"
-                          required
-                        />
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={itemOptions.includes(item.description) ? item.description : (item.description ? 'Custom Item' : '')}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '__MANAGE_DELETE__') {
+                                if (itemOptions.length === 0) {
+                                  if (typeof showToast === 'function') showToast('No dropdown items to delete.', 'warning');
+                                  return;
+                                }
+                                const itemToDelete = window.prompt(
+                                  `Select an item to remove from dropdown:\n\n${itemOptions.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}\n\nEnter the item number (1-${itemOptions.length}) or name to delete:`
+                                );
+                                if (itemToDelete && itemToDelete.trim()) {
+                                  const inputStr = itemToDelete.trim();
+                                  const idxNum = parseInt(inputStr, 10);
+                                  let targetOpt = '';
+                                  if (!isNaN(idxNum) && idxNum >= 1 && idxNum <= itemOptions.length) {
+                                    targetOpt = itemOptions[idxNum - 1];
+                                  } else {
+                                    targetOpt = itemOptions.find(o => o.toLowerCase() === inputStr.toLowerCase()) || inputStr;
+                                  }
+
+                                  if (targetOpt && itemOptions.includes(targetOpt)) {
+                                    if (window.confirm(`Delete '${targetOpt}' from dropdown choices?`)) {
+                                      setItemOptions(prev => prev.filter(o => o !== targetOpt));
+                                      handleItemChange(idx, 'description', '');
+                                      if (typeof showToast === 'function') showToast(`Deleted '${targetOpt}' from dropdown!`, 'info');
+                                    }
+                                  } else {
+                                    if (typeof showToast === 'function') showToast('Item not found in dropdown options.', 'warning');
+                                  }
+                                }
+                                return;
+                              }
+                              handleItemChange(idx, 'description', val);
+                            }}
+                            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-semibold outline-none cursor-pointer flex-1 min-w-[130px]"
+                          >
+                            <option value="">Select Item / Service...</option>
+                            {itemOptions.map((opt, i) => (
+                              <option key={i} value={opt}>{opt}</option>
+                            ))}
+                            <option value="__MANAGE_DELETE__">🗑️ Delete an Option from Dropdown...</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const customItem = window.prompt("Enter new item / service name to add to dropdown:");
+                              if (customItem && customItem.trim()) {
+                                const trimmed = customItem.trim();
+                                if (!itemOptions.includes(trimmed)) {
+                                  setItemOptions(prev => [...prev, trimmed]);
+                                }
+                                handleItemChange(idx, 'description', trimmed);
+                                if (typeof showToast === 'function') showToast(`Added '${trimmed}' to items dropdown!`, 'success');
+                              }
+                            }}
+                            className="p-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 rounded-lg border border-indigo-200 dark:border-indigo-800 transition cursor-pointer shrink-0 flex items-center gap-1 font-bold text-[10px]"
+                            title="Add new item option to dropdown"
+                          >
+                            <Plus size={13} />
+                          </button>
+                        </div>
                       </td>
                       <td className="p-2 text-center">
                         <input
@@ -514,13 +564,12 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
               <div>
                 <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">Tax Application</label>
                 <select
-                  value={taxOption}
+                  value={taxOption === 'No GST' ? 'No GST' : 'Inclusive GST'}
                   onChange={(e) => setTaxOption(e.target.value)}
                   className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-2 text-xs font-semibold focus:outline-none cursor-pointer"
                 >
+                  <option value="Inclusive GST">Apply GST Tax</option>
                   <option value="No GST">No GST (0%)</option>
-                  <option value="Exclusive GST">Exclusive GST (Base + Tax)</option>
-                  <option value="Inclusive GST">Inclusive GST (Amount Includes Tax)</option>
                 </select>
               </div>
 
@@ -614,6 +663,30 @@ const CreateInvoiceModal = ({ isOpen, onClose, onInvoiceCreated, showToast }) =>
               <div className="flex justify-between text-slate-600 dark:text-slate-400">
                 <span>Subtotal Base Amount:</span>
                 <span className="font-bold text-slate-900 dark:text-slate-100">₹{subtotalBase.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+              </div>
+
+              <div className="flex justify-between items-center text-slate-600 dark:text-slate-400 gap-2">
+                <span className="font-semibold shrink-0">Discount:</span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={discountRate}
+                    onChange={(e) => setDiscountRate(e.target.value)}
+                    placeholder="0"
+                    className="w-14 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-1.5 py-0.5 text-xs font-bold text-right focus:outline-none"
+                  />
+                  <select
+                    value={discountType}
+                    onChange={(e) => setDiscountType(e.target.value)}
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-1 py-0.5 text-[10px] font-extrabold cursor-pointer text-slate-700 dark:text-slate-200 outline-none"
+                    title="Select Discount Type (Percentage % or Amount ₹)"
+                  >
+                    <option value="percent">% (Percentage)</option>
+                    <option value="amount">₹ (Flat Amount)</option>
+                  </select>
+                  <span className="font-bold text-slate-700 dark:text-slate-300 min-w-[60px] text-right">- ₹{Math.round(calcDiscount).toLocaleString('en-IN')}</span>
+                </div>
               </div>
               {taxCalc.gstAmount > 0 && (
                 <div className="flex justify-between text-emerald-600 font-bold">

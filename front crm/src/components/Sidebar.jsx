@@ -31,6 +31,8 @@ import {
   DollarSign,
   BookOpen,
   Tag,
+  ShoppingBag,
+  ShoppingCart,
   ChevronDown,
   Calendar,
   CheckCircle2,
@@ -125,12 +127,14 @@ const menuItems = [
 
   // --- FINANCE & PAYROLL ---
   { icon: Wallet, label: 'Accounts', path: '/accounts', category: 'Finance & Payroll', children: [
-      { icon: TrendingUp, label: 'Income', path: '/accounts/income' },
+      { icon: TrendingUp, label: 'Sales', path: '/accounts/sales' },
+      { icon: ShoppingBag, label: 'Income', path: '/accounts/income' },
+      { icon: ShoppingCart, label: 'Purchase', path: '/accounts/purchase' },
       { icon: Tag, label: 'Expense Categories', path: '/accounts/categories' },
-      { icon: PlusCircle, label: 'Add Expense', path: '/accounts/expenses' },
+      { icon: PlusCircle, label: 'Expense', path: '/accounts/expenses' },
       { icon: DollarSign, label: 'Salary Payment', path: '/accounts/salary' },
       { icon: BookCheck, label: 'Cash Book', path: '/accounts/cash-book' },
-      { icon: BarChart3, label: 'Expense Report', path: '/accounts/reports' }
+      { icon: BarChart3, label: 'Profit and Loss', path: '/accounts/reports' }
     ]
   },
   { icon: TrendingUp, label: 'Income', path: '/accounts/income', category: 'Finance & Payroll', allowedRoles: ['0', '1', '2', '10', 'hr', 'admin', 'accountant', 'superadmin', 'MD', 'COO', 'EXECUTIVE_DIRECTOR'], allowedDepartmentNames: ['hr', 'admin', 'accounts', 'finance'], allowedDesignationNames: ['hr', 'recruiter', 'accountant', 'finance', 'accounts'] },
@@ -386,6 +390,10 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         const extraPathMappings = {
           'admin dashboard': '/dashboard',
           'md dashboard': '/md-dashboard',
+          'income': '/accounts/income',
+          'sales': '/accounts/sales',
+          'purchase': '/accounts/purchase',
+          'create invoice': '/accounts/create-invoice',
         };
         const extraAllowedPaths = [];
         for (const perm of allowedSet) {

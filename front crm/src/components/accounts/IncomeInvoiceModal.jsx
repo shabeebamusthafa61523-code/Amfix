@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Printer, Download, Building2, GraduationCap, Coins, ShieldCheck, FileText, CheckCircle2, Pencil, Loader2, Save, History, Receipt } from 'lucide-react';
+import { X, Printer, Download, Building2, GraduationCap, Coins, ShieldCheck, FileText, CheckCircle2, Pencil, Loader2, Save, History, Receipt, Plus } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -77,6 +77,9 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
     cgstAmount = 0,
     sgstAmount = 0,
     igstAmount = 0,
+    discountRate = 0,
+    discountAmount = 0,
+    discountType = 'percent',
     totalAmount = amount,
     createdByName = 'Accountant',
     status = 'Paid',
@@ -87,7 +90,36 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
     terms = 'Payment due within 15 days.'
   } = incomeRecord;
 
-  const finalClientName = clientNameStr || title;
+  const clientObj = (typeof incomeRecord.client === 'object' && incomeRecord.client !== null) ? incomeRecord.client : {};
+
+  const clientCompanyName = (
+    clientObj.companyName ||
+    incomeRecord.clientName ||
+    (clientObj.clientName && clientObj.clientName !== clientObj.companyName ? clientObj.companyName : '') ||
+    title
+  ).trim();
+
+  const customerName = (
+    clientObj.primaryContact?.name ||
+    (clientObj.clientName && clientObj.clientName !== clientCompanyName ? clientObj.clientName : '') ||
+    (incomeRecord.clientName && incomeRecord.clientName !== clientCompanyName ? incomeRecord.clientName : '') ||
+    ''
+  ).trim();
+
+  const clientEmail = (
+    clientObj.email ||
+    clientObj.primaryContact?.email ||
+    ''
+  ).trim();
+
+  const clientPhone = (
+    clientObj.phone ||
+    clientObj.primaryContact?.phone ||
+    clientObj.alternativePhone ||
+    ''
+  ).trim();
+
+  const finalClientName = clientCompanyName;
 
   // Auto-generate display reference number if blank
   const getInvoiceNumber = () => {
@@ -117,11 +149,30 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
     year: 'numeric'
   }) : formattedDate;
 
-  const baseAmt = taxOption === 'Inclusive GST' 
-    ? (amount / (1 + (gstRate / 100))) 
-    : (taxOption === 'Exclusive GST' ? amount : (totalAmount || amount));
-  
-  const calcGstAmt = gstAmount || (totalAmount - baseAmt);
+  const lineItemsSum = Array.isArray(lineItems) && lineItems.length > 0
+    ? lineItems.reduce((sum, item) => sum + (parseFloat(item.amount) || (parseFloat(item.quantity || 1) * parseFloat(item.unitPrice || 0)) || 0), 0)
+    : 0;
+
+  const rawBaseAmt = parseFloat(amount || 0) > 0 
+    ? parseFloat(amount) 
+    : (lineItemsSum > 0 ? lineItemsSum : parseFloat(totalAmount || 0));
+
+  const numGstRate = parseFloat(gstRate || 0);
+  const baseAmt = rawBaseAmt;
+
+  const calcGstAmt = parseFloat(gstAmount || 0) > 0 
+    ? parseFloat(gstAmount) 
+    : (taxOption === 'No GST' || !numGstRate ? 0 : (rawBaseAmt * numGstRate) / 100);
+
+  const totalBeforeDiscount = rawBaseAmt + calcGstAmt;
+
+  const calcDiscountAmt = parseFloat(discountAmount || 0) > 0
+    ? parseFloat(discountAmount)
+    : (parseFloat(discountRate || 0) > 0
+      ? (discountType === 'amount' ? parseFloat(discountRate) : (totalBeforeDiscount * parseFloat(discountRate)) / 100)
+      : 0);
+
+  const calculatedTotalPayable = Math.max(0, totalBeforeDiscount - calcDiscountAmt);
 
   const rawLineItems = Array.isArray(lineItems) && lineItems.length > 0 ? lineItems : [];
   const finalLineItems = rawLineItems.length > 0
@@ -152,75 +203,179 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
     setDownloading(true);
 
     const filename = viewMode === 'receipt' 
-      ? `${recNo || 'REC'}_Payment_Receipt.pdf`
+      ? `${recNo || 'REC'}_Receipt_Voucher.pdf`
       : `${invoiceNo || 'INV'}_${resolvedSourceType}_Invoice.pdf`;
 
     try {
       const element = invoiceRef.current;
-      const opt = {
-        margin: [5, 5, 5, 5],
-        filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          onclone: (clonedDoc) => {
-            const styleElements = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
-            styleElements.forEach((style) => {
-              try {
-                if (style.textContent && style.textContent.includes('oklch')) {
-                  style.textContent = style.textContent.replace(/oklch\([^)]+\)/g, '#475569');
-                }
-              } catch (e) {
-                console.warn('CSS oklch replacement warning:', e);
-              }
-            });
-          }
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+
+      const replaceOklch = (cssText) => {
+        if (!cssText) return '';
+        return cssText
+          .replace(/oklch\(\s*([\d.]+)%?\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?\s*\)/gi, (match, lStr, cStr, hStr, aStr) => {
+            let l = parseFloat(lStr);
+            if (lStr.includes('%') || l > 1) l = l / 100;
+            let alpha = aStr !== undefined ? parseFloat(aStr) : 1;
+            if (l >= 0.85) return alpha < 0.5 ? 'rgba(248, 250, 252, 0.5)' : '#f8fafc';
+            if (l >= 0.7) return '#e2e8f0';
+            if (l <= 0.35) return '#0f172a';
+            if (l <= 0.5) return '#1e293b';
+            return '#475569';
+          })
+          .replace(/oklab\([^)]+\)/gi, '#0f172a')
+          .replace(/color-mix\([^)]+\)/gi, '#f8fafc');
       };
 
-      const html2pdfFunc = typeof html2pdf === 'function' ? html2pdf : (html2pdf.default || window.html2pdf);
-      if (typeof html2pdfFunc === 'function') {
-        await html2pdfFunc().set(opt).from(element).save();
-      } else {
-        throw new Error('html2pdf function unavailable');
+      const sanitizeClonedDocStyles = (clonedDoc) => {
+        try {
+          // 0. Ensure target container in clone has no height or scroll restrictions
+          const targetContainer = clonedDoc.querySelector('[data-pdf-container="true"]') || clonedDoc.body;
+          if (targetContainer) {
+            targetContainer.style.height = 'auto';
+            targetContainer.style.maxHeight = 'none';
+            targetContainer.style.overflow = 'visible';
+            targetContainer.style.padding = '24px';
+          }
+
+          // 1. Process inline <style> tags
+          const styleElements = clonedDoc.querySelectorAll('style');
+          styleElements.forEach((style) => {
+            try {
+              if (style.textContent) {
+                style.textContent = replaceOklch(style.textContent);
+              }
+            } catch (e) {}
+          });
+
+          // 2. Process external <link rel="stylesheet"> tags (convert to clean inline <style> or remove)
+          const linkElements = clonedDoc.querySelectorAll('link[rel="stylesheet"]');
+          linkElements.forEach((link) => {
+            try {
+              let cssText = '';
+              const sheet = Array.from(document.styleSheets).find(s => s.href === link.href || (s.ownerNode && s.ownerNode.href === link.href));
+              if (sheet) {
+                try {
+                  const rules = sheet.cssRules || sheet.rules;
+                  if (rules) {
+                    cssText = Array.from(rules).map(r => r.cssText).join('\n');
+                  }
+                } catch (e) {}
+              }
+              if (cssText) {
+                const cleanCss = replaceOklch(cssText);
+                const newStyle = clonedDoc.createElement('style');
+                newStyle.textContent = cleanCss;
+                if (link.parentNode) link.parentNode.replaceChild(newStyle, link);
+              } else if (link.parentNode) {
+                link.parentNode.removeChild(link);
+              }
+            } catch (e) {
+              if (link.parentNode) link.parentNode.removeChild(link);
+            }
+          });
+
+          // 3. Process inline style attributes on all elements
+          const allElements = clonedDoc.querySelectorAll('*');
+          allElements.forEach((el) => {
+            try {
+              const inlineStyle = el.getAttribute('style');
+              if (inlineStyle && (inlineStyle.includes('oklab') || inlineStyle.includes('oklch') || inlineStyle.includes('color-mix'))) {
+                el.setAttribute('style', replaceOklch(inlineStyle));
+              }
+            } catch (e) {}
+          });
+        } catch (e) {}
+      };
+
+      const scrollH = element.scrollHeight || element.offsetHeight || 1200;
+      const scrollW = element.scrollWidth || element.offsetWidth || 800;
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        windowWidth: scrollW,
+        windowHeight: scrollH,
+        width: scrollW,
+        height: scrollH,
+        onclone: sanitizeClonedDocStyles
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 5) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pageHeight;
       }
+
+      pdf.save(filename);
+      if (showToast) showToast(`Downloaded ${filename} to your system!`, 'success');
     } catch (err) {
-      console.warn('html2pdf save failed, executing direct html2canvas + jsPDF auto-download:', err);
+      console.warn('Direct jsPDF download failed, trying html2pdf fallback:', err);
       try {
         const element = invoiceRef.current;
-        const canvas = await html2canvas(element, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          onclone: (clonedDoc) => {
-            const styleElements = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
-            styleElements.forEach((style) => {
-              try {
-                if (style.textContent && style.textContent.includes('oklch')) {
-                  style.textContent = style.textContent.replace(/oklch\([^)]+\)/g, '#475569');
-                }
-              } catch (e) {}
-            });
-          }
-        });
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.98);
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-        pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-        pdf.save(filename);
+        const opt = {
+          margin: [5, 5, 5, 5],
+          filename,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { 
+            scale: 2, 
+            useCORS: true, 
+            logging: false,
+            onclone: sanitizeClonedDocStyles
+          },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        const html2pdfFunc = typeof html2pdf === 'function' ? html2pdf : (html2pdf.default || window.html2pdf);
+        if (typeof html2pdfFunc === 'function') {
+          await html2pdfFunc().set(opt).from(element).save();
+          if (showToast) showToast(`Downloaded ${filename} to your system!`, 'success');
+        } else {
+          throw new Error('html2pdf function unavailable');
+        }
       } catch (fallbackErr) {
-        console.error('Direct PDF export failed:', fallbackErr);
-        if (showToast) showToast('Opening print dialog to save PDF.', 'info');
-        window.print();
+        console.error('All PDF download mechanisms failed:', fallbackErr);
+        if (showToast) showToast('Failed to download PDF file.', 'error');
       }
     } finally {
       setDownloading(false);
     }
+  };
+
+  const handleStartNextSettlement = () => {
+    const bal = Math.round(displayBalanceDue);
+    if (bal <= 0) {
+      if (showToast) showToast('Invoice is already fully settled.', 'info');
+      return;
+    }
+
+    setEditAmount(bal);
+
+    const baseRec = editReceiptNo || defaultRecNo;
+    const count = (Array.isArray(incomeRecord?.payments) ? incomeRecord.payments.length : 0) + 1;
+    const cleanBaseRec = baseRec.replace(/-\d+$/, '');
+    const nextRecNo = `${cleanBaseRec}-${count + 1}`;
+
+    setEditReceiptNo(nextRecNo);
+    setEditReceiptDate(new Date().toISOString().split('T')[0]);
+    setViewMode('receipt');
+    setIsEditingReceipt(true);
+
+    if (showToast) showToast(`Ready to record receipt for remaining balance of ₹${bal.toLocaleString('en-IN')}`, 'info');
   };
 
   const handleSaveReceipt = async () => {
@@ -289,22 +444,26 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
     }
   };
 
-  const displayTotalInvoiceAmt = parseFloat(totalAmount || amount || 0) || 0;
+  const displayTotalInvoiceAmt = calculatedTotalPayable;
 
   const totalSettlementPaid = Array.isArray(incomeRecord?.payments) && incomeRecord.payments.length > 0
     ? incomeRecord.payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
-    : parseFloat(incomeRecord?.receiptAmount || 0);
+    : (parseFloat(incomeRecord?.receiptAmount || 0) > 0 ? parseFloat(incomeRecord.receiptAmount) : 0);
 
   const rawEditAmt = parseFloat(editAmount);
-  const displayPaidAmt = !isNaN(rawEditAmt) && rawEditAmt > 0 && viewMode === 'receipt' && isEditingReceipt
+  const displayPaidAmt = (!isNaN(rawEditAmt) && rawEditAmt > 0 && viewMode === 'receipt' && isEditingReceipt)
     ? rawEditAmt
     : totalSettlementPaid;
 
-  const displayBalanceDue = Math.max(0, displayTotalInvoiceAmt - displayPaidAmt);
+  const displayBalanceDue = Math.max(0, calculatedTotalPayable - displayPaidAmt);
 
-  const dynamicStatus = totalSettlementPaid <= 0
-    ? 'Pending'
-    : (displayTotalInvoiceAmt - totalSettlementPaid <= 0.01 || totalSettlementPaid >= (displayTotalInvoiceAmt - 0.01) ? 'Paid' : 'Partially Paid');
+  const watermarkStampText = displayBalanceDue <= 0.01 
+    ? 'PAID' 
+    : (displayPaidAmt > 0 ? 'PARTIAL PAYMENT' : 'UNPAID');
+
+  const dynamicStatus = displayBalanceDue <= 0.01
+    ? 'Paid'
+    : (displayPaidAmt > 0 ? 'Partially Paid' : 'Pending');
 
   const allSettlementList = Array.isArray(incomeRecord?.payments) && incomeRecord.payments.length > 0
     ? incomeRecord.payments
@@ -335,7 +494,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
               }`}
             >
               <FileText size={13} />
-              <span>Tax Invoice</span>
+              <span>Invoice</span>
             </button>
             <button
               type="button"
@@ -347,7 +506,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
               }`}
             >
               <CheckCircle2 size={13} />
-              <span>Payment Receipt</span>
+              <span>Receipt Voucher</span>
             </button>
             <button
               type="button"
@@ -363,7 +522,19 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {viewMode === 'receipt' && displayBalanceDue > 0.01 && (
+              <button
+                type="button"
+                onClick={handleStartNextSettlement}
+                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title="Create a new receipt settlement pre-filled with the remaining balance"
+              >
+                <Plus size={13} />
+                <span>Create Receipt for Balance (₹{Math.round(displayBalanceDue).toLocaleString('en-IN')})</span>
+              </button>
+            )}
+
             {viewMode === 'receipt' && (
               <button
                 type="button"
@@ -484,204 +655,309 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
         )}
 
         {/* Printable Document Container */}
-        <div className="p-6 overflow-y-auto font-sans" ref={invoiceRef}>
+        <div className="p-6 overflow-y-auto font-sans" ref={invoiceRef} data-pdf-container="true">
           {/* ─────────────────────────────────────────────────────────────
-              VIEW MODE: PAYMENT RECEIPT (ZOHO STYLE RECEIPT)
+              VIEW MODE: RECEIPT VOUCHER (CLEAN LIGHT MINIMAL STRUCTURE)
              ───────────────────────────────────────────────────────────── */}
           {viewMode === 'receipt' && (
-            <div className="space-y-6 text-slate-800 relative">
-              {/* PAID Watermark Badge */}
-              <div className="absolute top-2 right-2 border-4 border-emerald-500/40 text-emerald-600 text-2xl font-black px-6 py-2 rounded-2xl transform rotate-[-12deg] tracking-widest pointer-events-none select-none">
-                {displayBalanceDue === 0 ? 'PAID' : 'PARTIAL PAYMENT'}
-              </div>
+            <div className="space-y-5 text-slate-800 bg-white p-2 relative flex flex-col min-h-[960px] justify-between">
+              {/* Top Document Body */}
+              <div className="space-y-5">
+                {/* Minimal Top Light Accent Line */}
+                <div className="h-0.5 w-full rounded-full mb-3" style={{ backgroundColor: '#cbd5e1' }} />
 
-              {/* Top Header Branding */}
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b-2 border-emerald-600 pb-5">
-                <div>
-                  <img src="/logo3.png" alt="Logo" className="h-12 w-auto object-contain mb-1" />
-                  <p className="text-[11px] text-slate-500 font-medium">Finance & Accounts Division</p>
-                  <p className="text-[10px] text-slate-400">GSTIN: 32ABCDE1234F1Z5</p>
+                {/* Minimal Watermark Status Stamp Badge */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '24px',
+                    right: '32px',
+                    border: `2.5px solid ${displayBalanceDue === 0 ? '#1e293b' : '#64748b'}`,
+                    color: displayBalanceDue === 0 ? '#0f172a' : '#475569',
+                    backgroundColor: 'rgba(248, 250, 252, 0.95)',
+                    fontSize: '13px',
+                    fontWeight: '900',
+                    padding: '4px 16px',
+                    borderRadius: '6px',
+                    letterSpacing: '2px',
+                    textTransform: 'uppercase',
+                    transform: 'rotate(-8deg)',
+                    transformOrigin: 'center center',
+                    zIndex: 30,
+                    pointerEvents: 'none'
+                  }}
+                >
+                  {watermarkStampText}
                 </div>
 
-                <div className="sm:text-right">
-                  <span className="inline-block px-3.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-black uppercase rounded-lg tracking-wider mb-1">
-                    PAYMENT RECEIPT
-                  </span>
-                  <p className="text-xs font-bold text-slate-900">Receipt No: <span className="font-mono text-emerald-600">{recNo}</span></p>
-                  <p className="text-[11px] text-slate-500">Payment Date: {formattedReceiptDate}</p>
-                </div>
-              </div>
-
-              {/* Payer & Payment Info Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div className="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-1.5">
-                  <h4 className="font-extrabold uppercase text-[10px] text-emerald-700 tracking-wider">Payment Received From</h4>
-                  <p className="font-black text-slate-900 text-sm">{finalClientName}</p>
-                  <p className="text-slate-600 text-[11px]">Payment Mode: <strong className="text-slate-900">{editPaymentMethod || paymentMethod}</strong></p>
-                  <p className="text-slate-500 text-[10px]">Reference / Inv No: <strong className="font-mono text-slate-800">{invoiceNo}</strong></p>
-                </div>
-
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-right flex flex-col justify-center">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Amount Received</span>
-                  <span className="text-2xl font-black text-emerald-600">₹{Math.round(displayPaidAmt).toLocaleString('en-IN')}</span>
-                  <span className="text-[10px] font-bold text-slate-500">Balance Due: <strong className="text-slate-900">₹{Math.round(displayBalanceDue).toLocaleString('en-IN')}</strong></span>
-                </div>
-              </div>
-
-              {/* Payment Details Table */}
-              <table className="w-full text-xs text-left border border-slate-200 rounded-xl overflow-hidden">
-                <thead className="bg-emerald-50 text-emerald-950 font-bold uppercase text-[10px]">
-                  <tr>
-                    <th className="p-3">Invoice Number</th>
-                    <th className="p-3">Invoice Date</th>
-                    <th className="p-3 text-right">Invoice Amount (₹)</th>
-                    <th className="p-3 text-right">Amount Paid (₹)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  <tr>
-                    <td className="p-3 font-mono font-bold text-slate-900">{invoiceNo}</td>
-                    <td className="p-3 text-slate-600">{formattedDate}</td>
-                    <td className="p-3 text-right font-semibold">₹{Math.round(displayTotalInvoiceAmt).toLocaleString('en-IN')}</td>
-                    <td className="p-3 text-right font-black text-emerald-600 text-sm">₹{Math.round(displayPaidAmt).toLocaleString('en-IN')}</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              {/* Receipt Footer */}
-              <div className="flex items-center justify-between pt-6 border-t border-slate-200">
-                <div className="flex items-center gap-2 text-emerald-600 font-extrabold text-xs">
-                  <ShieldCheck size={20} />
+                {/* Top Header Branding */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b pb-4" style={{ borderColor: '#e2e8f0' }}>
                   <div>
-                    <p className="text-slate-800 font-bold">Official Payment Voucher</p>
-                    <p className="text-[10px] text-slate-400 font-normal">Thank you for your prompt payment!</p>
+                    <img src="/logo3.png" alt="Logo" className="h-11 w-auto object-contain mb-1" />
+                    <h2 className="text-xs font-extrabold uppercase tracking-wide" style={{ color: '#0f172a' }}>KOD.BRAND TECH PVT LTD</h2>
+                    <p className="text-[11px]" style={{ color: '#64748b' }}>Finance & Accounts Division</p>
+                    <p className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>GSTIN: 32ABCDE1234F1Z5</p>
+                  </div>
+
+                  <div className="sm:text-right space-y-1">
+                    <span className="inline-block px-3 py-1 text-[11px] font-bold uppercase rounded tracking-widest border" style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
+                      RECEIPT VOUCHER
+                    </span>
+                    <div className="pt-1.5 text-xs space-y-0.5">
+                      <p className="font-semibold" style={{ color: '#0f172a' }}>Receipt No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>#{recNo}</span></p>
+                      <p className="text-[11px]" style={{ color: '#64748b' }}>Payment Date: <strong style={{ color: '#0f172a' }}>{formattedReceiptDate}</strong></p>
+                    </div>
                   </div>
                 </div>
-                <div className="text-right text-[10px] text-slate-400">
-                  <p className="font-bold text-slate-800 uppercase">Accounts Officer Stamp</p>
-                  <p>Authorized Signature ({createdByName})</p>
+
+                {/* Payer & Payment Info Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="p-3.5 rounded-xl border space-y-1" style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }}>
+                    <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-1.5" style={{ color: '#475569' }}>
+                      <Building2 size={12} style={{ color: '#64748b' }} /> Payment Received From
+                    </h4>
+                    <p className="font-bold text-sm" style={{ color: '#0f172a' }}>{finalClientName}</p>
+                    <p className="text-[11px]" style={{ color: '#475569' }}>Payment Method: <strong style={{ color: '#0f172a' }}>{editPaymentMethod || paymentMethod}</strong></p>
+                    <p className="text-[10px]" style={{ color: '#64748b' }}>Invoice Reference: <strong className="font-mono" style={{ color: '#0f172a' }}>{invoiceNo}</strong></p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border space-y-1 text-right flex flex-col justify-center" style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
+                    <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>Total Net Payable (Incl. GST)</span>
+                    <span className="text-xl font-extrabold font-mono" style={{ color: '#0f172a' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</span>
+                    <p className="text-[10.5px] border-t pt-1 mt-0.5 flex justify-between" style={{ borderColor: '#e2e8f0', color: '#475569' }}>
+                      <span>Amount Received:</span>
+                      <strong className="font-mono font-bold" style={{ color: '#0f172a' }}>₹{Math.round(displayPaidAmt).toLocaleString('en-IN')}</strong>
+                    </p>
+                    <p className="text-[10.5px] flex justify-between" style={{ color: '#475569' }}>
+                      <span>Balance Remaining:</span>
+                      <strong className="font-mono font-bold" style={{ color: '#0f172a' }}>₹{Math.round(displayBalanceDue).toLocaleString('en-IN')}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Itemized Table */}
+                <div className="border rounded-xl overflow-hidden" style={{ borderColor: '#cbd5e1', backgroundColor: '#ffffff' }}>
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead className="font-bold uppercase text-[10px] tracking-wider border-b" style={{ backgroundColor: '#f1f5f9', color: '#0f172a', borderColor: '#cbd5e1' }}>
+                      <tr>
+                        <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>Invoice Number</th>
+                        <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>Invoice Date</th>
+                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a' }}>Net Payable Amount (₹)</th>
+                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a' }}>Amount Received (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y font-medium" style={{ borderColor: '#e2e8f0' }}>
+                      <tr style={{ backgroundColor: '#ffffff' }}>
+                        <td className="py-3 px-3 font-mono font-bold" style={{ color: '#0f172a' }}>{invoiceNo}</td>
+                        <td className="py-3 px-3" style={{ color: '#475569' }}>{formattedDate}</td>
+                        <td className="py-3 px-3 text-right font-mono font-semibold text-slate-800" style={{ color: '#0f172a' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-3 text-right font-mono font-extrabold text-sm" style={{ color: '#0f172a' }}>₹{Math.round(displayPaidAmt).toLocaleString('en-IN')}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Receipt Footer (Anchored to Bottom) */}
+              <div className="flex items-center justify-between pt-4 border-t mt-auto" style={{ borderColor: '#e2e8f0' }}>
+                <div className="flex items-center gap-2 font-semibold text-xs" style={{ color: '#64748b' }}>
+                  <ShieldCheck size={18} style={{ color: '#64748b' }} />
+                  <div>
+                    <p className="font-bold" style={{ color: '#0f172a' }}>Official Payment Voucher</p>
+                    <p className="text-[10px] font-normal" style={{ color: '#64748b' }}>Thank you for your business.</p>
+                  </div>
+                </div>
+                <div className="text-right text-[10px]" style={{ color: '#64748b' }}>
+                  <div className="h-7 mb-0.5 flex items-end justify-end">
+                    <span className="font-serif italic font-bold text-xs border-b pb-0.5 px-3" style={{ color: '#0f172a', borderColor: '#cbd5e1' }}>{createdByName || 'Accounts Officer'}</span>
+                  </div>
+                  <p className="font-bold uppercase tracking-wider text-[9px]" style={{ color: '#0f172a' }}>Authorized Signatory</p>
                 </div>
               </div>
             </div>
           )}
 
           {/* ─────────────────────────────────────────────────────────────
-              VIEW MODE: TAX INVOICE
+              VIEW MODE: TAX INVOICE (CLEAN LIGHT MINIMAL STRUCTURE)
              ───────────────────────────────────────────────────────────── */}
           {viewMode === 'invoice' && (
-            <div className="space-y-6 text-slate-800">
-              {/* Top Header Branding */}
-              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b-2 border-indigo-600 pb-5">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <img src="/logo3.png" alt="Logo" className="h-12 w-auto object-contain" />
+            <div className="space-y-5 text-slate-800 bg-white p-2 relative flex flex-col min-h-[960px] justify-between">
+              {/* Top Document Body */}
+              <div className="space-y-5">
+                {/* Minimal Top Light Accent Line */}
+                <div className="h-0.5 w-full rounded-full mb-3" style={{ backgroundColor: '#cbd5e1' }} />
+
+                {/* Header Branding & Meta Block */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b pb-4" style={{ borderColor: '#e2e8f0' }}>
+                  <div>
+                    <img src="/logo3.png" alt="Logo" className="h-12 w-auto object-contain mb-1" />
+                    <h2 className="text-xs font-extrabold uppercase tracking-wide" style={{ color: '#0f172a' }}>KOD.BRAND TECH PVT LTD</h2>
+                    <p className="text-[11px]" style={{ color: '#64748b' }}>Enterprise Software & CRM Solutions</p>
+                    <p className="text-[10px] font-mono" style={{ color: '#94a3b8' }}>GSTIN: 32ABCDE1234F1Z5 | HSN/SAC: 998314</p>
                   </div>
-                  <p className="text-[11px] text-slate-500 font-medium mt-1">Enterprise Software & CRM Solutions</p>
-                  <p className="text-[10px] text-slate-400">GSTIN: 32ABCDE1234F1Z5 | HSN/SAC: 998314</p>
+
+                  <div className="sm:text-right space-y-1">
+                    <span className="inline-block px-3 py-1 text-[11px] font-bold uppercase rounded tracking-widest border" style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
+                      INVOICE
+                    </span>
+                    <div className="pt-1.5 text-xs space-y-0.5">
+                      <p className="font-semibold" style={{ color: '#0f172a' }}>Invoice No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>#{invoiceNo}</span></p>
+                      <p className="text-[11px]" style={{ color: '#64748b' }}>Issue Date: <strong style={{ color: '#0f172a' }}>{formattedDate}</strong></p>
+                      {incomeRecord.dueDate && (
+                        <p className="text-[11px]" style={{ color: '#64748b' }}>Due Date: <strong style={{ color: '#0f172a' }}>{new Date(incomeRecord.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></p>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="sm:text-right">
-                  <span className="inline-block px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-black uppercase rounded-lg tracking-wider mb-1">
-                    {taxOption !== 'No GST' ? 'TAX INVOICE' : 'INVOICE'}
-                  </span>
-                  <p className="text-xs font-bold text-slate-900">Invoice No: <span className="font-mono text-indigo-600">{invoiceNo}</span></p>
-                  <p className="text-[11px] text-slate-500">Date: {formattedDate}</p>
+                {/* Billed To Card */}
+                <div className="text-xs">
+                  <div className="p-3.5 rounded-xl border space-y-1.5 max-w-lg" style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }}>
+                    <div className="border-b pb-1" style={{ borderColor: '#e2e8f0' }}>
+                      <h4 className="font-bold uppercase text-[10px] tracking-wider flex items-center gap-1.5" style={{ color: '#475569' }}>
+                        <Building2 size={12} style={{ color: '#64748b' }} /> Billed To (Client / Customer)
+                      </h4>
+                    </div>
+                    
+                    {/* 1. Company Name */}
+                    <p className="font-bold text-sm tracking-tight" style={{ color: '#0f172a' }}>{clientCompanyName}</p>
+                    
+                    {/* 2. Customer Name (if any) */}
+                    {customerName && customerName.toLowerCase() !== clientCompanyName.toLowerCase() && (
+                      <p className="text-xs font-medium flex items-center gap-1" style={{ color: '#334155' }}>
+                        <span style={{ color: '#64748b' }}>Contact Person:</span> {customerName}
+                      </p>
+                    )}
+
+                    {/* 3. Company Email & Phone No (if any) */}
+                    {(clientEmail || clientPhone) && (
+                      <div className="text-[11px] space-y-0.5 pt-0.5" style={{ color: '#475569' }}>
+                        {clientEmail && (
+                          <p className="flex items-center gap-1">
+                            <span style={{ color: '#64748b' }}>Email:</span> <strong style={{ color: '#0f172a' }}>{clientEmail}</strong>
+                          </p>
+                        )}
+                        {clientPhone && (
+                          <p className="flex items-center gap-1">
+                            <span style={{ color: '#64748b' }}>Phone:</span> <strong style={{ color: '#0f172a' }}>{clientPhone}</strong>
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Subject / Purpose Summary Banner */}
+                {(incomeRecord.subject || description) && (
+                  <div className="text-xs p-2.5 rounded-xl border" style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }}>
+                    <p className="font-semibold text-xs" style={{ color: '#0f172a' }}>{incomeRecord.subject || description}</p>
+                  </div>
+                )}
+
+                {/* Itemized Table (Clean Minimal) */}
+                <div className="border rounded-xl overflow-hidden" style={{ borderColor: '#cbd5e1', backgroundColor: '#ffffff' }}>
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead className="font-bold uppercase text-[10px] tracking-wider border-b" style={{ backgroundColor: '#f1f5f9', color: '#0f172a', borderColor: '#cbd5e1' }}>
+                      <tr>
+                        <th className="py-2.5 px-3 text-center w-10" style={{ color: '#0f172a' }}>#</th>
+                        <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>Item / Service Description</th>
+                        <th className="py-2.5 px-3 text-center w-16" style={{ color: '#0f172a' }}>Qty</th>
+                        <th className="py-2.5 px-3 text-right w-28" style={{ color: '#0f172a' }}>Unit Price (₹)</th>
+                        <th className="py-2.5 px-3 text-right w-32" style={{ color: '#0f172a' }}>Amount (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y font-medium" style={{ borderColor: '#e2e8f0' }}>
+                      {finalLineItems.map((item, idx) => (
+                        <tr key={idx} style={{ backgroundColor: '#ffffff' }}>
+                          <td className="py-3 px-3 text-center font-mono" style={{ color: '#64748b' }}>{idx + 1}</td>
+                          <td className="py-3 px-3">
+                            <strong className="block font-semibold text-xs" style={{ color: '#0f172a' }}>{item.description}</strong>
+                          </td>
+                          <td className="py-3 px-3 text-center font-mono" style={{ color: '#334155' }}>{Math.round(item.quantity || 1)}</td>
+                          <td className="py-3 px-3 text-right font-mono" style={{ color: '#334155' }}>₹{Math.round(parseFloat(item.unitPrice || baseAmt)).toLocaleString('en-IN')}</td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-xs" style={{ color: '#0f172a' }}>₹{Math.round(parseFloat(item.amount || baseAmt)).toLocaleString('en-IN')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Financial Totals Summary Card */}
+                <div className="flex justify-end items-start gap-4 pt-1">
+                  {/* Right Summary Box (Light Minimal Clean) */}
+                  <div className="w-full sm:w-64 p-3.5 rounded-xl border text-xs space-y-1.5" style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
+                    <div className="flex justify-between font-semibold" style={{ color: '#475569' }}>
+                      <span>Subtotal Base:</span>
+                      <span className="font-mono" style={{ color: '#0f172a' }}>₹{Math.round(rawBaseAmt).toLocaleString('en-IN')}</span>
+                    </div>
+
+                    {/* Tax Lines Added to Base */}
+                    {calcGstAmt > 0 && (
+                      <>
+                        {gstCategory === 'CGST_SGST' ? (
+                          <>
+                            <div className="flex justify-between text-[11px]" style={{ color: '#475569' }}>
+                              <span>CGST ({(numGstRate / 2)}%):</span>
+                              <span className="font-mono" style={{ color: '#0f172a' }}>+ ₹{Math.round(cgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</span>
+                            </div>
+                            <div className="flex justify-between text-[11px]" style={{ color: '#475569' }}>
+                              <span>SGST ({(numGstRate / 2)}%):</span>
+                              <span className="font-mono" style={{ color: '#0f172a' }}>+ ₹{Math.round(sgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex justify-between text-[11px]" style={{ color: '#475569' }}>
+                            <span>IGST ({numGstRate}%):</span>
+                            <span className="font-mono" style={{ color: '#0f172a' }}>+ ₹{Math.round(igstAmount || calcGstAmt).toLocaleString('en-IN')}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    <div className="flex justify-between font-bold border-t pt-1" style={{ borderColor: '#e2e8f0', color: '#0f172a' }}>
+                      <span>Total:</span>
+                      <span className="font-mono">₹{Math.round(totalBeforeDiscount).toLocaleString('en-IN')}</span>
+                    </div>
+
+                    {calcDiscountAmt > 0 && (
+                      <div className="flex justify-between font-semibold pt-0.5" style={{ color: '#dc2626' }}>
+                        <span>- Discount {discountRate > 0 ? `(${discountRate}${discountType === 'amount' ? ' ₹' : '%'})` : ''}:</span>
+                        <span className="font-mono font-bold">- ₹{Math.round(calcDiscountAmt).toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between border-t pt-2 text-xs font-bold items-center" style={{ borderColor: '#cbd5e1' }}>
+                      <span className="uppercase text-[10px] tracking-wider" style={{ color: '#475569' }}>Total Payable (Incl. GST):</span>
+                      <span className="text-base font-extrabold font-mono" style={{ color: '#0f172a' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Billed From & Billed To Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-                  <h4 className="font-extrabold uppercase text-[10px] text-slate-400 tracking-wider">Billed From (Provider)</h4>
-                  <p className="font-bold text-slate-900">KOD.BRAND Tech Pvt Ltd</p>
-                  <p className="text-slate-600 text-[11px]">Head Office, Corporate Tower, Tech Park</p>
-                  <p className="text-slate-600 text-[11px]">Kerala, India — 682001</p>
-                  <p className="text-slate-500 text-[10px]">Email: accounts@kodbrand.com</p>
-                </div>
+              {/* Bottom Container: Borderless Notes & Signatory Footer */}
+              <div className="mt-auto space-y-2">
+                {/* Notes (Clean, Borderless, Just Above Footer) */}
+                {notes && (
+                  <p className="text-[10.5px] italic font-medium max-w-xl pb-1" style={{ color: '#64748b' }}>
+                    "{notes}"
+                  </p>
+                )}
 
-                <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100 space-y-1">
-                  <h4 className="font-extrabold uppercase text-[10px] text-indigo-500 tracking-wider">Billed To (Customer / Client)</h4>
-                  <p className="font-bold text-indigo-950 text-sm">{finalClientName}</p>
-                  <p className="text-slate-600 text-[11px]">Department: {department}</p>
-                  <p className="text-slate-500 text-[11px]">Payment Mode: <strong className="text-slate-800">{paymentMethod}</strong></p>
-                </div>
-              </div>
-
-              {/* Itemized Table */}
-              <table className="w-full text-xs text-left border border-slate-200 rounded-xl overflow-hidden">
-                <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px]">
-                  <tr>
-                    <th className="p-3">#</th>
-                    <th className="p-3">Item / Service Description</th>
-                    <th className="p-3 text-center">Qty</th>
-                    <th className="p-3 text-right">Unit Price (₹)</th>
-                    <th className="p-3 text-right">Amount (₹)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {finalLineItems.map((item, idx) => (
-                    <tr key={idx}>
-                      <td className="p-3 text-slate-400">{idx + 1}</td>
-                      <td className="p-3">
-                        <strong className="text-slate-900 block">{item.description}</strong>
-                        {description && idx === 0 && <span className="text-[11px] text-slate-500">{description}</span>}
-                      </td>
-                      <td className="p-3 text-center">{Math.round(item.quantity || 1)}</td>
-                      <td className="p-3 text-right">₹{Math.round(parseFloat(item.unitPrice || baseAmt)).toLocaleString('en-IN')}</td>
-                      <td className="p-3 text-right font-bold text-slate-900">₹{Math.round(parseFloat(item.amount || baseAmt)).toLocaleString('en-IN')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Tax Breakdown & Summary Box */}
-              <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pt-2">
-                <div className="text-[11px] text-slate-500 space-y-1 max-w-sm">
-                  <p className="font-bold text-slate-700">Tax Breakdown & Terms:</p>
-                  {gstCategory === 'CGST_SGST' ? (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-[10px] text-emerald-900 space-y-0.5 font-medium">
-                      <p>• CGST ({gstRate / 2}%): ₹{Math.round(cgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</p>
-                      <p>• SGST ({gstRate / 2}%): ₹{Math.round(sgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</p>
-                      <p className="font-bold border-t border-emerald-200 pt-0.5">Intra-State GST Applied</p>
+                {/* Signatory Footer (Anchored to Bottom) */}
+                <div className="border-t pt-4 flex justify-between items-center text-[10px]" style={{ borderColor: '#e2e8f0', color: '#64748b' }}>
+                  <div className="flex items-center gap-2 font-semibold">
+                    <ShieldCheck size={18} style={{ color: '#64748b' }} />
+                    <div>
+                      <p className="font-bold" style={{ color: '#0f172a' }}>KOD.BRAND TECH PVT LTD</p>
+                      <p className="text-[10px] font-normal" style={{ color: '#64748b' }}>Computer Generated Document. No signature required.</p>
                     </div>
-                  ) : gstCategory === 'IGST' ? (
-                    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-2 text-[10px] text-indigo-900 space-y-0.5 font-medium">
-                      <p>• IGST ({gstRate}%): ₹{Math.round(igstAmount || calcGstAmt).toLocaleString('en-IN')}</p>
-                      <p className="font-bold border-t border-indigo-200 pt-0.5">Inter-State Integrated GST Applied</p>
-                    </div>
-                  ) : (
-                    <p className="italic text-slate-400">Non-GST / Exempt Invoice</p>
-                  )}
-                  {notes && <p className="text-[10px] text-slate-500 italic mt-1">{notes}</p>}
-                </div>
-
-                <div className="w-full sm:w-64 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1.5">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Subtotal Base:</span>
-                    <span>₹{Math.round(baseAmt).toLocaleString('en-IN')}</span>
                   </div>
-                  {calcGstAmt > 0 && (
-                    <div className="flex justify-between text-emerald-600 font-medium">
-                      <span>Total GST Tax:</span>
-                      <span>+ ₹{Math.round(calcGstAmt).toLocaleString('en-IN')}</span>
+                  <div className="text-right text-[10px]">
+                    <div className="h-7 mb-0.5 flex items-end justify-end">
+                      <span className="font-serif italic font-bold text-xs border-b pb-0.5 px-3" style={{ color: '#0f172a', borderColor: '#cbd5e1' }}>{createdByName || 'Accounts Officer'}</span>
                     </div>
-                  )}
-                  <div className="flex justify-between border-t border-slate-300 pt-1.5 text-sm font-extrabold text-slate-900">
-                    <span>Total Amount (₹):</span>
-                    <span>₹{Math.round(totalAmount || amount).toLocaleString('en-IN')}</span>
+                    <p className="font-bold uppercase tracking-wider text-[9px]" style={{ color: '#0f172a' }}>Authorized Signatory</p>
                   </div>
-                </div>
-              </div>
-
-              {/* Signatory Footer */}
-              <div className="border-t border-slate-200 pt-4 flex justify-between items-center text-[10px] text-slate-400">
-                <div>
-                  <p>Computer Generated Invoice</p>
-                  <p>Issued By: {createdByName}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-slate-700 uppercase">Authorized Signatory</p>
-                  <p className="text-[9px] text-slate-400">Finance Division</p>
                 </div>
               </div>
             </div>
@@ -711,8 +987,8 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
               {/* Summary Metric Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
-                  <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Total Billed</span>
-                  <span className="text-base font-black text-slate-900">₹{Math.round(displayTotalInvoiceAmt).toLocaleString('en-IN')}</span>
+                  <span className="text-[10px] font-extrabold uppercase text-slate-500 block">Net Payable (Incl. GST)</span>
+                  <span className="text-base font-black text-slate-900">₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</span>
                 </div>
                 <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
                   <span className="text-[10px] font-extrabold uppercase text-emerald-600 block">Amount Received</span>
@@ -740,7 +1016,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                       <span className="font-bold text-slate-900">Tax Invoice Created & Saved</span>
                       <span className="text-[11px] text-slate-500">{formattedDate}</span>
                     </div>
-                    <p className="text-xs text-slate-600">Reference: <strong className="font-mono text-slate-800">{invoiceNo}</strong> — Initial Billed Amount: <strong className="text-slate-900">₹{Math.round(displayTotalInvoiceAmt).toLocaleString('en-IN')}</strong></p>
+                    <p className="text-xs text-slate-600">Reference: <strong className="font-mono text-slate-800">{invoiceNo}</strong> — Net Payable Amount: <strong className="text-indigo-600 font-bold">₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</strong></p>
                     <p className="text-[11px] text-slate-400">Recorded By: {createdByName}</p>
                   </div>
                 </div>
