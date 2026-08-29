@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getDailyReport, getMonthlyReport, getCategoryWiseReport, getSalaryReport } from '../../services/accountsService';
-import { BarChart3, Calendar, PieChart, DollarSign, ArrowDownToLine, RefreshCw, TrendingUp, TrendingDown, Coins } from 'lucide-react';
+import { BarChart3, Calendar, PieChart, DollarSign, ArrowDownToLine, RefreshCw, TrendingUp, TrendingDown, Coins, ShoppingCart } from 'lucide-react';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
@@ -122,7 +122,7 @@ const ExpenseReportsTab = () => {
     window.print();
   };
 
-  // Helper calculations for Daily Income vs Expense
+  // Helper calculations for Daily Income, Purchases & Expense
   const getDailyIncomes = () => {
     if (!dailyDate || !Array.isArray(incomes)) return [];
     return incomes.filter(inc => {
@@ -131,12 +131,22 @@ const ExpenseReportsTab = () => {
     });
   };
 
-  const dayIncomesList = getDailyIncomes();
-  const dayIncomeTotal = dayIncomesList.reduce((sum, item) => sum + (Number(item.receiptAmount || item.totalAmount || item.amount) || 0), 0);
-  const dayExpenseTotal = reportData?.summary?.totalAmount || 0;
-  const dayNetSurplus = dayIncomeTotal - dayExpenseTotal;
+  const getDailyPurchases = () => {
+    if (!dailyDate || !Array.isArray(purchases)) return [];
+    return purchases.filter(pur => {
+      const purDate = pur.date || pur.purchaseDate ? new Date(pur.date || pur.purchaseDate).toISOString().split('T')[0] : '';
+      return purDate === dailyDate;
+    });
+  };
 
-  // Helper calculations for Monthly Income vs Expense
+  const dayIncomesList = getDailyIncomes();
+  const dayPurchasesList = getDailyPurchases();
+  const dayIncomeTotal = dayIncomesList.reduce((sum, item) => sum + (Number(item.receiptAmount || item.totalAmount || item.amount) || 0), 0);
+  const dayPurchaseTotal = dayPurchasesList.reduce((sum, item) => sum + (Number(item.amount || item.totalAmount) || 0), 0);
+  const dayExpenseTotal = reportData?.summary?.totalAmount || 0;
+  const dayNetSurplus = dayIncomeTotal - (dayExpenseTotal + dayPurchaseTotal);
+
+  // Helper calculations for Monthly Income, Purchases & Expense
   const getMonthlyIncomes = () => {
     if (!Array.isArray(incomes)) return [];
     const targetMonth = parseInt(monthlyMonth, 10);
@@ -148,10 +158,24 @@ const ExpenseReportsTab = () => {
     });
   };
 
+  const getMonthlyPurchases = () => {
+    if (!Array.isArray(purchases)) return [];
+    const targetMonth = parseInt(monthlyMonth, 10);
+    const targetYear = parseInt(monthlyYear, 10);
+    return purchases.filter(pur => {
+      const pDate = pur.date || pur.purchaseDate;
+      if (!pDate) return false;
+      const d = new Date(pDate);
+      return d.getMonth() + 1 === targetMonth && d.getFullYear() === targetYear;
+    });
+  };
+
   const monthIncomesList = getMonthlyIncomes();
+  const monthPurchasesList = getMonthlyPurchases();
   const monthIncomeTotal = monthIncomesList.reduce((sum, item) => sum + (Number(item.receiptAmount || item.totalAmount || item.amount) || 0), 0);
+  const monthPurchaseTotal = monthPurchasesList.reduce((sum, item) => sum + (Number(item.amount || item.totalAmount) || 0), 0);
   const monthExpenseTotal = reportData?.summary?.totalAmount || 0;
-  const monthNetProfit = monthIncomeTotal - monthExpenseTotal;
+  const monthNetProfit = monthIncomeTotal - (monthExpenseTotal + monthPurchaseTotal);
 
   return (
     <div className="space-y-6">
@@ -186,7 +210,7 @@ const ExpenseReportsTab = () => {
       </div>
 
       {/* Report Sub-tab Selectors */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-slate-100 dark:bg-slate-950 p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800">
         <button
           onClick={() => setActiveReportSubTab('daily')}
           className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
@@ -196,7 +220,7 @@ const ExpenseReportsTab = () => {
           }`}
         >
           <Calendar size={15} />
-          <span>Daily Financial Ledger</span>
+          <span>Daily Ledger</span>
         </button>
 
         <button
@@ -208,7 +232,19 @@ const ExpenseReportsTab = () => {
           }`}
         >
           <BarChart3 size={15} />
-          <span>Monthly Income vs Expense</span>
+          <span>Monthly P&L</span>
+        </button>
+
+        <button
+          onClick={() => setActiveReportSubTab('purchase')}
+          className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activeReportSubTab === 'purchase'
+              ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <ShoppingCart size={15} />
+          <span>Purchase Register</span>
         </button>
 
         <button
@@ -220,7 +256,7 @@ const ExpenseReportsTab = () => {
           }`}
         >
           <PieChart size={15} />
-          <span>Category Breakdown</span>
+          <span>Categories</span>
         </button>
 
         <button
@@ -520,6 +556,112 @@ const ExpenseReportsTab = () => {
                         </tr>
                       ))}
                     </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. PURCHASE PROCUREMENT REGISTER */}
+      {activeReportSubTab === 'purchase' && (
+        <div className="space-y-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <ShoppingCart className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                Purchase & Procurement Register
+              </h3>
+              <p className="text-xs text-slate-400">Statement of vendor bills, inventory procurement, and purchase orders.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-600 border border-purple-200 dark:border-purple-800">
+                {purchases.length} Procurement Entries
+              </span>
+            </div>
+          </div>
+
+          {/* Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white dark:bg-slate-900 border border-purple-500/20 dark:border-purple-500/30 rounded-2xl p-4 shadow-2xs">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Total Procurement Outflow</p>
+              <h4 className="text-2xl font-black text-purple-600 dark:text-purple-400 mt-1 font-mono">
+                ₹{purchases.reduce((sum, p) => sum + (Number(p.amount || p.totalAmount) || 0), 0).toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Inventory & Vendor Orders</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl p-4 shadow-2xs">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Approved Vendor Bills</p>
+              <h4 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 font-mono">
+                ₹{purchases.filter(p => p.status === 'APPROVED' || p.status === 'Paid').reduce((sum, p) => sum + (Number(p.amount || p.totalAmount) || 0), 0).toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Settled Accounts Payable</p>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 border border-amber-500/20 dark:border-amber-500/30 rounded-2xl p-4 shadow-2xs">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-bold">Pending Vendor Bills</p>
+              <h4 className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 font-mono">
+                ₹{purchases.filter(p => p.status !== 'APPROVED' && p.status !== 'Paid').reduce((sum, p) => sum + (Number(p.amount || p.totalAmount) || 0), 0).toLocaleString('en-IN')}
+              </h4>
+              <p className="text-[10px] text-slate-400 mt-0.5">Unsettled / Approval Pending</p>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-xs space-y-3">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Procurement Purchase Ledger</h4>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 border-y border-slate-200/60 dark:border-slate-800">
+                  <tr>
+                    <th className="py-2.5 px-3">Date</th>
+                    <th className="py-2.5 px-3">Bill / PO Ref</th>
+                    <th className="py-2.5 px-3">Vendor Name</th>
+                    <th className="py-2.5 px-3">Item / Service Description</th>
+                    <th className="py-2.5 px-3">Payment Mode</th>
+                    <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 text-right">Amount (₹)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                  {purchases.length === 0 ? (
+                    <tr><td colSpan={7} className="py-6 text-center text-slate-400">No purchase procurement records found.</td></tr>
+                  ) : (
+                    purchases.map((pur) => (
+                      <tr key={pur._id || pur.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/30">
+                        <td className="py-3 px-3 text-slate-500 whitespace-nowrap">
+                          {new Date(pur.date || pur.purchaseDate || Date.now()).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="py-3 px-3 font-mono font-bold text-slate-700 dark:text-slate-300">
+                          {pur.billNo || pur.referenceNo || 'PO-PUR-001'}
+                        </td>
+                        <td className="py-3 px-3 font-bold text-slate-900 dark:text-slate-100">
+                          {pur.paidTo || pur.vendorName || 'Vendor'}
+                        </td>
+                        <td className="py-3 px-3 text-slate-600 dark:text-slate-400">
+                          {pur.description || pur.itemName || 'Goods / Procurement'}
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            {pur.paymentMode || pur.paymentMethod || 'Bank Transfer'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            pur.status === 'APPROVED' || pur.status === 'Paid'
+                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                              : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                          }`}>
+                            {pur.status || 'APPROVED'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-black text-purple-600 dark:text-purple-400 whitespace-nowrap">
+                          - ₹{(Number(pur.amount || pur.totalAmount) || 0).toLocaleString('en-IN')}
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>

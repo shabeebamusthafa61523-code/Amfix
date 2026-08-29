@@ -270,7 +270,12 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
           const filledRows = val.filter(item => !isRowEmpty(item));
 
           if (filledRows.length > 0) {
-            const title = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ');
+            let title = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ');
+            if (key === 'salesActivity') title = 'Student Leads Update';
+            if (key === 'clientSalesActivity') title = 'Client Leads Update';
+            if (key === 'dailyOperations') title = 'Daily Operations Summary';
+            if (key === 'performanceKpis') title = 'Performance KPI';
+            if (key === 'issuesFeedback') title = 'Issues & Feedback';
             
             // Extract unique field names from all items in array (excluding mongoose _id/id)
             const allKeys = [];
@@ -282,8 +287,14 @@ export const generateReportPDFBuffer = (report, empName, designation) => {
               });
             });
 
-            // Filter columns: keep all keys that exist on sub-documents
-            const activeKeys = allKeys.filter(k => k !== '_id' && k !== 'id' && k !== '__v');
+            // Filter columns: keep keys that have at least one non-empty value across filledRows
+            const activeKeys = allKeys.filter(k => {
+              if (k === '_id' || k === 'id' || k === '__v') return false;
+              return filledRows.some(item => {
+                const v = item[k];
+                return v !== null && v !== undefined && String(v).trim() !== '';
+              });
+            });
 
             if (activeKeys.length > 0) {
               drawSectionHeader(`${sectionIndex}. ${title}`);

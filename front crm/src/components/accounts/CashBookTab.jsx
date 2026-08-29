@@ -14,7 +14,8 @@ import {
   Loader2,
   TrendingUp,
   TrendingDown,
-  Coins
+  Coins,
+  ShoppingCart
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -23,12 +24,12 @@ import autoTable from 'jspdf-autotable';
 const CashBookTab = () => {
   const [cashBookData, setCashBookData] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [summary, setSummary] = useState({ totalIncome: 0, totalExpense: 0, netBalance: 0, totalEntries: 0 });
+  const [summary, setSummary] = useState({ totalIncome: 0, totalGeneralExpense: 0, totalPurchase: 0, totalExpense: 0, netBalance: 0, totalEntries: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   // Filters & Sorting
-  const [entryTypeFilter, setEntryTypeFilter] = useState(''); // '' (All), 'INCOME', 'EXPENSE'
+  const [entryTypeFilter, setEntryTypeFilter] = useState(''); // '' (All), 'INCOME', 'EXPENSE', 'PURCHASE'
   const [filterType, setFilterType] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [filterMode, setFilterMode] = useState('');
@@ -42,14 +43,63 @@ const CashBookTab = () => {
     setError('');
     try {
       const [cashRes, catRes] = await Promise.all([
-        getCashBook({ entryType: entryTypeFilter, type: filterType, category: filterCategory, paymentMode: filterMode, startDate, endDate }),
+        getCashBook({ entryType: entryTypeFilter === 'PURCHASE' ? 'PURCHASE' : entryTypeFilter, type: filterType, category: filterCategory, paymentMode: filterMode, startDate, endDate }),
         getExpenseCategories()
       ]);
 
-      if (cashRes.success) {
-        setCashBookData(cashRes.data || []);
-        setSummary(cashRes.summary || { totalIncome: 0, totalExpense: 0, netBalance: 0, totalEntries: 0 });
+      let backendEntries = cashRes.success ? (cashRes.data || []) : [];
+
+      // Merge local purchases from crm_purchase_records if available
+      try {
+        const localPurchasesRaw = JSON.parse(localStorage.getItem('crm_purchase_records') || '[]');
+        if (localPurchasesRaw.length > 0) {
+          const formattedLocalPurchases = localPurchasesRaw.map(p => ({
+            _id: p._id || p.id,
+            entryType: 'EXPENSE',
+            isPurchase: true,
+            type: 'Purchase',
+            categoryName: 'Inventory & Purchase',
+            paidTo: p.paidTo || p.vendorName || 'N/A',
+            paymentMode: p.paymentMode || p.paymentMethod || 'Cash',
+            amount: p.amount || 0,
+            date: p.date || p.purchaseDate || p.createdAt,
+            referenceNo: p.billNo || p.referenceNo || 'PUR-LOCAL',
+            description: p.description || p.itemName || p.remarks || ''
+          }));
+
+          const existingIds = new Set(backendEntries.map(e => String(e._id)));
+          formattedLocalPurchases.forEach(p => {
+            if (!existingIds.has(String(p._id))) {
+              backendEntries.push(p);
+            }
+          });
+        }
+      } catch (localErr) {
+        console.warn('Error reading local purchase records:', localErr);
       }
+
+      // Sort combined entries by date descending
+      backendEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      setCashBookData(backendEntries);
+
+      // Compute summary metrics
+      const totInc = backendEntries.filter(e => e.entryType === 'INCOME').reduce((s, i) => s + (i.amount || 0), 0);
+      const totPur = backendEntries.filter(e => e.entryType === 'EXPENSE' && (e.isPurchase || (e.categoryName || '').toLowerCase().includes('purchase') || e.type === 'Purchase')).reduce((s, i) => s + (i.amount || 0), 0);
+      const totGenExp = backendEntries.filter(e => e.entryType === 'EXPENSE' && !e.isPurchase && !(e.categoryName || '').toLowerCase().includes('purchase') && e.type !== 'Purchase').reduce((s, i) => s + (i.amount || 0), 0);
+      const totOutflow = totGenExp + totPur;
+      const netBal = totInc - totOutflow;
+
+      setSummary({
+        totalIncome: totInc,
+        totalGeneralExpense: totGenExp,
+        totalPurchase: totPur,
+        totalExpense: totOutflow,
+        totalOutflow: totOutflow,
+        netBalance: netBal,
+        totalEntries: backendEntries.length
+      });
+
       if (catRes.success) {
         setCategories(catRes.data || []);
       }
@@ -68,6 +118,15 @@ const CashBookTab = () => {
   // Client-side search & sorting logic
   const filteredAndSortedData = useMemo(() => {
     let data = [...cashBookData];
+
+    if (entryTypeFilter === 'PURCHASE') {
+      data = data.filter(item => item.isPurchase || (item.categoryName || '').toLowerCase().includes('purchase') || item.type === 'Purchase');
+    } else if (entryTypeFilter === 'INCOME') {
+      data = data.filter(item => item.entryType === 'INCOME');
+    } else if (entryTypeFilter === 'EXPENSE') {
+      data = data.filter(item => item.entryType === 'EXPENSE' && !item.isPurchase && !(item.categoryName || '').toLowerCase().includes('purchase'));
+    }
+
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase().trim();
       data = data.filter(item => 
@@ -92,7 +151,7 @@ const CashBookTab = () => {
       return data.sort((a, b) => (a.amount || 0) - (b.amount || 0));
     }
     return data;
-  }, [cashBookData, searchTerm, sortBy]);
+  }, [cashBookData, entryTypeFilter, searchTerm, sortBy]);
 
   // Export to Excel
   const handleExportExcel = () => {
@@ -104,9 +163,9 @@ const CashBookTab = () => {
     const exportData = filteredAndSortedData.map((item, idx) => ({
       'S.No': idx + 1,
       'Date': new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-      'Entry Type': item.entryType === 'INCOME' ? 'INCOME (INFLOW)' : 'EXPENSE (OUTFLOW)',
+      'Entry Type': item.entryType === 'INCOME' ? 'INCOME (INFLOW)' : (item.isPurchase ? 'PURCHASE (PROCUREMENT)' : 'EXPENSE (OUTFLOW)'),
       'Category / Dept': item.categoryName || 'General',
-      'Party / Source': item.paidTo || 'N/A',
+      'Party / Vendor / Source': item.paidTo || 'N/A',
       'Payment Mode': item.paymentMode || 'Cash',
       'Inflow Amount (INR)': item.entryType === 'INCOME' ? (item.amount || 0) : 0,
       'Outflow Amount (INR)': item.entryType === 'EXPENSE' ? (item.amount || 0) : 0,
@@ -115,12 +174,12 @@ const CashBookTab = () => {
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Cash Book Income & Expense');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Cash Book Income Expense Purchase');
 
     worksheet['!cols'] = [
       { wch: 6 },
       { wch: 15 },
-      { wch: 20 },
+      { wch: 24 },
       { wch: 22 },
       { wch: 28 },
       { wch: 15 },
@@ -129,7 +188,7 @@ const CashBookTab = () => {
       { wch: 35 }
     ];
 
-    XLSX.writeFile(workbook, `Cash_Book_Ledger_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `Cash_Book_Ledger_Profit_Loss_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   // Export to PDF
@@ -143,17 +202,17 @@ const CashBookTab = () => {
 
     doc.setFontSize(15);
     doc.setTextColor(30, 41, 59);
-    doc.text('CASH BOOK LEDGER (INCOME & EXPENSE) REPORT', 40, 40);
+    doc.text('CASH BOOK LEDGER & PROFIT AND LOSS STATEMENT', 40, 40);
 
     doc.setFontSize(9);
     doc.setTextColor(100, 116, 139);
     doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, 40, 55);
-    doc.text(`Total Income: RS. ${(summary.totalIncome || 0).toLocaleString('en-IN')} | Total Expense: RS. ${(summary.totalExpense || 0).toLocaleString('en-IN')} | Net Balance: RS. ${(summary.netBalance || 0).toLocaleString('en-IN')}`, 40, 68);
+    doc.text(`Total Income: RS. ${(summary.totalIncome || 0).toLocaleString('en-IN')} | General Expense: RS. ${(summary.totalGeneralExpense || 0).toLocaleString('en-IN')} | Purchases: RS. ${(summary.totalPurchase || 0).toLocaleString('en-IN')} | Net Profit/Loss: RS. ${(summary.netBalance || 0).toLocaleString('en-IN')}`, 40, 68);
 
     const tableRows = filteredAndSortedData.map((item, idx) => [
       idx + 1,
       new Date(item.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-      item.entryType === 'INCOME' ? 'INCOME' : 'EXPENSE',
+      item.entryType === 'INCOME' ? 'INCOME' : (item.isPurchase ? 'PURCHASE' : 'EXPENSE'),
       item.categoryName || 'General',
       item.paidTo || 'N/A',
       item.paymentMode || 'Cash',
@@ -182,16 +241,16 @@ const CashBookTab = () => {
       columnStyles: {
         0: { cellWidth: 25 },
         1: { cellWidth: 65 },
-        2: { cellWidth: 55 },
+        2: { cellWidth: 60 },
         3: { cellWidth: 85 },
-        4: { cellWidth: 125 },
+        4: { cellWidth: 120 },
         5: { cellWidth: 55 },
         6: { cellWidth: 65, halign: 'right' },
         7: { cellWidth: 65, halign: 'right' }
       }
     });
 
-    doc.save(`Cash_Book_Ledger_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`Cash_Book_Profit_Loss_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   return (
@@ -211,12 +270,12 @@ const CashBookTab = () => {
           </div>
         </div>
 
-        {/* Total Expense Stat Card */}
+        {/* Total Expenses Stat Card */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
           <div>
             <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Expense (Outflow)</p>
             <h3 className="text-base font-black text-rose-600 dark:text-rose-400 mt-0.5">
-              -₹{(summary.totalExpense || summary.totalOutflow || 0).toLocaleString('en-IN')}
+              -₹{(summary.totalGeneralExpense || 0).toLocaleString('en-IN')}
             </h3>
           </div>
           <div className="p-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 rounded-xl shrink-0">
@@ -224,10 +283,23 @@ const CashBookTab = () => {
           </div>
         </div>
 
-        {/* Net Balance Stat Card */}
+        {/* Total Purchases Stat Card */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Net Cash Flow</p>
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Purchases</p>
+            <h3 className="text-base font-black text-amber-600 dark:text-amber-400 mt-0.5">
+              -₹{(summary.totalPurchase || 0).toLocaleString('en-IN')}
+            </h3>
+          </div>
+          <div className="p-2 bg-amber-50 dark:bg-amber-950/30 text-amber-600 rounded-xl shrink-0">
+            <ShoppingCart size={16} />
+          </div>
+        </div>
+
+        {/* Net Profit & Loss Balance Stat Card */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Net Profit / Loss</p>
             <h3 className={`text-base font-black mt-0.5 ${
               (summary.netBalance || 0) >= 0 
                 ? 'text-indigo-600 dark:text-indigo-400' 
@@ -238,19 +310,6 @@ const CashBookTab = () => {
           </div>
           <div className="p-2 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 rounded-xl shrink-0">
             <Wallet size={16} />
-          </div>
-        </div>
-
-        {/* Total Transactions Card */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl p-3 shadow-xs flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Total Ledger Entries</p>
-            <h3 className="text-base font-black text-slate-800 dark:text-slate-100 mt-0.5">
-              {filteredAndSortedData.length}
-            </h3>
-          </div>
-          <div className="p-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl shrink-0">
-            <BookOpen size={16} />
           </div>
         </div>
       </div>
@@ -264,7 +323,7 @@ const CashBookTab = () => {
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white tracking-tight">
-              Cash Book (Income & Expense)
+              Profit & Loss / Cash Book (Income, Expense & Purchase)
             </h3>
           </div>
         </div>
@@ -277,13 +336,13 @@ const CashBookTab = () => {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search party, notes..."
+              placeholder="Search vendor, party..."
               className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
             />
             <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
           </div>
 
-          {/* Entry Type Filter (All / Income / Expense) */}
+          {/* Entry Type Filter (All / Income / Expense / Purchase) */}
           <select
             value={entryTypeFilter}
             onChange={(e) => setEntryTypeFilter(e.target.value)}
@@ -292,6 +351,7 @@ const CashBookTab = () => {
             <option value="">All Ledger Entries</option>
             <option value="INCOME">🟢 Income Only (Inflow)</option>
             <option value="EXPENSE">🔴 Expense Only (Outflow)</option>
+            <option value="PURCHASE">🛒 Purchase Only (Procurement)</option>
           </select>
 
           {/* Payment Mode Filter */}
@@ -305,57 +365,50 @@ const CashBookTab = () => {
             <option value="UPI_BANK">UPI / Bank</option>
           </select>
 
-          {/* Category Filter */}
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
-          >
-            <option value="">All Categories</option>
-            {categories.map((c) => (
-              <option key={c._id} value={c._id}>{c.name}</option>
-            ))}
-          </select>
-
           {/* Date Pickers */}
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
-            title="Start Date"
-          />
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none"
+              title="Start Date"
+            />
+            <span className="text-slate-400 text-xs">-</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1 text-xs text-slate-700 dark:text-slate-300 focus:outline-none"
+              title="End Date"
+            />
+          </div>
 
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
-            title="End Date"
-          />
-
+          {/* Refresh Button */}
           <button
+            type="button"
             onClick={fetchCashBook}
-            className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 transition cursor-pointer"
+            className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition cursor-pointer"
             title="Refresh Ledger"
           >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
 
-          {/* Export Actions */}
+          {/* Export Excel Button */}
           <button
+            type="button"
             onClick={handleExportExcel}
-            className="py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
-            title="Export Excel"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition border border-emerald-200 dark:border-emerald-900 cursor-pointer"
           >
             <FileSpreadsheet size={13} />
             Excel
           </button>
 
+          {/* Export PDF Button */}
           <button
+            type="button"
             onClick={handleExportPDF}
-            className="py-1.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
-            title="Export PDF"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-bold transition border border-indigo-200 dark:border-indigo-900 cursor-pointer"
           >
             <FileText size={13} />
             PDF
@@ -363,17 +416,17 @@ const CashBookTab = () => {
         </div>
       </div>
 
-      {/* Cash Book Main Ledger Table */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden">
+      {/* Main Ledger Table */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-2xl overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-slate-50/70 dark:bg-slate-950/50 border-b border-slate-200/60 dark:border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              <tr>
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50/80 dark:bg-slate-950/60 text-slate-400 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
                 <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Entry Type</th>
+                <th className="py-3 px-4">Type</th>
                 <th className="py-3 px-4">Category / Dept</th>
-                <th className="py-3 px-4">Party / Source / Notes</th>
-                <th className="py-3 px-4">Payment Mode</th>
+                <th className="py-3 px-4">Party / Vendor / Source</th>
+                <th className="py-3 px-4">Mode</th>
                 <th className="py-3 px-4 text-right">Inflow (₹)</th>
                 <th className="py-3 px-4 text-right">Outflow (₹)</th>
               </tr>
@@ -383,18 +436,20 @@ const CashBookTab = () => {
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
                     <Loader2 className="animate-spin text-indigo-600 mx-auto mb-2" size={24} />
-                    Loading cash book entries...
+                    Loading entries...
                   </td>
                 </tr>
               ) : filteredAndSortedData.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-slate-400">
-                    No cash book entries found for selected criteria.
+                    No entries found.
                   </td>
                 </tr>
               ) : (
                 filteredAndSortedData.map((item) => {
                   const isIncome = item.entryType === 'INCOME';
+                  const isPur = item.isPurchase || (item.categoryName || '').toLowerCase().includes('purchase') || item.type === 'Purchase';
+
                   return (
                     <tr key={`${item.entryType}-${item._id}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-950/30 transition">
                       <td className="py-3.5 px-4 whitespace-nowrap font-medium text-slate-500 dark:text-slate-400">
@@ -404,9 +459,11 @@ const CashBookTab = () => {
                         <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold tracking-wider ${
                           isIncome 
                             ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/80' 
-                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-800/80'
+                            : isPur
+                              ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/80'
+                              : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-800/80'
                         }`}>
-                          {isIncome ? '🟢 INCOME' : '🔴 EXPENSE'}
+                          {isIncome ? '🟢 INCOME' : isPur ? '🛒 PURCHASE' : '🔴 EXPENSE'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 font-semibold text-slate-700 dark:text-slate-300">

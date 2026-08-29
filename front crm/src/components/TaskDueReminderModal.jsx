@@ -5,7 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from './ToastProvider';
 import { playNotificationBeep } from '../utils/soundUtils';
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+const rawApiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/+$/, '');
+const API_BASE = rawApiBase.endsWith('/v1') ? rawApiBase : `${rawApiBase}/v1`;
 
 const formatTimeDisplay = (dVal) => {
   if (!dVal) return '';
@@ -176,6 +177,9 @@ const TaskDueReminderModal = () => {
 
       return true;
     } catch (err) {
+      if (err.name === 'AbortError' || err.name === 'CanceledError') {
+        return true;
+      }
       console.warn("Error checking task due times:", err.message);
       return false;
     }

@@ -14,7 +14,18 @@ import ConfirmModal from '../components/ConfirmModal';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable'; // 👈 Import it as a direct function
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
+const getApiEndpoint = (path) => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (API_BASE.endsWith('/v1')) {
+    return `${API_BASE}${cleanPath}`;
+  }
+  if (API_BASE.endsWith('/api')) {
+    return `${API_BASE}/v1${cleanPath}`;
+  }
+  return `${API_BASE}/api/v1${cleanPath}`;
+};
 
 const getISTDate = () => {
   return new Intl.DateTimeFormat('en-CA', {
@@ -357,9 +368,13 @@ const [activePriority, setActivePriority] = useState('all');
         queryParams.append('dateTo', dateTo);
       }
 
-      const res = await fetch(`${API_BASE}/v1/leads?${queryParams.toString()}`, {
+      const res = await fetch(getApiEndpoint(`/leads?${queryParams.toString()}`), {
         headers: getAuthHeaders()
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const resJson = await res.json();
 
       if (resJson.success && Array.isArray(resJson.data)) {
@@ -381,9 +396,13 @@ const [activePriority, setActivePriority] = useState('all');
   // Fetch staff list for assignments
   const fetchStaff = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/v1/users`, {
+      const res = await fetch(getApiEndpoint('/users'), {
         headers: getAuthHeaders()
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const resJson = await res.json();
       if (resJson.success && Array.isArray(resJson.data)) {
         setStaff(resJson.data);
@@ -409,9 +428,13 @@ const [activePriority, setActivePriority] = useState('all');
   const fetchLeadDetails = async (leadId) => {
     try {
       setDetailsLoading(true);
-      const res = await fetch(`${API_BASE}/v1/leads/${leadId}`, {
+      const res = await fetch(getApiEndpoint(`/leads/${leadId}`), {
         headers: getAuthHeaders()
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const resJson = await res.json();
       if (resJson.success && resJson.data) {
         setSelectedLeadDetails(resJson.data);
@@ -446,7 +469,7 @@ const [activePriority, setActivePriority] = useState('all');
     }));
 
     try {
-      const res = await fetch(`${API_BASE}/v1/leads/update`, {
+      const res = await fetch(getApiEndpoint('/leads/update'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -455,6 +478,10 @@ const [activePriority, setActivePriority] = useState('all');
           ...extraFields
         })
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (res.ok || data.success) {
         showToast('Lead updated successfully!', 'success');
@@ -615,10 +642,14 @@ const [activePriority, setActivePriority] = useState('all');
     const { id, name } = deleteConfirm;
     setDeleteConfirm({ isOpen: false, id: null, name: '' });
     try {
-      const res = await fetch(`${API_BASE}/v1/leads/delete/${id}`, {
+      const res = await fetch(getApiEndpoint(`/leads/delete/${id}`), {
         method: 'POST', // Supports POST/DELETE
         headers: getAuthHeaders()
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (res.ok || data.success) {
         setLeads(prev => prev.filter(l => l.id !== id && l._id !== id));

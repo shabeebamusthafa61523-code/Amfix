@@ -122,6 +122,7 @@ export const saveReport = async (req, res, next) => {
       dateString,
       basicDetails: req.body.basicDetails,
       salesActivity: req.body.salesActivity || [],
+      clientSalesActivity: req.body.clientSalesActivity || [],
       dailyOperations: req.body.dailyOperations || [],
       reportsCollectedDone: req.body.reportsCollectedDone || false,
       performanceKpis: req.body.performanceKpis || [],
