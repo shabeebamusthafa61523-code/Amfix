@@ -8,7 +8,18 @@ import {
 import { useToast } from '../components/ToastProvider';
 import { useUser } from '../contexts/UserContext';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
+const getApiEndpoint = (path) => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (API_BASE.endsWith('/v1')) {
+    return `${API_BASE}${cleanPath}`;
+  }
+  if (API_BASE.endsWith('/api')) {
+    return `${API_BASE}/v1${cleanPath}`;
+  }
+  return `${API_BASE}/api/v1${cleanPath}`;
+};
 
 const ALL_SIDEBAR_ITEMS = [
   // Dashboards
@@ -107,9 +118,13 @@ const UserPermissionsPage = () => {
   const fetchUser = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/users/${userId}`, {
+      const res = await fetch(getApiEndpoint(`/users/${userId}`), {
         headers: getAuthHeaders()
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (res.ok && data.data) {
         const u = data.data;
@@ -134,7 +149,6 @@ const UserPermissionsPage = () => {
         const userObj = JSON.parse(savedUser);
         const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
         const designation = String(userObj.designation || '').toLowerCase().trim();
-        const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
         const isHr = role === 'hr' || designation.includes('hr');
         if (isHr) {
           showToast("HR users cannot edit permissions.", "error");
@@ -171,7 +185,7 @@ const UserPermissionsPage = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/users/${userId}/permissions`, {
+      const res = await fetch(getApiEndpoint(`/users/${userId}/permissions`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

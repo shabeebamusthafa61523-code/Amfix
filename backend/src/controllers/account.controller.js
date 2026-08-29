@@ -629,25 +629,34 @@ export const getCashBook = async (req, res) => {
     let expenses = [];
     let incomes = [];
 
-    // Fetch Expenses if entryType is 'all' or 'EXPENSE'
-    if (!entryType || entryType === 'all' || entryType === 'EXPENSE') {
+    // Fetch Expenses if entryType is 'all' or 'EXPENSE' or 'PURCHASE'
+    if (!entryType || entryType === 'all' || entryType === 'EXPENSE' || entryType === 'PURCHASE') {
       const expList = await Expense.find(expenseQuery)
         .populate('category', 'name')
         .populate('addedBy', 'name email')
         .sort({ date: -1, createdAt: -1 });
 
-      expenses = expList.map(e => ({
-        _id: e._id,
-        entryType: 'EXPENSE', // Outflow
-        type: e.type || 'Expense',
-        categoryName: e.type === 'Salary' ? 'Employee Salary' : (e.categoryName || e.category?.name || 'General'),
-        paidTo: e.paidTo || 'N/A',
-        paymentMode: e.paymentMode || 'Cash',
-        amount: e.amount || 0,
-        date: e.date || e.createdAt,
-        referenceNo: e.receiptNo || e._id,
-        description: e.description || ''
-      }));
+      expenses = expList.map(e => {
+        const cat = String(e.categoryName || e.category?.name || '').toLowerCase();
+        const isPur = e.isPurchase === true || cat.includes('purchase') || cat.includes('inventory') || cat.includes('vendor');
+        return {
+          _id: e._id,
+          entryType: 'EXPENSE', // Outflow
+          isPurchase: isPur,
+          type: isPur ? 'Purchase' : (e.type || 'Expense'),
+          categoryName: e.type === 'Salary' ? 'Employee Salary' : (isPur ? 'Inventory & Purchase' : (e.categoryName || e.category?.name || 'General')),
+          paidTo: e.paidTo || 'N/A',
+          paymentMode: e.paymentMode || 'Cash',
+          amount: e.amount || 0,
+          date: e.date || e.createdAt,
+          referenceNo: e.receiptNo || e.billNo || e._id,
+          description: e.description || ''
+        };
+      });
+
+      if (entryType === 'PURCHASE') {
+        expenses = expenses.filter(e => e.isPurchase);
+      }
     }
 
     // Fetch Incomes if entryType is 'all' or 'INCOME'
@@ -658,13 +667,14 @@ export const getCashBook = async (req, res) => {
       incomes = incList.map(i => ({
         _id: i._id,
         entryType: 'INCOME', // Inflow
+        isPurchase: false,
         type: i.sourceType || 'Income',
         categoryName: i.department || 'Income',
         paidTo: i.clientName ? `${i.title} (${i.clientName})` : i.title,
         paymentMode: i.paymentMethod || 'Bank Transfer',
         amount: i.amount || 0,
         date: i.date || i.createdAt,
-        referenceNo: i.referenceNo || '',
+        referenceNo: i.referenceNo || i.receiptNo || '',
         description: i.description || ''
       }));
     }
@@ -672,15 +682,19 @@ export const getCashBook = async (req, res) => {
     // Combine and sort by date descending
     const combinedLedger = [...incomes, ...expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // Calculate Summary Stats
+    // Calculate Summary Stats (Income, General Expense, Purchase Outflow, Net Profit/Loss)
     const totalIncome = incomes.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const totalExpense = expenses.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalPurchase = expenses.filter(e => e.isPurchase).reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalGeneralExpense = expenses.filter(e => !e.isPurchase).reduce((sum, item) => sum + (item.amount || 0), 0);
+    const totalExpense = totalGeneralExpense + totalPurchase; // Total Outflow
     const netBalance = totalIncome - totalExpense;
 
     return res.status(200).json({
       success: true,
       summary: {
         totalIncome,
+        totalGeneralExpense,
+        totalPurchase,
         totalExpense,
         totalOutflow: totalExpense,
         netBalance,

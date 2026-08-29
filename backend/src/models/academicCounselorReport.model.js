@@ -30,6 +30,16 @@ const academicCounselorReportSchema = new mongoose.Schema({
       remarks: { type: String }
     }
   ],
+  clientSalesActivity: [
+    {
+      activity: { type: String },
+      dueDate: { type: String },
+      count: { type: String },
+      digitalMktg: { type: String },
+      web: { type: String },
+      remarks: { type: String }
+    }
+  ],
   dailyOperations: [
     {
       activity: { type: String },

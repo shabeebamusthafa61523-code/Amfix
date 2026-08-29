@@ -16,7 +16,18 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
+const getApiEndpoint = (path) => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (API_BASE.endsWith('/v1')) {
+    return `${API_BASE}${cleanPath}`;
+  }
+  if (API_BASE.endsWith('/api')) {
+    return `${API_BASE}/v1${cleanPath}`;
+  }
+  return `${API_BASE}/api/v1${cleanPath}`;
+};
 
 const getISTDate = () => {
   return new Intl.DateTimeFormat('en-CA', {
@@ -368,7 +379,11 @@ export default function ClientLeads() {
   // Fetch Staff
   const fetchStaff = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/v1/users`, { headers: getAuthHeaders() });
+      const res = await fetch(getApiEndpoint('/users'), { headers: getAuthHeaders() });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setStaff(data.data);
@@ -415,7 +430,11 @@ export default function ClientLeads() {
   const fetchLeads = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads?limit=1000`, { headers: getAuthHeaders() });
+      const res = await fetch(getApiEndpoint('/client-leads?limit=1000'), { headers: getAuthHeaders() });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setLeads(data.data);
@@ -437,7 +456,11 @@ export default function ClientLeads() {
   const fetchLeadDetails = async (id) => {
     setDetailsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads/${id}`, { headers: getAuthHeaders() });
+      const res = await fetch(getApiEndpoint(`/client-leads/${id}`), { headers: getAuthHeaders() });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success && data.data) {
         setSelectedLeadDetails(data.data);
@@ -456,11 +479,15 @@ export default function ClientLeads() {
       assignedTo: formData.assignedTo && formData.assignedTo.trim() ? formData.assignedTo : null
     };
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads`, {
+      const res = await fetch(getApiEndpoint('/client-leads'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         showToast("Client lead created successfully!", "success");
@@ -484,11 +511,15 @@ export default function ClientLeads() {
       assignedTo: formData.assignedTo && formData.assignedTo.trim() ? formData.assignedTo : null
     };
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads/${selectedLead.id || selectedLead._id}`, {
+      const res = await fetch(getApiEndpoint(`/client-leads/${selectedLead.id || selectedLead._id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload)
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         showToast("Client lead updated successfully!", "success");
@@ -514,11 +545,15 @@ export default function ClientLeads() {
     setLeads(prev => prev.map(l => ((l.id === leadId || l._id === leadId) ? { ...l, [field]: cleanValue, ...extraFields } : l)));
 
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads/${leadId}`, {
+      const res = await fetch(getApiEndpoint(`/client-leads/${leadId}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ [field]: cleanValue, ...extraFields })
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         showToast(`Client lead ${field} updated!`, "success");
@@ -544,11 +579,15 @@ export default function ClientLeads() {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads/${selectedLead.id || selectedLead._id}`, {
+      const res = await fetch(getApiEndpoint(`/client-leads/${selectedLead.id || selectedLead._id}`), {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify(updateObj)
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         showToast(`Follow-up ${followUpData.followUpNum} updated!`, "success");
@@ -566,10 +605,14 @@ export default function ClientLeads() {
   const handleDeleteLead = async () => {
     if (!deleteConfirm.id) return;
     try {
-      const res = await fetch(`${API_BASE}/v1/client-leads/${deleteConfirm.id}`, {
+      const res = await fetch(getApiEndpoint(`/client-leads/${deleteConfirm.id}`), {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response (${res.status})`);
+      }
       const data = await res.json();
       if (data.success) {
         showToast("Client lead deleted successfully", "success");

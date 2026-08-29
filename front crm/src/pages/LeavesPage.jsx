@@ -96,6 +96,10 @@ export default function LeavesPage() {
   const [actionComment, setActionComment] = useState('');
   const [actionSubmitting, setActionSubmitting] = useState(false);
 
+  // Cancel Confirmation Modal State
+  const [cancelModalLeave, setCancelModalLeave] = useState(null);
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+
   // HR Overview Filters State
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterDept, setFilterDept] = useState('ALL');
@@ -130,17 +134,33 @@ export default function LeavesPage() {
   }, [isApplyModalOpen, staffUsers.length]);
 
 
-  // Check roles
+  // Check roles accurately
   const userRole = String(user?.role || '').toLowerCase().trim();
   const userRoleId = String(user?.role_id || user?.roleId || '').trim();
   const userDept = String(user?.department || '').toLowerCase().trim();
   const userDesig = String(user?.designation || '').toLowerCase().trim();
 
-  const isTeamLeadUser = user?.isTeamLead === true || user?.is_team_lead === true || String(user?.isTeamLead).toLowerCase() === 'true' || String(user?.is_team_lead).toLowerCase() === 'true';
+  // Explicit Team Lead check: false in login response/user object overrides designation
+  const isTeamLeadUser = useMemo(() => {
+    if (user?.isTeamLead === false || user?.is_team_lead === false || String(user?.isTeamLead).toLowerCase() === 'false' || String(user?.is_team_lead).toLowerCase() === 'false') {
+      return false;
+    }
+    if (user?.isTeamLead === true || user?.is_team_lead === true || String(user?.isTeamLead).toLowerCase() === 'true' || String(user?.is_team_lead).toLowerCase() === 'true') {
+      return true;
+    }
+    return ['3', 'manager', 'team_lead', 'teamlead', 'tl', 'hod'].includes(userRole) || ['3', '10'].includes(userRoleId);
+  }, [user, userRole, userRoleId]);
 
   const isSuperAdmin = user?.isSuperAdmin === true || userRole === 'superadmin' || userRoleId === '0';
   const isHrOrAdmin = isSuperAdmin || ['1', '2', 'admin', 'hr'].includes(userRole) || ['1', '2'].includes(userRoleId) || userDept.includes('hr') || userDept.includes('admin') || userDesig.includes('hr');
-  const isManagerOrTl = isHrOrAdmin || isTeamLeadUser || ['3', 'manager', 'team_lead', 'teamlead', 'tl', 'hod'].includes(userRole) || userDesig.includes('manager') || userDesig.includes('lead') || userDesig.includes('hod');
+  const isManagerOrTl = isHrOrAdmin || isTeamLeadUser;
+
+  // Guard: Non-Team Lead / non-HR users can only access 'my' or 'history'
+  useEffect(() => {
+    if (!isHrOrAdmin && !isTeamLeadUser && (activeTab === 'all' || activeTab === 'team')) {
+      setActiveTab('my');
+    }
+  }, [isHrOrAdmin, isTeamLeadUser, activeTab]);
 
   // Fetch Leaves based on active tab
   const fetchLeaves = useCallback(async () => {
@@ -283,24 +303,28 @@ export default function LeavesPage() {
     }
   };
 
-  // Cancel & Delete Leave
-  const handleCancelLeave = async (leaveId) => {
-    if (!window.confirm("Are you sure you want to cancel and delete this leave request?")) return;
+  // Confirm & Delete Cancel Leave
+  const handleConfirmCancelLeave = async () => {
+    if (!cancelModalLeave) return;
+    setCancelSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/leaves/${leaveId}`, {
+      const res = await fetch(`${API_BASE}/leaves/${cancelModalLeave._id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
       const data = await res.json();
       if (data.success) {
-        showToast("Leave request deleted.", "info");
+        showToast("Leave request cancelled successfully.", "info");
+        setCancelModalLeave(null);
         fetchLeaves();
       } else {
-        showToast(data.message || "Failed to delete leave request.", "error");
+        showToast(data.message || "Failed to cancel leave request.", "error");
       }
     } catch (err) {
-      console.error("Error deleting leave:", err);
-      showToast("Error deleting leave request.", "error");
+      console.error("Error cancelling leave:", err);
+      showToast("Error cancelling leave request.", "error");
+    } finally {
+      setCancelSubmitting(false);
     }
   };
 
@@ -361,7 +385,7 @@ export default function LeavesPage() {
       {/* Navigation Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-3">
         <div className="flex flex-wrap items-center gap-1.5 bg-slate-200/50 p-1 rounded-xl border border-slate-200/60">
-          {/* HR Role Tab Order: Employee Leave Requests FIRST, then My Leave Requests */}
+          {/* Navigation Tabs based on User Role */}
           {isHrOrAdmin ? (
             <>
               <button
@@ -386,20 +410,18 @@ export default function LeavesPage() {
                 My Leave Requests
               </button>
 
-              {isManagerOrTl && (
-                <button
-                  onClick={() => setActiveTab('team')}
-                  className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                    activeTab === 'team'
-                      ? 'bg-white text-indigo-600 shadow-xs border border-slate-200/80'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5" /> Team Leave Requests (TL Stage 1)
-                </button>
-              )}
+              <button
+                onClick={() => setActiveTab('team')}
+                className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === 'team'
+                    ? 'bg-white text-indigo-600 shadow-xs border border-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" /> Team Leave Requests (TL Stage 1)
+              </button>
             </>
-          ) : (
+          ) : isTeamLeadUser ? (
             <>
               <button
                 onClick={() => setActiveTab('my')}
@@ -420,9 +442,20 @@ export default function LeavesPage() {
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <Users className="w-3.5 h-3.5" /> Team / CC Requests
+                <Users className="w-3.5 h-3.5" /> Team Leave Requests (TL Stage 1)
               </button>
             </>
+          ) : (
+            <button
+              onClick={() => setActiveTab('my')}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                activeTab === 'my'
+                  ? 'bg-white text-indigo-600 shadow-xs border border-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              My Leave Requests
+            </button>
           )}
 
           <button
@@ -667,7 +700,7 @@ export default function LeavesPage() {
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         {activeTab === 'my' && leave.finalStatus === 'PENDING' && (
                           <button
-                            onClick={() => handleCancelLeave(leave._id)}
+                            onClick={() => setCancelModalLeave(leave)}
                             className="px-2.5 py-1 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 rounded-lg text-xs font-semibold transition-all cursor-pointer"
                           >
                             Cancel
@@ -723,12 +756,9 @@ export default function LeavesPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <AnimatePresence>
             {leaves.map((leave) => {
-              const hasReportingManager = leave.reportingManager && 
-                leave.reportingManager.trim() !== '' && 
-                leave.reportingManager.toLowerCase() !== 'unassigned';
-
-              const isStage1Approved = leave.teamLeadStatus === 'APPROVED' || !hasReportingManager;
-              const isPendingStage1 = leave.teamLeadStatus === 'PENDING' && hasReportingManager;
+              const isRequesterTl = leave.teamLeadComment && leave.teamLeadComment.includes('Requester is Team Lead');
+              const isStage1Approved = leave.teamLeadStatus === 'APPROVED' || isRequesterTl;
+              const isPendingStage1 = leave.teamLeadStatus === 'PENDING' && !isRequesterTl;
 
               return (
                 <motion.div
@@ -852,7 +882,7 @@ export default function LeavesPage() {
                     <div className="flex items-center gap-2">
                       {activeTab === 'my' && leave.finalStatus === 'PENDING' && (
                         <button
-                          onClick={() => handleCancelLeave(leave._id)}
+                          onClick={() => setCancelModalLeave(leave)}
                           className="px-3 py-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 rounded-xl text-xs font-semibold transition-all cursor-pointer"
                         >
                           Cancel Request
@@ -911,19 +941,27 @@ export default function LeavesPage() {
 
       {/* APPLY LEAVE MODAL */}
       {isApplyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
           <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white border border-slate-200/90 w-full max-w-md rounded-2xl shadow-xl p-6 space-y-4 text-slate-800"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setIsApplyModalOpen(false)}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            className="relative z-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md my-auto rounded-3xl shadow-2xl p-6 space-y-4 text-slate-800 dark:text-slate-100 overflow-y-auto max-h-[90vh]"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-indigo-600" /> Apply for Leave
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Apply for Leave
               </h2>
               <button
                 onClick={() => setIsApplyModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-sm p-1 rounded-md transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -931,12 +969,12 @@ export default function LeavesPage() {
 
             <form onSubmit={handleApplySubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-700 font-medium mb-1">Leave Type</label>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">Leave Type</label>
                 <select
                   name="leaveType"
                   value={formData.leaveType}
                   onChange={handleInputChange}
-                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
                 >
                   {LEAVE_TYPES.map(type => (
                     <option key={type} value={type}>{type}</option>
@@ -946,36 +984,36 @@ export default function LeavesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-medium mb-1">Start Date</label>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">Start Date</label>
                   <input
                     type="date"
                     name="startDate"
                     value={formData.startDate}
                     onChange={handleInputChange}
                     required
-                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-medium mb-1">End Date</label>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">End Date</label>
                   <input
                     type="date"
                     name="endDate"
                     value={formData.endDate}
                     onChange={handleInputChange}
                     required
-                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center text-slate-700">
-                <span className="font-medium">Calculated Duration:</span>
-                <span className="font-bold text-indigo-600">{calculatedDays} Day(s)</span>
+              <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800 flex justify-between items-center text-slate-700 dark:text-slate-300 font-semibold">
+                <span>Calculated Duration:</span>
+                <span className="font-bold text-indigo-600 dark:text-indigo-400 font-mono">{calculatedDays} Day(s)</span>
               </div>
 
               <div>
-                <label className="block text-slate-700 font-medium mb-1">Reason for Leave</label>
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">Reason for Leave</label>
                 <textarea
                   name="reason"
                   rows={3}
@@ -983,32 +1021,32 @@ export default function LeavesPage() {
                   onChange={handleInputChange}
                   placeholder="Explain why you are taking leave..."
                   required
-                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-slate-700 font-medium">CC / Copy To (Optional)</label>
+                  <label className="block text-slate-700 dark:text-slate-300 font-semibold">CC / Copy To (Optional)</label>
                   <button
                     type="button"
                     onClick={() => setShowCcPicker(prev => !prev)}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition-colors cursor-pointer border border-slate-200/60"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer border border-slate-200/60 dark:border-slate-700"
                   >
-                    <UserPlus className="w-3 h-3 text-indigo-600" />
+                    <UserPlus className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                     {showCcPicker ? 'Close List' : `+ Add CC ${selectedCcUsers.length > 0 ? `(${selectedCcUsers.length})` : ''}`}
                   </button>
                 </div>
 
                 {showCcPicker && (
-                  <div className="max-h-32 overflow-y-auto border border-slate-200 rounded-xl p-2 bg-slate-50/50 space-y-1 mt-1">
+                  <div className="max-h-32 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-xl p-2 bg-slate-50/50 dark:bg-slate-950/50 space-y-1 mt-1">
                     {staffUsers.length === 0 ? (
                       <p className="text-[11px] text-slate-400 p-1">Loading staff list...</p>
                     ) : (
                       staffUsers.map(st => (
                         <label
                           key={st._id || st.id}
-                          className="flex items-center gap-2 px-2 py-1 hover:bg-white rounded-lg cursor-pointer text-xs transition-colors"
+                          className="flex items-center gap-2 px-2 py-1 hover:bg-white dark:hover:bg-slate-900 rounded-lg cursor-pointer text-xs transition-colors"
                         >
                           <input
                             type="checkbox"
@@ -1016,7 +1054,7 @@ export default function LeavesPage() {
                             onChange={() => handleCcUserToggle(st._id || st.id)}
                             className="rounded text-indigo-600 focus:ring-indigo-500"
                           />
-                          <span className="text-slate-800 font-medium">{st.name}</span>
+                          <span className="text-slate-800 dark:text-slate-200 font-medium">{st.name}</span>
                           <span className="text-[10px] text-slate-400">({st.department || st.role || 'Staff'})</span>
                         </label>
                       ))
@@ -1029,7 +1067,7 @@ export default function LeavesPage() {
                     {selectedCcUsers.map(id => {
                       const u = staffUsers.find(s => (s._id || s.id) === id);
                       return u ? (
-                        <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-md text-[10px] font-medium">
+                        <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-300 rounded-md text-[10px] font-medium">
                           {u.name}
                           <button type="button" onClick={() => handleCcUserToggle(id)} className="hover:text-rose-600 ml-0.5 font-bold cursor-pointer">✕</button>
                         </span>
@@ -1043,14 +1081,14 @@ export default function LeavesPage() {
                 <button
                   type="button"
                   onClick={() => setIsApplyModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-all cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-semibold transition-all cursor-pointer text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer text-xs"
                 >
                   {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   Submit Request
@@ -1063,30 +1101,38 @@ export default function LeavesPage() {
 
       {/* ACTION MODAL (Approve / Reject) */}
       {selectedLeave && actionModalType && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
           <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white border border-slate-200/90 w-full max-w-md rounded-2xl shadow-xl p-6 space-y-4 text-slate-800"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setSelectedLeave(null)}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            className="relative z-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md my-auto rounded-3xl shadow-2xl p-6 space-y-4 text-slate-800 dark:text-slate-100 overflow-y-auto max-h-[90vh]"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 {actionModalType === 'APPROVED' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 ) : (
-                  <XCircle className="w-4 h-4 text-rose-600" />
+                  <XCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
                 )}
-                {actionRole === 'hr' ? 'Stage 2: HR / Admin Action' : 'Stage 1: Team Lead Action'} — {actionModalType}
+                {actionRole === 'hr' ? 'Stage 2: HR Action' : 'Stage 1: Team Lead Action'} — {actionModalType}
               </h2>
               <button
                 onClick={() => setSelectedLeave(null)}
-                className="text-slate-400 hover:text-slate-600 text-sm p-1 rounded-md transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="text-xs text-slate-600 space-y-1.5 bg-slate-50 p-3 rounded-xl border border-slate-100">
+            <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1.5 bg-slate-50 dark:bg-slate-950 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800">
               <p><strong>Employee:</strong> {selectedLeave.userName}</p>
               <p><strong>Type & Duration:</strong> {selectedLeave.leaveType} ({selectedLeave.totalDays} day(s))</p>
               <p><strong>Reason:</strong> "{selectedLeave.reason}"</p>
@@ -1094,7 +1140,7 @@ export default function LeavesPage() {
 
             <form onSubmit={handleActionSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-700 font-medium mb-1">
+                <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1">
                   {actionRole === 'hr' ? 'HR Remarks' : 'Team Lead Remarks'} (Optional)
                 </label>
                 <textarea
@@ -1102,7 +1148,7 @@ export default function LeavesPage() {
                   value={actionComment}
                   onChange={(e) => setActionComment(e.target.value)}
                   placeholder="Enter remarks or approval notes..."
-                  className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                 />
               </div>
 
@@ -1110,14 +1156,14 @@ export default function LeavesPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedLeave(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-all cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-semibold transition-all cursor-pointer text-xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={actionSubmitting}
-                  className={`px-5 py-2 text-white rounded-xl font-semibold transition-all flex items-center gap-2 shadow-xs cursor-pointer ${
+                  className={`px-5 py-2 text-white rounded-xl font-bold transition-all flex items-center gap-2 shadow-md cursor-pointer text-xs ${
                     actionModalType === 'APPROVED'
                       ? 'bg-indigo-600 hover:bg-indigo-700'
                       : 'bg-rose-600 hover:bg-rose-700'
@@ -1128,6 +1174,84 @@ export default function LeavesPage() {
                 </button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* CANCEL LEAVE CONFIRMATION MODAL */}
+      {cancelModalLeave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setCancelModalLeave(null)}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            className="relative z-10 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md my-auto rounded-3xl shadow-2xl p-6 space-y-5 text-slate-800 dark:text-slate-100 max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                  Cancel Leave Request?
+                </h2>
+              </div>
+              <button
+                onClick={() => setCancelModalLeave(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                Are you sure you want to cancel and delete this leave request? This action cannot be undone.
+              </p>
+
+              <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2 text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400">{cancelModalLeave.leaveType}</span>
+                  <span className="px-2.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md font-extrabold text-slate-700 dark:text-slate-300 text-[11px] font-mono">
+                    {cancelModalLeave.totalDays} Day(s)
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500 font-mono">
+                  📅 {new Date(cancelModalLeave.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} ➔ {new Date(cancelModalLeave.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </div>
+                {cancelModalLeave.reason && (
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 italic bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                    "{cancelModalLeave.reason}"
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setCancelModalLeave(null)}
+                className="px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                No, Keep Request
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancelLeave}
+                disabled={cancelSubmitting}
+                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+              >
+                {cancelSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                Yes, Cancel Request
+              </button>
+            </div>
           </motion.div>
         </div>
       )}

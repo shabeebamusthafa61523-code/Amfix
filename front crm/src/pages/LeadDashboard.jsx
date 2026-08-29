@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const rawApiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/+$/, '');
+const API_BASE = rawApiBase.endsWith('/v1') ? rawApiBase : `${rawApiBase}/v1`;
 
 /* ─── Color map for Course Interest ─── */
 const INTEREST_COLORS = {
@@ -68,14 +69,21 @@ const LeadDashboard = () => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const res = await fetch(`${API_BASE}/v1/leads`, { headers: getAuthHeaders() });
+      const res = await fetch(`${API_BASE}/leads`, { headers: getAuthHeaders() });
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned non-JSON response');
+      }
       const json = await res.json();
       if (json.success && Array.isArray(json.data)) setLeads(json.data);
       else if (Array.isArray(json)) setLeads(json);
       else setLeads([]);
       if (silent) showToast('Dashboard refreshed!', 'success');
     } catch (e) {
-      console.error(e);
+      console.error('Error loading leads:', e);
       showToast('Failed to load leads data.', 'error');
     } finally {
       setLoading(false);

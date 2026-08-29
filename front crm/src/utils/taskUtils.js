@@ -197,7 +197,7 @@ const extractUserId = (userField) => {
   return String(userField).trim();
 };
 
-export const fetchDelegatedTasks = async (userId, dateStr) => {
+export const fetchDelegatedTasks = async (userId, dateStr, usersList = []) => {
   if (!userId || !dateStr) return [];
   try {
     const res = await fetch(getTasksUrl(), {
@@ -207,6 +207,30 @@ export const fetchDelegatedTasks = async (userId, dateStr) => {
     
     const data = await res.json();
     const tasks = extractTasks(data);
+
+    // Build user lookup map from localStorage and passed usersList
+    const userMap = new Map();
+    try {
+      const cachedUsers = localStorage.getItem('crm_users_list') || localStorage.getItem('users') || localStorage.getItem('all_users');
+      if (cachedUsers) {
+        const parsed = JSON.parse(cachedUsers);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(u => {
+            const id = String(u._id || u.id || u.user_id || '').trim();
+            if (id) userMap.set(id, u.name || u.employeeName || u.username || u.email);
+          });
+        }
+      }
+    } catch (e) {}
+
+    if (Array.isArray(usersList)) {
+      usersList.forEach(u => {
+        const id = String(u._id || u.id || u.user_id || '').trim();
+        if (id && (u.name || u.employeeName || u.username)) {
+          userMap.set(id, u.name || u.employeeName || u.username);
+        }
+      });
+    }
     
     const matchesDate = (d) => {
       if (!d) return false;
@@ -242,7 +266,6 @@ export const fetchDelegatedTasks = async (userId, dateStr) => {
       if (isDone) {
         const completionTime = t.updatedAt || t.completedAt;
         const completionDateStrs = matchesDate(completionTime);
-        // Extract date string from completionTime if needed
         try {
           const dObj = new Date(completionTime);
           if (!isNaN(dObj.getTime())) {
@@ -270,7 +293,38 @@ export const fetchDelegatedTasks = async (userId, dateStr) => {
       };
       const statusText = statusMap[String(t.status).toLowerCase()] || (t.status ? String(t.status) : 'N/A');
       
-      const assignedName = t.assigned_to?.name || t.assigned_to?.username || t.assigned_to?.employeeName || t.assignedTo?.name || t.assignedTo?.username || 'N/A';
+      const extractName = (field) => {
+        if (!field) return '';
+        if (Array.isArray(field)) {
+          const names = field.map(u => {
+            if (!u) return '';
+            if (typeof u === 'object') {
+              const name = u.name || u.employeeName || u.username || u.email;
+              if (name) return name;
+              const id = String(u._id || u.id || u.user_id || '').trim();
+              if (id && userMap.has(id)) return userMap.get(id);
+            } else if (typeof u === 'string') {
+              const clean = u.trim();
+              if (userMap.has(clean)) return userMap.get(clean);
+              if (!/^[0-9a-fA-F]{24}$/.test(clean)) return clean;
+            }
+            return '';
+          }).filter(Boolean);
+          if (names.length > 0) return names.join(', ');
+        } else if (typeof field === 'object') {
+          const name = field.name || field.employeeName || field.username || field.email;
+          if (name) return name;
+          const id = String(field._id || field.id || field.user_id || '').trim();
+          if (id && userMap.has(id)) return userMap.get(id);
+        } else if (typeof field === 'string') {
+          const clean = field.trim();
+          if (userMap.has(clean)) return userMap.get(clean);
+          if (!/^[0-9a-fA-F]{24}$/.test(clean)) return clean;
+        }
+        return '';
+      };
+
+      const assignedName = extractName(t.assigned_to) || extractName(t.assignedTo) || extractName(t.assigned_users) || extractName(t.assignedUsers) || t.assigned_to_name || t.assignedToName || 'N/A';
 
       let formattedDueDate = '';
       if (t.dueDate) {

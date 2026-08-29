@@ -365,7 +365,7 @@ const HodRdReportPage = () => {
         }
         
         try {
-          const delegatedTasks = await fetchDelegatedTasks(userId, dateStr);
+          const delegatedTasks = await fetchDelegatedTasks(userId, dateStr, hods);
           if (delegatedTasks && delegatedTasks.length > 0) {
             setKpiTracking(delegatedTasks);
           }
@@ -396,7 +396,7 @@ const HodRdReportPage = () => {
         }
         
         try {
-          const delegatedTasks = await fetchDelegatedTasks(userId, dateStr);
+          const delegatedTasks = await fetchDelegatedTasks(userId, dateStr, hods);
           if (delegatedTasks && delegatedTasks.length > 0) {
             setKpiTracking(delegatedTasks);
           }

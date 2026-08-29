@@ -3,7 +3,7 @@ import { uploadCompiledPDFReport } from '../services/departmentService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, Calendar, CalendarDays, Plus, Trash2, Save, Download, 
-  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil
+  CheckCircle, HelpCircle, Loader2, User, ChevronLeft, ChevronRight, Pencil, RefreshCw
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { jsPDF } from 'jspdf';
@@ -12,25 +12,50 @@ import { fetchCompletedTasks } from '../utils/taskUtils';
 import SignatureUpload from '../components/SignatureUpload';
 import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
-const API_BASE = import.meta.env.VITE_API_URL;
+const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
+
+const getApiEndpoint = (path) => {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (API_BASE.endsWith('/v1')) {
+    return `${API_BASE}${cleanPath}`;
+  }
+  if (API_BASE.endsWith('/api')) {
+    return `${API_BASE}/v1${cleanPath}`;
+  }
+  return `${API_BASE}/api/v1${cleanPath}`;
+};
 
 // Default items for Daily Course Counseling & Sales Activity
 const DEFAULT_SALES_ACTIVITY = [
-  { activity: 'New Leads Generated', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Qualified Lead', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Total Calls Made', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Total Follow up', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Hot Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Warm Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Cold Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  // { activity: 'Call back Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'RNT Leads (Ring Next Time)', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Switch Off Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Wrong leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  // { activity: 'Total Pending Follow-ups', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Total Pending Leads', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Client/Student Meetings Fixed', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' },
-  { activity: 'Admissions/Closings Done', count: '', digitalMktg: '', web: '', dueDate: '', remarks: '' }
+  { activity: 'New Leads Generated', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Qualified Lead', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Calls Made', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Follow up', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Hot Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Warm Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Cold Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  // { activity: 'Call back Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'RNT Leads (Ring Next Time)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Switch Off Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Wrong leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  // { activity: 'Total Pending Follow-ups', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Pending Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Client/Student Meetings Fixed', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Admissions/Closings Done', count: '', digitalMktg: '', web: '', remarks: '' }
+];
+
+// Default items for Daily Client Leads Activity & Updates
+const DEFAULT_CLIENT_SALES_ACTIVITY = [
+  { activity: 'New Client Leads Generated', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Qualified Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Client Calls / Contacted', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Client Follow ups', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Hot Client Leads (High Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Warm Client Leads (Medium Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Cold Client Leads (Low Priority)', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Total Pending Client Leads', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Client Meetings Fixed', count: '', digitalMktg: '', web: '', remarks: '' },
+  { activity: 'Client Closings / Onboarding Done', count: '', digitalMktg: '', web: '', remarks: '' }
 ];
 
 // Default items for Daily Operations Summary
@@ -94,6 +119,8 @@ const AcademicCounselorReportPage = () => {
   });
   
   const [salesActivity, setSalesActivity] = useState(DEFAULT_SALES_ACTIVITY);
+  const [clientSalesActivity, setClientSalesActivity] = useState(DEFAULT_CLIENT_SALES_ACTIVITY);
+  const [activeLeadTab, setActiveLeadTab] = useState('telecaller');
   const [dailyOperations, setDailyOperations] = useState(DEFAULT_DAILY_OPERATIONS);
   const [reportsCollectedDone, setReportsCollectedDone] = useState(false);
   const [performanceKpis, setPerformanceKpis] = useState(DEFAULT_PERFORMANCE_KPIS);
@@ -129,6 +156,7 @@ const AcademicCounselorReportPage = () => {
     dateRange: ''
   });
   const [monthlySalesActivity, setMonthlySalesActivity] = useState([]);
+  const [monthlyClientSalesActivity, setMonthlyClientSalesActivity] = useState([]);
   const [monthlyPerformanceKpis, setMonthlyPerformanceKpis] = useState([]);
   const [monthlyDailyOperations, setMonthlyDailyOperations] = useState([]);
   const [monthlyReportsCollectedDone, setMonthlyReportsCollectedDone] = useState(false);
@@ -156,6 +184,7 @@ const AcademicCounselorReportPage = () => {
     dateRange: ''
   });
   const [weeklySalesActivity, setWeeklySalesActivity] = useState([]);
+  const [weeklyClientSalesActivity, setWeeklyClientSalesActivity] = useState([]);
   const [weeklyPerformanceKpis, setWeeklyPerformanceKpis] = useState([]);
   const [weeklyDailyOperations, setWeeklyDailyOperations] = useState([]);
   const [weeklyReportsCollectedDone, setWeeklyReportsCollectedDone] = useState(false);
@@ -257,12 +286,15 @@ const AcademicCounselorReportPage = () => {
   const fetchSubmittedDates = useCallback(async (userId) => {
     if (!userId) return;
     try {
-      const res = await fetch(`${API_BASE}/v1/academic-counselor-reports/submitted-dates?userId=${userId}`, {
+      const res = await fetch(getApiEndpoint(`/academic-counselor-reports/submitted-dates?userId=${userId}`), {
         headers: getAuthHeaders()
       });
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setSubmittedDates(data.data);
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.data)) {
+          setSubmittedDates(data.data);
+        }
       }
     } catch (e) {
       console.error("Failed to fetch submitted dates:", e);
@@ -276,16 +308,65 @@ const AcademicCounselorReportPage = () => {
     }
   }, [selectedUserId, fetchSubmittedDates]);
 
+  // Auto-fetch Telecaller Leads & Client Leads stats from CRM
+  const autoFetchLeadStats = useCallback(async (dateStr = selectedDate, showNotification = true) => {
+    try {
+      const [resTele, resClient] = await Promise.all([
+        fetch(getApiEndpoint(`/ops-reports/lead-stats?date=${dateStr}`), { headers: getAuthHeaders() }),
+        fetch(getApiEndpoint(`/ops-reports/client-lead-stats?date=${dateStr}`), { headers: getAuthHeaders() })
+      ]);
+
+      const contentTypeTele = resTele.headers.get('content-type') || '';
+      if (contentTypeTele.includes('application/json')) {
+        const dataTele = await resTele.json();
+        if (dataTele.success && Array.isArray(dataTele.data)) {
+          setSalesActivity(dataTele.data);
+        } else {
+          setSalesActivity(DEFAULT_SALES_ACTIVITY);
+        }
+      } else {
+        setSalesActivity(DEFAULT_SALES_ACTIVITY);
+      }
+
+      const contentTypeClient = resClient.headers.get('content-type') || '';
+      if (contentTypeClient.includes('application/json')) {
+        const dataClient = await resClient.json();
+        if (dataClient.success && Array.isArray(dataClient.data)) {
+          setClientSalesActivity(dataClient.data);
+        } else {
+          setClientSalesActivity(DEFAULT_CLIENT_SALES_ACTIVITY);
+        }
+      } else {
+        setClientSalesActivity(DEFAULT_CLIENT_SALES_ACTIVITY);
+      }
+
+      if (showNotification) {
+        showToast('Lead stats auto-fetched successfully from CRM!', 'success');
+      }
+    } catch (e) {
+      console.error('Failed to auto-fetch lead stats:', e);
+      setSalesActivity(DEFAULT_SALES_ACTIVITY);
+      setClientSalesActivity(DEFAULT_CLIENT_SALES_ACTIVITY);
+      if (showNotification) {
+        showToast('Failed to auto-fetch lead stats from CRM', 'error');
+      }
+    }
+  }, [selectedDate, getAuthHeaders, showToast]);
+
   // Fetch report data for selected date and user
   const fetchReport = async (userId, dateStr) => {
     if (!userId || !dateStr) return;
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/v1/academic-counselor-reports/by-date?userId=${userId}&dateString=${dateStr}`, {
+      const res = await fetch(getApiEndpoint(`/academic-counselor-reports/by-date?userId=${userId}&dateString=${dateStr}`), {
         headers: getAuthHeaders()
       });
       
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      let data = {};
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      }
       
       if (data.success && data.data) {
         const report = data.data;
@@ -325,7 +406,8 @@ const AcademicCounselorReportPage = () => {
           department: userDetail.department || apiBasicDetails.department || ''
         });
 
-        setSalesActivity(report.salesActivity || []);
+        setSalesActivity(report.salesActivity && report.salesActivity.length > 0 ? report.salesActivity : DEFAULT_SALES_ACTIVITY);
+        setClientSalesActivity(report.clientSalesActivity && report.clientSalesActivity.length > 0 ? report.clientSalesActivity : DEFAULT_CLIENT_SALES_ACTIVITY);
         setDailyOperations(report.dailyOperations || []);
         setReportsCollectedDone(report.reportsCollectedDone || false);
         setPerformanceKpis(report.performanceKpis || []);
@@ -355,24 +437,6 @@ const AcademicCounselorReportPage = () => {
       }
     } catch (err) {
       await initializeBlankReport(userId, dateStr);
-        // Auto-fetch completed tasks for new blank reports
-        try {
-          const completedTasks = await fetchCompletedTasks(userId, dateStr);
-          if (completedTasks && completedTasks.length > 0) {
-            const mappedTasks = completedTasks.map(t => ({
-              activity: t.title,
-              dueDate: t.dueDate || '',
-              startDate: t.startDate || t.startTime || t.startDateTimeLocal || '',
-              endDate: t.endDate || t.endTime || t.endDateTimeLocal || '',
-              status: t.status || 'Done',
-              remarks: t.description || ''
-            }));
-            setDailyOperations(mappedTasks);
-          }
-        } catch(e) {
-          console.error("Error auto-fetching tasks:", e);
-        }
-
     } finally {
       setLoading(false);
     }
@@ -404,7 +468,7 @@ const AcademicCounselorReportPage = () => {
     } catch(e){}
 
     let userDetail = freshestUser;
-    if (counselors.length > 0) {
+    if (isPrivileged && counselors.length > 0) {
       userDetail = counselors.find(d => (d._id || d.id) === userId) || freshestUser;
     }
 
@@ -427,21 +491,8 @@ const AcademicCounselorReportPage = () => {
       reportingTo: userDetail.reportingManager || parsedCached?.reportingTo || 'Manager - OPS Sales & Growth'
     });
 
-    // Auto-fetch lead stats from CRM for the selected date
-    try {
-      const res = await fetch(`${API_BASE}/v1/ops-reports/lead-stats?date=${dateStr}`, {
-        headers: getAuthHeaders()
-      });
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data)) {
-        setSalesActivity(data.data);
-      } else {
-        setSalesActivity(DEFAULT_SALES_ACTIVITY);
-      }
-    } catch (e) {
-      console.error('Failed to auto-fetch lead stats:', e);
-      setSalesActivity(DEFAULT_SALES_ACTIVITY);
-    }
+    // Auto-fetch lead stats from CRM for the selected date (Telecaller Leads & Client Leads)
+    await autoFetchLeadStats(dateStr, false);
 
     setDailyOperations(DEFAULT_DAILY_OPERATIONS);
     setReportsCollectedDone(false);
@@ -464,6 +515,7 @@ const AcademicCounselorReportPage = () => {
       setSaving(true);
 
       const cleanSalesActivity = salesActivity.filter(t => (t.activity || '').trim() !== '');
+      const cleanClientSalesActivity = clientSalesActivity.filter(t => (t.activity || '').trim() !== '');
       const cleanDailyOperations = dailyOperations.filter(t => (t.activity || '').trim() !== '');
       const cleanIssuesFeedback = issuesFeedback.filter(t => (t.issue || '').trim() !== '');
 
@@ -472,6 +524,7 @@ const AcademicCounselorReportPage = () => {
         dateString: selectedDate,
         basicDetails,
         salesActivity: cleanSalesActivity,
+        clientSalesActivity: cleanClientSalesActivity,
         dailyOperations: cleanDailyOperations,
         reportsCollectedDone,
         performanceKpis,
@@ -480,7 +533,7 @@ const AcademicCounselorReportPage = () => {
         approval
       };
 
-      const res = await fetch(`${API_BASE}/v1/academic-counselor-reports`, {
+      const res = await fetch(getApiEndpoint('/academic-counselor-reports'), {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(payload)
@@ -512,7 +565,7 @@ const AcademicCounselorReportPage = () => {
       const token = localStorage.getItem('token');
       const cleanToken = token ? token.replace(/"/g, '') : '';
       
-      const url = `${API_BASE}/v1/employee-reports/generate-pdf?userId=${selectedUserId}&dateString=${selectedDate}&reportType=${reportType}`;
+      const url = getApiEndpoint(`/employee-reports/generate-pdf?userId=${selectedUserId}&dateString=${selectedDate}&reportType=${reportType}`);
       
       const res = await fetch(url, {
         headers: {
@@ -543,7 +596,7 @@ const AcademicCounselorReportPage = () => {
       console.error(e);
       showToast("Failed to download PDF.", "error");
     }
-  };;
+  };
 
   const parseNumber = (val) => {
     if (val === undefined || val === null || val === '') return 0;
@@ -561,7 +614,7 @@ const AcademicCounselorReportPage = () => {
     try {
       let validReports = [];
       try {
-        const res = await fetch(`${API_BASE}/v1/academic-counselor-reports/range?userId=${selectedUserId}&startDate=${monthlyStartDate}&endDate=${monthlyEndDate}`, {
+        const res = await fetch(getApiEndpoint(`/academic-counselor-reports/range?userId=${selectedUserId}&startDate=${monthlyStartDate}&endDate=${monthlyEndDate}`), {
           headers: getAuthHeaders()
         });
         const data = await res.json();
@@ -584,7 +637,7 @@ const AcademicCounselorReportPage = () => {
         const fetchedResults = await Promise.all(
           dates.map(async (d) => {
             try {
-              const res = await fetch(`${API_BASE}/v1/academic-counselor-reports/by-date?userId=${selectedUserId}&dateString=${d}`, {
+              const res = await fetch(getApiEndpoint(`/academic-counselor-reports/by-date?userId=${selectedUserId}&dateString=${d}`), {
                 headers: getAuthHeaders()
               });
               const data = await res.json();
@@ -644,6 +697,32 @@ const AcademicCounselorReportPage = () => {
         };
       });
       setMonthlySalesActivity(consolidatedSales);
+
+      const consolidatedClientSales = DEFAULT_CLIENT_SALES_ACTIVITY.map(item => {
+        let totalCount = 0;
+        let totalDigitalMktg = 0;
+        let totalWeb = 0;
+        const remarksList = [];
+
+        validReports.forEach(report => {
+          const activityItem = report.clientSalesActivity?.find(a => a.activity === item.activity);
+          if (activityItem) {
+            totalCount += parseNumber(activityItem.count);
+            totalDigitalMktg += parseNumber(activityItem.digitalMktg);
+            totalWeb += parseNumber(activityItem.web);
+            if (activityItem.remarks) remarksList.push(activityItem.remarks);
+          }
+        });
+
+        return {
+          activity: item.activity,
+          count: totalCount || '',
+          digitalMktg: totalDigitalMktg || '',
+          web: totalWeb || '',
+          dueDate: '', remarks: Array.from(new Set(remarksList)).join('; ')
+        };
+      });
+      setMonthlyClientSalesActivity(consolidatedClientSales);
 
       const consolidatedKpis = DEFAULT_PERFORMANCE_KPIS.map(item => {
         let totalTarget = 0;
@@ -808,7 +887,7 @@ const AcademicCounselorReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("2. COURSE COUNSELING & SALES ACTIVITY (CONSOLIDATED)");
+      drawSectionHeader("2. STUDENT LEADS UPDATE (CONSOLIDATED)");
       
       const salesHeaders = [["Activity", "Count", "Digital Mktg", "Web", "Remarks"]];
       const salesRows = monthlySalesActivity.map(t => [
@@ -838,7 +917,36 @@ const AcademicCounselorReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("3. OPERATIONS SUMMARY (CONSOLIDATED)");
+      drawSectionHeader("3. CLIENT LEADS UPDATE (CONSOLIDATED)");
+
+      const clientSalesRows = (monthlyClientSalesActivity || []).map(t => [
+        t.activity || '',
+        t.count || '',
+        t.digitalMktg || '',
+        t.web || '',
+        t.remarks || ''
+      ]);
+
+      autoTable(doc, {
+        head: salesHeaders,
+        body: clientSalesRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 60 },
+          1: { width: 18, halign: 'center' },
+          2: { width: 22, halign: 'center' },
+          3: { width: 22, halign: 'center' },
+          4: { width: 60 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      drawSectionHeader("4. OPERATIONS SUMMARY (CONSOLIDATED)");
       
       const opsHeaders = [["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"]];
       const opsRows = monthlyDailyOperations.map(t => [
@@ -879,7 +987,7 @@ const AcademicCounselorReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("4. PERFORMANCE KPI (CONSOLIDATED)");
+      drawSectionHeader("5. PERFORMANCE KPI (CONSOLIDATED)");
       
       const kpiHeaders = [["KPI", "Target", "Achieved"]];
       const kpiRows = monthlyPerformanceKpis.map(t => [
@@ -905,7 +1013,7 @@ const AcademicCounselorReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("5. ISSUES & FEEDBACK (CONSOLIDATED)");
+      drawSectionHeader("6. ISSUES & FEEDBACK (CONSOLIDATED)");
       
       const issueHeaders = [["Issue", "Priority", "Support Needed"]];
       const issueRows = monthlyIssuesFeedback.map(t => [
@@ -966,7 +1074,7 @@ const AcademicCounselorReportPage = () => {
       setIsWeeklyLoading(true);
       let validReports = [];
       try {
-        const res = await fetch(`${API_BASE}/v1/academic-counselor-reports/range?userId=${selectedUserId}&startDate=${weeklyStartDate}&endDate=${weeklyEndDate}`, {
+        const res = await fetch(getApiEndpoint(`/academic-counselor-reports/range?userId=${selectedUserId}&startDate=${weeklyStartDate}&endDate=${weeklyEndDate}`), {
           headers: getAuthHeaders()
         });
         const data = await res.json();
@@ -987,7 +1095,7 @@ const AcademicCounselorReportPage = () => {
         const fetchedResults = await Promise.all(
           datesList.map(async (d) => {
             try {
-              const res = await fetch(`${API_BASE}/v1/academic-counselor-reports/by-date?userId=${selectedUserId}&dateString=${d}`, {
+              const res = await fetch(getApiEndpoint(`/academic-counselor-reports/by-date?userId=${selectedUserId}&dateString=${d}`), {
                 headers: getAuthHeaders()
               });
               const data = await res.json();
@@ -1047,6 +1155,32 @@ const AcademicCounselorReportPage = () => {
         };
       });
       setWeeklySalesActivity(consolidatedSales);
+
+      const consolidatedClientSales = DEFAULT_CLIENT_SALES_ACTIVITY.map(item => {
+        let totalCount = 0;
+        let totalDigitalMktg = 0;
+        let totalWeb = 0;
+        const remarksList = [];
+
+        validReports.forEach(report => {
+          const activityItem = report.clientSalesActivity?.find(a => a.activity === item.activity);
+          if (activityItem) {
+            totalCount += parseNumber(activityItem.count);
+            totalDigitalMktg += parseNumber(activityItem.digitalMktg);
+            totalWeb += parseNumber(activityItem.web);
+            if (activityItem.remarks) remarksList.push(activityItem.remarks);
+          }
+        });
+
+        return {
+          activity: item.activity,
+          count: totalCount || '',
+          digitalMktg: totalDigitalMktg || '',
+          web: totalWeb || '',
+          dueDate: '', remarks: Array.from(new Set(remarksList)).join('; ')
+        };
+      });
+      setWeeklyClientSalesActivity(consolidatedClientSales);
 
       const consolidatedKpis = DEFAULT_PERFORMANCE_KPIS.map(item => {
         let totalTarget = 0;
@@ -1211,7 +1345,7 @@ const AcademicCounselorReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("2. COURSE COUNSELING & SALES ACTIVITY (CONSOLIDATED)");
+      drawSectionHeader("2. STUDENT LEADS UPDATE (CONSOLIDATED)");
       
       const salesHeaders = [["Activity", "Count", "Digital Mktg", "Web", "Remarks"]];
       const salesRows = weeklySalesActivity.map(t => [
@@ -1241,7 +1375,36 @@ const AcademicCounselorReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("3. OPERATIONS SUMMARY (CONSOLIDATED)");
+      drawSectionHeader("3. CLIENT LEADS UPDATE (CONSOLIDATED)");
+
+      const clientSalesRows = (weeklyClientSalesActivity || []).map(t => [
+        t.activity || '',
+        t.count || '',
+        t.digitalMktg || '',
+        t.web || '',
+        t.remarks || ''
+      ]);
+
+      autoTable(doc, {
+        head: salesHeaders,
+        body: clientSalesRows,
+        startY: currentY,
+        theme: 'grid',
+        headStyles: { fillColor: [255, 255, 255], textColor: [60, 35, 117], fontStyle: 'bold', lineColor: [180, 180, 180], lineWidth: 0.15 },
+        styles: { fontSize: 7.5, cellPadding: 1.8, textColor: [0, 0, 0], lineColor: [180, 180, 180], lineWidth: 0.15 },
+        columnStyles: {
+          0: { width: 60 },
+          1: { width: 18, halign: 'center' },
+          2: { width: 22, halign: 'center' },
+          3: { width: 22, halign: 'center' },
+          4: { width: 60 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      currentY = doc.lastAutoTable.finalY + 4;
+
+      drawSectionHeader("4. OPERATIONS SUMMARY (CONSOLIDATED)");
       
       const opsHeaders = [["Activity", "Due Date", "Start Date", "End Date", "Status", "Remarks"]];
       const opsRows = weeklyDailyOperations.map(t => [
@@ -1282,7 +1445,7 @@ const AcademicCounselorReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("4. PERFORMANCE KPI (CONSOLIDATED)");
+      drawSectionHeader("5. PERFORMANCE KPI (CONSOLIDATED)");
       
       const kpiHeaders = [["KPI", "Target", "Achieved"]];
       const kpiRows = weeklyPerformanceKpis.map(t => [
@@ -1308,7 +1471,7 @@ const AcademicCounselorReportPage = () => {
 
       currentY = doc.lastAutoTable.finalY + 4;
 
-      drawSectionHeader("5. ISSUES & FEEDBACK (CONSOLIDATED)");
+      drawSectionHeader("6. ISSUES & FEEDBACK (CONSOLIDATED)");
       
       const issueHeaders = [["Issue", "Priority", "Support Needed"]];
       const issueRows = weeklyIssuesFeedback.map(t => [
@@ -1638,84 +1801,183 @@ const AcademicCounselorReportPage = () => {
               </div>
             </div>
 
-            {/* 2. DAILY COURSE COUNSELING & SALES ACTIVITY */}
+            {/* 2. DAILY COUNSELING & SALES ACTIVITY (TELECALLER + CLIENT LEADS IN SAME ROW) */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">2</span>
-                Daily Course Counseling & Sales Activity
-              </h2>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">2</span>
+                  Student & Client Leads Update
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => autoFetchLeadStats(selectedDate, true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-300 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                >
+                  <RefreshCw size={13} />
+                  Auto-Fetch Counts from CRM
+                </button>
+              </div>
 
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-5 py-4 w-[40%]">Activity</th>
-                      <th className="px-5 py-4 w-[15%] text-center">Count</th>
-                      <th className="px-5 py-4 w-[15%] text-center">Digital Mktg</th>
-                      <th className="px-5 py-4 w-[15%] text-center">Web</th>
-                      <th className="px-5 py-4 w-[15%]">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {salesActivity.map((item, index) => (
-                      <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
-                        <td className="px-5 py-3 font-semibold text-slate-700 dark:text-slate-300">{item.activity}</td>
-                        <td className="px-5 py-3 text-center">
-                          <input
-                            type="text"
-                            value={item.count}
-                            onChange={(e) => {
-                              const updated = [...salesActivity];
-                              updated[index].count = e.target.value;
-                              setSalesActivity(updated);
-                            }}
-                            placeholder="-"
-                            className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
-                          />
-                        </td>
-                        <td className="px-5 py-3 text-center">
-                          <input
-                            type="text"
-                            value={item.digitalMktg}
-                            onChange={(e) => {
-                              const updated = [...salesActivity];
-                              updated[index].digitalMktg = e.target.value;
-                              setSalesActivity(updated);
-                            }}
-                            placeholder="-"
-                            className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
-                          />
-                        </td>
-                        <td className="px-5 py-3 text-center">
-                          <input
-                            type="text"
-                            value={item.web}
-                            onChange={(e) => {
-                              const updated = [...salesActivity];
-                              updated[index].web = e.target.value;
-                              setSalesActivity(updated);
-                            }}
-                            placeholder="-"
-                            className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
-                          />
-                        </td>
-                        <td className="px-5 py-3">
-                          <input
-                            type="text"
-                            value={item.remarks}
-                            onChange={(e) => {
-                              const updated = [...salesActivity];
-                              updated[index].remarks = e.target.value;
-                              setSalesActivity(updated);
-                            }}
-                            placeholder="Remarks..."
-                            className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                {/* Table 1: Telecaller / Course Counseling Leads */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-extrabold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                    STUDENT LEADS UPDATE
+                  </h3>
+                  <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-2xs">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                          <th className="px-3 py-3 w-[45%]">Activity</th>
+                          <th className="px-2 py-3 text-center">Count</th>
+                          <th className="px-2 py-3 text-center">Digital Mktg</th>
+                          <th className="px-2 py-3 text-center">Web</th>
+                          <th className="px-3 py-3">Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {salesActivity.map((item, index) => (
+                          <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                            <td className="px-3 py-2.5 font-semibold text-slate-700 dark:text-slate-300">{item.activity}</td>
+                            <td className="px-2 py-2.5 text-center">
+                              <input
+                                type="text"
+                                value={item.count}
+                                onChange={(e) => {
+                                  const updated = [...salesActivity];
+                                  updated[index].count = e.target.value;
+                                  setSalesActivity(updated);
+                                }}
+                                placeholder="-"
+                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200 font-bold"
+                              />
+                            </td>
+                            <td className="px-2 py-2.5 text-center">
+                              <input
+                                type="text"
+                                value={item.digitalMktg}
+                                onChange={(e) => {
+                                  const updated = [...salesActivity];
+                                  updated[index].digitalMktg = e.target.value;
+                                  setSalesActivity(updated);
+                                }}
+                                placeholder="-"
+                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
+                              />
+                            </td>
+                            <td className="px-2 py-2.5 text-center">
+                              <input
+                                type="text"
+                                value={item.web}
+                                onChange={(e) => {
+                                  const updated = [...salesActivity];
+                                  updated[index].web = e.target.value;
+                                  setSalesActivity(updated);
+                                }}
+                                placeholder="-"
+                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
+                              />
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <input
+                                type="text"
+                                value={item.remarks}
+                                onChange={(e) => {
+                                  const updated = [...salesActivity];
+                                  updated[index].remarks = e.target.value;
+                                  setSalesActivity(updated);
+                                }}
+                                placeholder="Remarks..."
+                                className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Table 2: Client Leads Activity & Sales Updates */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-extrabold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    CLIENT LEADS UPDATE
+                  </h3>
+                  <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 shadow-2xs">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                          <th className="px-3 py-3 w-[45%]">Activity</th>
+                          <th className="px-2 py-3 text-center">Count</th>
+                          <th className="px-2 py-3 text-center">Digital Mktg</th>
+                          <th className="px-2 py-3 text-center">Web</th>
+                          <th className="px-3 py-3">Remarks</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {clientSalesActivity.map((item, index) => (
+                          <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                            <td className="px-3 py-2.5 font-semibold text-slate-700 dark:text-slate-300">{item.activity}</td>
+                            <td className="px-2 py-2.5 text-center">
+                              <input
+                                type="text"
+                                value={item.count}
+                                onChange={(e) => {
+                                  const updated = [...clientSalesActivity];
+                                  updated[index].count = e.target.value;
+                                  setClientSalesActivity(updated);
+                                }}
+                                placeholder="-"
+                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200 font-bold"
+                              />
+                            </td>
+                            <td className="px-2 py-2.5 text-center">
+                              <input
+                                type="text"
+                                value={item.digitalMktg}
+                                onChange={(e) => {
+                                  const updated = [...clientSalesActivity];
+                                  updated[index].digitalMktg = e.target.value;
+                                  setClientSalesActivity(updated);
+                                }}
+                                placeholder="-"
+                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
+                              />
+                            </td>
+                            <td className="px-2 py-2.5 text-center">
+                              <input
+                                type="text"
+                                value={item.web}
+                                onChange={(e) => {
+                                  const updated = [...clientSalesActivity];
+                                  updated[index].web = e.target.value;
+                                  setClientSalesActivity(updated);
+                                }}
+                                placeholder="-"
+                                className="w-full bg-transparent border-none text-center focus:outline-none text-slate-700 dark:text-slate-200"
+                              />
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <input
+                                type="text"
+                                value={item.remarks}
+                                onChange={(e) => {
+                                  const updated = [...clientSalesActivity];
+                                  updated[index].remarks = e.target.value;
+                                  setClientSalesActivity(updated);
+                                }}
+                                placeholder="Remarks..."
+                                className="w-full bg-transparent border-none focus:outline-none text-slate-700 dark:text-slate-200"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -2188,7 +2450,17 @@ const AcademicCounselorReportPage = () => {
                           : 'text-slate-655 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
                     >
-                      3. Sales Activity
+                      3. Student Leads
+                    </button>
+                    <button
+                      onClick={() => setMonthlyActiveTab('clientSalesActivity')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                        monthlyActiveTab === 'clientSalesActivity'
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-slate-655 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      4. Client Leads
                     </button>
                     <button
                       onClick={() => setMonthlyActiveTab('dailyOperations')}
@@ -2198,7 +2470,7 @@ const AcademicCounselorReportPage = () => {
                           : 'text-slate-655 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
                     >
-                      4. Daily Operations
+                      5. Daily Operations
                     </button>
                     <button
                       onClick={() => setMonthlyActiveTab('performanceKpis')}
@@ -2208,7 +2480,7 @@ const AcademicCounselorReportPage = () => {
                           : 'text-slate-655 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
                     >
-                      5. Performance KPIs
+                      6. Performance KPIs
                     </button>
                     <button
                       onClick={() => setMonthlyActiveTab('issuesFeedback')}
@@ -2218,7 +2490,7 @@ const AcademicCounselorReportPage = () => {
                           : 'text-slate-655 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
                     >
-                      6. Issues & Feedback
+                      7. Issues & Feedback
                     </button>
                   </>
                 )}
@@ -2397,6 +2669,77 @@ const AcademicCounselorReportPage = () => {
                                       const updated = [...monthlySalesActivity];
                                       updated[index].remarks = e.target.value;
                                       setMonthlySalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {monthlyActiveTab === 'clientSalesActivity' && (
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+                        <table className="w-full text-left border-collapse text-sm">
+                          <thead>
+                            <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                              <th className="px-5 py-4 w-[40%]">Activity</th>
+                              <th className="px-5 py-4 w-[15%] text-center">Count</th>
+                              <th className="px-5 py-4 w-[15%] text-center">Digital Mktg</th>
+                              <th className="px-5 py-4 w-[15%] text-center">Web</th>
+                              <th className="px-5 py-4 w-[15%]">Remarks</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {monthlyClientSalesActivity.map((item, index) => (
+                              <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                                <td className="px-5 py-3 font-semibold text-slate-700 dark:text-slate-300">{item.activity}</td>
+                                <td className="px-5 py-3 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.count}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyClientSalesActivity];
+                                      updated[index].count = e.target.value;
+                                      setMonthlyClientSalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg text-center focus:outline-none text-slate-700 dark:text-slate-200 py-1"
+                                  />
+                                </td>
+                                <td className="px-5 py-3 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.digitalMktg}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyClientSalesActivity];
+                                      updated[index].digitalMktg = e.target.value;
+                                      setMonthlyClientSalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg text-center focus:outline-none text-slate-700 dark:text-slate-200 py-1"
+                                  />
+                                </td>
+                                <td className="px-5 py-3 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.web}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyClientSalesActivity];
+                                      updated[index].web = e.target.value;
+                                      setMonthlyClientSalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg text-center focus:outline-none text-slate-700 dark:text-slate-200 py-1"
+                                  />
+                                </td>
+                                <td className="px-5 py-3">
+                                  <input
+                                    type="text"
+                                    value={item.remarks}
+                                    onChange={(e) => {
+                                      const updated = [...monthlyClientSalesActivity];
+                                      updated[index].remarks = e.target.value;
+                                      setMonthlyClientSalesActivity(updated);
                                     }}
                                     className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
                                   />
@@ -2709,25 +3052,31 @@ const AcademicCounselorReportPage = () => {
                   onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab('salesActivity') : showToast("Please fetch data first", "warning")}
                   className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === 'salesActivity' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                 >
-                  3. Sales Activity
+                  3. Student Leads
+                </button>
+                <button
+                  onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab('clientSalesActivity') : showToast("Please fetch data first", "warning")}
+                  className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === 'clientSalesActivity' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
+                >
+                  4. Client Leads
                 </button>
                 <button
                   onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab('dailyOperations') : showToast("Please fetch data first", "warning")}
                   className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === 'dailyOperations' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                 >
-                  4. Operations Summary
+                  5. Operations Summary
                 </button>
                 <button
                   onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab('performanceKpis') : showToast("Please fetch data first", "warning")}
                   className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === 'performanceKpis' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                 >
-                  5. Performance KPI
+                  6. Performance KPI
                 </button>
                 <button
                   onClick={() => weeklyBasicDetails.dateRange ? setWeeklyActiveTab('issuesFeedback') : showToast("Please fetch data first", "warning")}
                   className={`px-4 py-2 rounded-xl transition-all ${weeklyActiveTab === 'issuesFeedback' ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-lime-400 shadow-sm' : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'}`}
                 >
-                  6. Issues & Feedback
+                  7. Issues & Feedback
                 </button>
               </div>
 
@@ -2889,6 +3238,77 @@ const AcademicCounselorReportPage = () => {
                                       const updated = [...weeklySalesActivity];
                                       updated[index].remarks = e.target.value;
                                       setWeeklySalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {weeklyActiveTab === 'clientSalesActivity' && (
+                      <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900">
+                        <table className="w-full text-left border-collapse text-sm">
+                          <thead>
+                            <tr className="bg-slate-50/70 dark:bg-slate-950/40 text-slate-400 text-[11px] font-bold uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                              <th className="px-5 py-4 w-[40%]">Activity</th>
+                              <th className="px-5 py-4 w-[15%] text-center">Count</th>
+                              <th className="px-5 py-4 w-[15%] text-center">Digital Mktg</th>
+                              <th className="px-5 py-4 w-[15%] text-center">Web</th>
+                              <th className="px-5 py-4 w-[15%]">Remarks</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {weeklyClientSalesActivity.map((item, index) => (
+                              <tr key={index} className="hover:bg-slate-50/20 dark:hover:bg-slate-950/5 transition-colors">
+                                <td className="px-5 py-3 font-semibold text-slate-700 dark:text-slate-300">{item.activity}</td>
+                                <td className="px-5 py-3 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.count}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyClientSalesActivity];
+                                      updated[index].count = e.target.value;
+                                      setWeeklyClientSalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg text-center focus:outline-none text-slate-700 dark:text-slate-200 py-1"
+                                  />
+                                </td>
+                                <td className="px-5 py-3 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.digitalMktg}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyClientSalesActivity];
+                                      updated[index].digitalMktg = e.target.value;
+                                      setWeeklyClientSalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg text-center focus:outline-none text-slate-700 dark:text-slate-200 py-1"
+                                  />
+                                </td>
+                                <td className="px-5 py-3 text-center">
+                                  <input
+                                    type="text"
+                                    value={item.web}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyClientSalesActivity];
+                                      updated[index].web = e.target.value;
+                                      setWeeklyClientSalesActivity(updated);
+                                    }}
+                                    className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg text-center focus:outline-none text-slate-700 dark:text-slate-200 py-1"
+                                  />
+                                </td>
+                                <td className="px-5 py-3">
+                                  <input
+                                    type="text"
+                                    value={item.remarks}
+                                    onChange={(e) => {
+                                      const updated = [...weeklyClientSalesActivity];
+                                      updated[index].remarks = e.target.value;
+                                      setWeeklyClientSalesActivity(updated);
                                     }}
                                     className="w-full bg-transparent border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none text-slate-700 dark:text-slate-200 px-2 py-1"
                                   />
