@@ -23,18 +23,22 @@ const PayslipsPage = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // ── Role checks ──────────────────────────────────────────────
-  const role = String(user?.role_id || user?.roleId || user?.role || '').toLowerCase().trim();
-  const designation = String(user?.designation || '').toLowerCase().trim();
-  const isSuperAdmin = user?.isSuperAdmin === true;
+  const role = String(user?.role_id || user?.roleId || (typeof user?.role === 'object' ? user?.role?.name : user?.role) || '').toLowerCase().trim();
+  const designation = String((typeof user?.designation === 'object' ? user?.designation?.name : user?.designation) || '').toLowerCase().trim();
+  const department = String((typeof user?.department === 'object' ? user?.department?.name : user?.department) || '').toLowerCase().trim();
+  const isSuperAdmin = user?.isSuperAdmin === true || role === 'superadmin' || role === '0';
 
-  const isHr = role === 'hr' || designation.includes('hr');
+  const isHr = role === 'hr' || designation.includes('hr') || department.includes('hr');
+  const isAccountant = role === 'accountant' || role === 'finance' || role === 'accounts' || role === '10' ||
+                        designation.includes('accountant') || designation.includes('accounts') || designation.includes('finance') ||
+                        department.includes('accounts') || department.includes('finance');
+
   const isPrivileged =
     isSuperAdmin ||
     isHr ||
-    ['0', '1', '2', 'admin', 'superadmin', 'md', 'coo', 'executive_director', 'accountant', 'hr', 'manager'].includes(role) ||
-    designation.includes('accountant') || designation.includes('accounts') || designation.includes('hr') ||
-    designation.includes('finance') || designation.includes('superadmin') || designation.includes('admin') || designation.includes('director') ||
-    ['0', '1', '2'].includes(String(user?.role_id || ''));
+    isAccountant ||
+    ['0', '1', '2', '10', 'admin', 'superadmin', 'md', 'coo', 'executive_director', 'accountant', 'hr', 'manager', 'finance', 'accounts'].includes(role) ||
+    ['0', '1', '2', '10'].includes(String(user?.role_id || user?.roleId || ''));
 
   // All privileged users (Admin, SuperAdmin, HR, Accountant, MD, Manager) can create payslips
   const canCreate = isPrivileged;

@@ -7,6 +7,7 @@ import {
 } from '../../services/accountsService';
 import { useToast } from '../ToastProvider';
 import PayslipModal from './PayslipModal';
+import CreatePayslipModal from './CreatePayslipModal';
 import {
   FileText,
   CheckCircle,
@@ -18,12 +19,14 @@ import {
   RefreshCw,
   CheckSquare,
   Check,
-  X
+  X,
+  Plus
 } from 'lucide-react';
 import { useUser } from '../../contexts/UserContext';
 
 const SalaryPaymentTab = () => {
   const { user } = useUser();
+  const { showToast } = useToast();
   const [salaryPayments, setSalaryPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -31,6 +34,7 @@ const SalaryPaymentTab = () => {
 
   // Payslip Modal State
   const [selectedPayslipRecord, setSelectedPayslipRecord] = useState(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Rejection Modal State
   const [selectedSalaryToReject, setSelectedSalaryToReject] = useState(null);
@@ -198,6 +202,13 @@ const SalaryPaymentTab = () => {
           </h3>
 
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+            >
+              <Plus size={14} /> Create Payslip
+            </button>
+
             {isMdOrAdmin && pendingSalaryCount > 0 && (
               <button
                 onClick={handleApproveAllSalaries}
@@ -385,6 +396,13 @@ const SalaryPaymentTab = () => {
         isOpen={!!selectedPayslipRecord}
         onClose={() => setSelectedPayslipRecord(null)}
         salaryRecord={selectedPayslipRecord}
+      />
+
+      {/* CREATE PAYSLIP MODAL */}
+      <CreatePayslipModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={fetchSalaryPayments}
       />
     </div>
   );
