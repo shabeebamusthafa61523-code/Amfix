@@ -2,12 +2,13 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText, DollarSign, Search,
-  CheckCircle2, Clock, XCircle, LayoutGrid, List, Plus
+  CheckCircle2, Clock, XCircle, LayoutGrid, List, Plus, Trash2
 } from 'lucide-react';
-import { getSalaryPayments } from '../services/accountsService';
+import { getSalaryPayments, deleteSalaryPayment } from '../services/accountsService';
 import { useToast } from '../components/ToastProvider';
 import PayslipModal from '../components/accounts/PayslipModal';
 import CreatePayslipModal from '../components/accounts/CreatePayslipModal';
+import DeletePayslipModal from '../components/accounts/DeletePayslipModal';
 import { useUser } from '../contexts/UserContext';
 
 const PayslipsPage = () => {
@@ -21,6 +22,7 @@ const PayslipsPage = () => {
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
   const [selectedPayslipRecord, setSelectedPayslipRecord] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedSalaryToDelete, setSelectedSalaryToDelete] = useState(null);
 
   // ── Role checks ──────────────────────────────────────────────
   const role = String(user?.role_id || user?.roleId || (typeof user?.role === 'object' ? user?.role?.name : user?.role) || '').toLowerCase().trim();
@@ -57,6 +59,19 @@ const PayslipsPage = () => {
       if (!silent) setLoading(false);
     }
   }, []);
+
+  const handleDeletePayslipRecord = async (id, empName) => {
+    if (!window.confirm(`Are you sure you want to delete the payslip record for ${empName || 'this employee'}? This will also remove any synced salary expense entry.`)) return;
+    try {
+      const res = await deleteSalaryPayment(id);
+      if (res.success) {
+        showToast('Payslip record deleted successfully!', 'success');
+        fetchSalaryRecords();
+      }
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Error deleting payslip record.', 'error');
+    }
+  };
 
   // Initial load
   useEffect(() => { fetchSalaryRecords(); }, [fetchSalaryRecords]);
@@ -163,14 +178,12 @@ const PayslipsPage = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          {canCreate && (
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold transition shadow-md shadow-indigo-500/20 cursor-pointer"
-            >
-              <Plus size={15} /> Create Payslip
-            </button>
-          )}
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-bold transition shadow-md shadow-indigo-500/20 cursor-pointer"
+          >
+            <Plus size={15} /> Create Payslip
+          </button>
         </div>
       </div>
 
@@ -321,12 +334,23 @@ const PayslipsPage = () => {
 
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                   <span className="text-[11px] text-slate-400 font-medium">Official Disbursal Slip</span>
-                  <button
-                    onClick={() => setSelectedPayslipRecord(r)}
-                    className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <FileText size={13} /> View Payslip
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    {isPrivileged && (
+                      <button
+                        onClick={() => setSelectedSalaryToDelete(r)}
+                        className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                        title="Delete Payslip"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setSelectedPayslipRecord(r)}
+                      className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <FileText size={13} /> View Payslip
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             );
@@ -389,12 +413,23 @@ const PayslipsPage = () => {
                         {renderStatusBadge(status)}
                       </td>
                       <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <button
-                          onClick={() => setSelectedPayslipRecord(r)}
-                          className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 ml-auto cursor-pointer"
-                        >
-                          <FileText size={13} /> View Payslip
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isPrivileged && (
+                            <button
+                              onClick={() => setSelectedSalaryToDelete(r)}
+                              className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                              title="Delete Payslip"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setSelectedPayslipRecord(r)}
+                            className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <FileText size={13} /> View Payslip
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -410,12 +445,20 @@ const PayslipsPage = () => {
         isOpen={!!selectedPayslipRecord}
         onClose={() => setSelectedPayslipRecord(null)}
         salaryRecord={selectedPayslipRecord}
+        onSaved={fetchSalaryRecords}
       />
 
       <CreatePayslipModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={() => { setIsCreateModalOpen(false); fetchSalaryRecords(); }}
+      />
+
+      <DeletePayslipModal
+        isOpen={!!selectedSalaryToDelete}
+        onClose={() => setSelectedSalaryToDelete(null)}
+        onSuccess={fetchSalaryRecords}
+        payslipRecord={selectedSalaryToDelete}
       />
     </div>
   );

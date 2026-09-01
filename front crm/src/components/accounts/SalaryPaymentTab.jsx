@@ -8,6 +8,7 @@ import {
 import { useToast } from '../ToastProvider';
 import PayslipModal from './PayslipModal';
 import CreatePayslipModal from './CreatePayslipModal';
+import DeletePayslipModal from './DeletePayslipModal';
 import {
   FileText,
   CheckCircle,
@@ -35,6 +36,7 @@ const SalaryPaymentTab = () => {
   // Payslip Modal State
   const [selectedPayslipRecord, setSelectedPayslipRecord] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedSalaryToDelete, setSelectedSalaryToDelete] = useState(null);
 
   // Rejection Modal State
   const [selectedSalaryToReject, setSelectedSalaryToReject] = useState(null);
@@ -318,7 +320,7 @@ const SalaryPaymentTab = () => {
                             </>
                           )}
                           <button
-                            onClick={() => handleDeleteSalary(p._id)}
+                            onClick={() => setSelectedSalaryToDelete(p)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
                             title="Delete Record"
                           >
