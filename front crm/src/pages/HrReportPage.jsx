@@ -1661,7 +1661,20 @@ const HrReportPage = () => {
         ["Prepared Time", basicDetails.preparedTime || '']
       ];
 
-      const sections = [
+      const sectionKeyMap = {
+        "2. DAILY OPERATIONS SUMMARY": "dailyOperations",
+        "3. RECRUITMENT REPORT": "recruitmentReport",
+        "4. ATTENDANCE & LEAVE REPORT": "attendanceLeave",
+        "5. ADMIN OPERATIONS REPORT": "adminOperations",
+        "6. DOCUMENTATION & COMPLIANCE": "documentationCompliance",
+        "7. KPI TRACKING": "kpiTracking",
+        "8. ISSUES / ESCALATIONS": "issuesEscalations",
+        "9. NEXT DAY ACTION PLAN": "nextDayActionPlan",
+        "10. FINAL SHIFT HANDOVER": "finalShiftHandover",
+        "11. HR / ADMIN COMMENTS": "hrAdminComments"
+      };
+
+      const rawSections = [
         {
           title: "2. DAILY OPERATIONS SUMMARY",
           type: "table",
@@ -1740,6 +1753,11 @@ const HrReportPage = () => {
           columnStyles: { 0: { cellWidth: 60 }, 1: { cellWidth: 122 } }
         }
       ];
+
+      const sections = rawSections.filter(s => {
+        const secKey = sectionKeyMap[s.title];
+        return !secKey || !hiddenSections[secKey];
+      });
 
       const filename = `HR_Shift_Report_${(basicDetails.employeeName || 'Employee').replace(/[^a-zA-Z0-9_-]/g, '_')}_${selectedDate}.pdf`;
       const pdfBlob = await downloadFormattedHrPDF({
@@ -2128,498 +2146,768 @@ const HrReportPage = () => {
                   <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">2</span>
                   Daily Operations Summary
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => setDailyOperations([...dailyOperations, { activity: '', status: 'ongoing', dueDate: '', startDate: '', endDate: '', remarks: '' }])}
-                  className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all"
-                >
-                  <Plus size={14} /> Add Row
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('dailyOperations')}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                    title="Exclude this table section from report & PDF (-)"
+                  >
+                    <MinusCircle size={14} /> Exclude Table
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDailyOperations([...dailyOperations, { activity: '', status: 'ongoing', dueDate: '', startDate: '', endDate: '', remarks: '' }])}
+                    className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-lime-400 hover:opacity-80 font-bold transition-all cursor-pointer"
+                  >
+                    <Plus size={14} /> Add Row
+                  </button>
+                </div>
               </div>
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
-                      <th className="px-4 py-3 w-36">Due Date</th>
-                      <th className="px-4 py-3 w-36">Start Date</th>
-                      <th className="px-4 py-3 w-36">End Date</th>
-                      <th className="px-4 py-3 w-32">Status</th>
-                      <th className="px-4 py-3">Remarks</th>
-                      <th className="px-4 py-3 w-12 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {dailyOperations.map((row, i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-2.5 relative group">
-                          <div className="flex items-center gap-1.5">
-                          <input
-                            type="text"
-                            value={row.activity || ''}
-                            onChange={(e) => {
-                              const newArr = [...dailyOperations];
-                              newArr[i].activity = e.target.value;
-                              setDailyOperations(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
-                            placeholder="Activity name"
-                          />
-                          {row.activity && (
+
+              {hiddenSections.dailyOperations ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Daily Operations Summary (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('dailyOperations')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                        <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
+                        <th className="px-4 py-3 w-36">Due Date</th>
+                        <th className="px-4 py-3 w-36">Start Date</th>
+                        <th className="px-4 py-3 w-36">End Date</th>
+                        <th className="px-4 py-3 w-32">Status</th>
+                        <th className="px-4 py-3">Remarks</th>
+                        <th className="px-4 py-3 w-12 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                      {dailyOperations.map((row, i) => (
+                        <tr key={i}>
+                          <td className="px-4 py-2.5 relative group">
+                            <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={row.activity || ''}
+                              onChange={(e) => {
+                                const newArr = [...dailyOperations];
+                                newArr[i].activity = e.target.value;
+                                setDailyOperations(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
+                              placeholder="Activity name"
+                            />
+                            {row.activity && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedActivityText(row.activity)}
+                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
+                                title="View full text"
+                              >
+                                <Maximize2 size={13} />
+                              </button>
+                            )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="date"
+                              value={row.dueDate || ''}
+                              onChange={(e) => {
+                                const newArr = [...dailyOperations];
+                                newArr[i].dueDate = e.target.value;
+                                setDailyOperations(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              placeholder="DD-MM-YYYY HH:mm"
+                              value={row.startDate || ''}
+                              onChange={(e) => {
+                                const newArr = [...dailyOperations];
+                                newArr[i].startDate = e.target.value;
+                                setDailyOperations(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              placeholder="DD-MM-YYYY HH:mm"
+                              value={row.endDate || ''}
+                              onChange={(e) => {
+                                const newArr = [...dailyOperations];
+                                newArr[i].endDate = e.target.value;
+                                setDailyOperations(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <select
+                              value={row.status || 'ongoing'}
+                              onChange={(e) => {
+                                const newArr = [...dailyOperations];
+                                newArr[i].status = e.target.value;
+                                setDailyOperations(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
+                            >
+                              <option value="ongoing">Ongoing</option>
+                              <option value="completed">Completed</option>
+                              <option value="pending">Pending</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.remarks || ''}
+                              onChange={(e) => {
+                                const newArr = [...dailyOperations];
+                                newArr[i].remarks = e.target.value;
+                                setDailyOperations(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                              placeholder="Add remarks"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
                             <button
                               type="button"
-                              onClick={() => setSelectedActivityText(row.activity)}
-                              className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600 dark:hover:text-lime-400 transition-all p-0.5"
-                              title="View full text"
+                              onClick={() => {
+                                const updated = [...dailyOperations];
+                                updated.splice(i, 1);
+                                setDailyOperations(updated);
+                              }}
+                              className="text-rose-500 hover:text-rose-600 transition"
                             >
-                              <Maximize2 size={13} />
+                              <Trash2 size={16} />
                             </button>
-                          )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="date"
-                            value={row.dueDate || ''}
-                            onChange={(e) => {
-                              const newArr = [...dailyOperations];
-                              newArr[i].dueDate = e.target.value;
-                              setDailyOperations(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            placeholder="DD-MM-YYYY HH:mm"
-                            value={row.startDate || ''}
-                            onChange={(e) => {
-                              const newArr = [...dailyOperations];
-                              newArr[i].startDate = e.target.value;
-                              setDailyOperations(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            placeholder="DD-MM-YYYY HH:mm"
-                            value={row.endDate || ''}
-                            onChange={(e) => {
-                              const newArr = [...dailyOperations];
-                              newArr[i].endDate = e.target.value;
-                              setDailyOperations(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <select
-                            value={row.status || 'ongoing'}
-                            onChange={(e) => {
-                              const newArr = [...dailyOperations];
-                              newArr[i].status = e.target.value;
-                              setDailyOperations(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold text-slate-700 dark:text-slate-300"
-                          >
-                            <option value="ongoing">Ongoing</option>
-                            <option value="completed">Completed</option>
-                            <option value="pending">Pending</option>
-                          </select>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.remarks || ''}
-                            onChange={(e) => {
-                              const newArr = [...dailyOperations];
-                              newArr[i].remarks = e.target.value;
-                              setDailyOperations(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                            placeholder="Add remarks"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = [...dailyOperations];
-                              updated.splice(i, 1);
-                              setDailyOperations(updated);
-                            }}
-                            className="text-rose-500 hover:text-rose-600 transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 3. RECRUITMENT REPORT */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">3</span>
-                Recruitment Report
-              </h2>
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3 w-[35%] min-w-[280px]">Recruitment Activity</th>
-                      <th className="px-4 py-3 w-48">Count / Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-855">
-                    {recruitmentReport.map((row, i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-2.5 font-semibold text-xs text-slate-500 cursor-pointer hover:text-indigo-600 dark:hover:text-lime-400 transition-colors" onClick={() => setSelectedActivityText(row.activity)}>{row.activity}</td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.countStatus}
-                            onChange={(e) => {
-                              const newArr = [...recruitmentReport];
-                              newArr[i].countStatus = e.target.value;
-                              setRecruitmentReport(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">3</span>
+                  Recruitment Report
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('recruitmentReport')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
               </div>
+
+              {hiddenSections.recruitmentReport ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Recruitment Report (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('recruitmentReport')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                        <th className="px-4 py-3 w-[35%] min-w-[280px]">Recruitment Activity</th>
+                        <th className="px-4 py-3 w-48">Count / Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-855">
+                      {recruitmentReport.map((row, i) => (
+                        <tr key={i}>
+                          <td className="px-4 py-2.5 font-semibold text-xs text-slate-500 cursor-pointer hover:text-indigo-600 dark:hover:text-lime-400 transition-colors" onClick={() => setSelectedActivityText(row.activity)}>{row.activity}</td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.countStatus}
+                              onChange={(e) => {
+                                const newArr = [...recruitmentReport];
+                                newArr[i].countStatus = e.target.value;
+                                setRecruitmentReport(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 4. ATTENDANCE & LEAVE REPORT */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">4</span>
-                Attendance & Leave Report
-              </h2>
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3">Category</th>
-                      <th className="px-4 py-3 w-48">Count</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {attendanceLeave.map((row, i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-2.5 font-semibold text-xs text-slate-500">{row.category}</td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.count}
-                            onChange={(e) => {
-                              const newArr = [...attendanceLeave];
-                              newArr[i].count = e.target.value;
-                              setAttendanceLeave(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">4</span>
+                  Attendance & Leave Report
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('attendanceLeave')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
               </div>
+
+              {hiddenSections.attendanceLeave ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Attendance & Leave Report (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('attendanceLeave')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                        <th className="px-4 py-3">Category</th>
+                        <th className="px-4 py-3 w-48">Count</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                      {attendanceLeave.map((row, i) => (
+                        <tr key={i}>
+                          <td className="px-4 py-2.5 font-semibold text-xs text-slate-500">{row.category}</td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.count}
+                              onChange={(e) => {
+                                const newArr = [...attendanceLeave];
+                                newArr[i].count = e.target.value;
+                                setAttendanceLeave(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 5. ADMIN OPERATIONS REPORT */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">5</span>
-                Admin Operations Report
-              </h2>
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
-                      <th className="px-4 py-3">Due Date</th>
-                      <th className="px-4 py-3 w-48 font-semibold">Status</th>
-                      <th className="px-4 py-3">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {adminOperations.map((row, i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-2.5 font-semibold text-xs text-slate-500 cursor-pointer hover:text-indigo-600 dark:hover:text-lime-400 transition-colors" onClick={() => setSelectedActivityText(row.activity)}>{row.activity}</td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.dueDate || ''}
-                            onChange={(e) => {
-                              const newArr = [...adminOperations];
-                              newArr[i].dueDate = e.target.value;
-                              setAdminOperations(newArr);
-                            }}
-                            placeholder="DD/MM/YYYY"
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.status || ''}
-                            onChange={(e) => {
-                              const newArr = [...adminOperations];
-                              newArr[i].status = e.target.value;
-                              setAdminOperations(newArr);
-                            }}
-                            placeholder="Pending / Completed"
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.remarks || ''}
-                            onChange={(e) => {
-                              const newArr = [...adminOperations];
-                              newArr[i].remarks = e.target.value;
-                              setAdminOperations(newArr);
-                            }}
-                            placeholder="Add remarks..."
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">5</span>
+                  Admin Operations Report
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('adminOperations')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
               </div>
+
+              {hiddenSections.adminOperations ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Admin Operations Report (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('adminOperations')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                        <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
+                        <th className="px-4 py-3">Due Date</th>
+                        <th className="px-4 py-3 w-48 font-semibold">Status</th>
+                        <th className="px-4 py-3">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                      {adminOperations.map((row, i) => (
+                        <tr key={i}>
+                          <td className="px-4 py-2.5 font-semibold text-xs text-slate-500 cursor-pointer hover:text-indigo-600 dark:hover:text-lime-400 transition-colors" onClick={() => setSelectedActivityText(row.activity)}>{row.activity}</td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.dueDate || ''}
+                              onChange={(e) => {
+                                const newArr = [...adminOperations];
+                                newArr[i].dueDate = e.target.value;
+                                setAdminOperations(newArr);
+                              }}
+                              placeholder="DD/MM/YYYY"
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.status || ''}
+                              onChange={(e) => {
+                                const newArr = [...adminOperations];
+                                newArr[i].status = e.target.value;
+                                setAdminOperations(newArr);
+                              }}
+                              placeholder="Pending / Completed"
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.remarks || ''}
+                              onChange={(e) => {
+                                const newArr = [...adminOperations];
+                                newArr[i].remarks = e.target.value;
+                                setAdminOperations(newArr);
+                              }}
+                              placeholder="Add remarks..."
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 6. DOCUMENTATION & COMPLIANCE */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">6</span>
-                Documentation & Compliance
-              </h2>
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
-                      <th className="px-4 py-3">Due Date</th>
-                      <th className="px-4 py-3 w-48">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {documentationCompliance.map((row, i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-2.5 font-semibold text-xs text-slate-500 cursor-pointer hover:text-indigo-600 dark:hover:text-lime-400 transition-colors" onClick={() => setSelectedActivityText(row.activity)}>{row.activity}</td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.dueDate || ''}
-                            onChange={(e) => {
-                              const newArr = [...documentationCompliance];
-                              newArr[i].dueDate = e.target.value;
-                              setDocumentationCompliance(newArr);
-                            }}
-                            placeholder="DD/MM/YYYY"
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.status || ''}
-                            onChange={(e) => {
-                              const newArr = [...documentationCompliance];
-                              newArr[i].status = e.target.value;
-                              setDocumentationCompliance(newArr);
-                            }}
-                            placeholder="Yes / No"
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">6</span>
+                  Documentation & Compliance
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('documentationCompliance')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
               </div>
+
+              {hiddenSections.documentationCompliance ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Documentation & Compliance (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('documentationCompliance')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                        <th className="px-4 py-3 w-[35%] min-w-[280px]">Activity</th>
+                        <th className="px-4 py-3">Due Date</th>
+                        <th className="px-4 py-3 w-48">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                      {documentationCompliance.map((row, i) => (
+                        <tr key={i}>
+                          <td className="px-4 py-2.5 font-semibold text-xs text-slate-500 cursor-pointer hover:text-indigo-600 dark:hover:text-lime-400 transition-colors" onClick={() => setSelectedActivityText(row.activity)}>{row.activity}</td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.dueDate || ''}
+                              onChange={(e) => {
+                                const newArr = [...documentationCompliance];
+                                newArr[i].dueDate = e.target.value;
+                                setDocumentationCompliance(newArr);
+                              }}
+                              placeholder="DD/MM/YYYY"
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.status || ''}
+                              onChange={(e) => {
+                                const newArr = [...documentationCompliance];
+                                newArr[i].status = e.target.value;
+                                setDocumentationCompliance(newArr);
+                              }}
+                              placeholder="Yes / No"
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 7. KPI TRACKING */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">7</span>
-                KPI Tracking
-              </h2>
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3">KPI</th>
-                      <th className="px-4 py-3 w-48">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {kpiTracking.map((row, i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-2.5 font-semibold text-xs text-slate-500">{row.kpi}</td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.status}
-                            onChange={(e) => {
-                              const newArr = [...kpiTracking];
-                              newArr[i].status = e.target.value;
-                              setKpiTracking(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">7</span>
+                  KPI Tracking
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('kpiTracking')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
               </div>
+
+              {hiddenSections.kpiTracking ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    KPI Tracking (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('kpiTracking')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                        <th className="px-4 py-3">KPI</th>
+                        <th className="px-4 py-3 w-48">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                      {kpiTracking.map((row, i) => (
+                        <tr key={i}>
+                          <td className="px-4 py-2.5 font-semibold text-xs text-slate-500">{row.kpi}</td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.status}
+                              onChange={(e) => {
+                                const newArr = [...kpiTracking];
+                                newArr[i].status = e.target.value;
+                                setKpiTracking(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 8. ISSUES / ESCALATIONS */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">8</span>
-                Issues / Escalations
-              </h2>
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3">Issue</th>
-                      <th className="px-4 py-3 w-48">Priority</th>
-                      <th className="px-4 py-3">Action Taken</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {issuesEscalations.map((row, i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.issue}
-                            onChange={(e) => {
-                              const newArr = [...issuesEscalations];
-                              newArr[i].issue = e.target.value;
-                              setIssuesEscalations(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <select
-                            value={row.priority}
-                            onChange={(e) => {
-                              const newArr = [...issuesEscalations];
-                              newArr[i].priority = e.target.value;
-                              setIssuesEscalations(newArr);
-                            }}
-                            className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none"
-                          >
-                            <option value="High / Medium / Low">High / Medium / Low</option>
-                            <option value="High">High</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Low">Low</option>
-                          </select>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.actionTaken}
-                            onChange={(e) => {
-                              const newArr = [...issuesEscalations];
-                              newArr[i].actionTaken = e.target.value;
-                              setIssuesEscalations(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">8</span>
+                  Issues / Escalations
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('issuesEscalations')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
               </div>
+
+              {hiddenSections.issuesEscalations ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Issues / Escalations (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('issuesEscalations')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                        <th className="px-4 py-3">Issue</th>
+                        <th className="px-4 py-3 w-48">Priority</th>
+                        <th className="px-4 py-3">Action Taken</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                      {issuesEscalations.map((row, i) => (
+                        <tr key={i}>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.issue}
+                              onChange={(e) => {
+                                const newArr = [...issuesEscalations];
+                                newArr[i].issue = e.target.value;
+                                setIssuesEscalations(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm font-semibold"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <select
+                              value={row.priority}
+                              onChange={(e) => {
+                                const newArr = [...issuesEscalations];
+                                newArr[i].priority = e.target.value;
+                                setIssuesEscalations(newArr);
+                              }}
+                              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs focus:outline-none"
+                            >
+                              <option value="High / Medium / Low">High / Medium / Low</option>
+                              <option value="High">High</option>
+                              <option value="Medium">Medium</option>
+                              <option value="Low">Low</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.actionTaken}
+                              onChange={(e) => {
+                                const newArr = [...issuesEscalations];
+                                newArr[i].actionTaken = e.target.value;
+                                setIssuesEscalations(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 9. NEXT DAY ACTION PLAN */}
             <div className="space-y-3">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">9</span>
-                Next Day Action Plan
-              </h2>
-              <textarea
-                value={nextDayActionPlan}
-                onChange={(e) => setNextDayActionPlan(e.target.value)}
-                placeholder="1. Tasks planned..."
-                className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[100px]"
-              />
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">9</span>
+                  Next Day Action Plan
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('nextDayActionPlan')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
+              </div>
+
+              {hiddenSections.nextDayActionPlan ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Next Day Action Plan (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('nextDayActionPlan')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <textarea
+                  value={nextDayActionPlan}
+                  onChange={(e) => setNextDayActionPlan(e.target.value)}
+                  placeholder="1. Tasks planned..."
+                  className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[100px]"
+                />
+              )}
             </div>
 
             {/* 10. FINAL SHIFT HANDOVER */}
             <div className="space-y-4">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">10</span>
-                Final Shift Handover
-              </h2>
-              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
-                      <th className="px-4 py-3">Handover Item</th>
-                      <th className="px-4 py-3 w-48">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {finalShiftHandover.map((row, i) => (
-                      <tr key={i}>
-                        <td className="px-4 py-2.5 font-semibold text-xs text-slate-500">{row.item}</td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="text"
-                            value={row.status}
-                            onChange={(e) => {
-                              const newArr = [...finalShiftHandover];
-                              newArr[i].status = e.target.value;
-                              setFinalShiftHandover(newArr);
-                            }}
-                            className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">10</span>
+                  Final Shift Handover
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('finalShiftHandover')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this table section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
               </div>
+
+              {hiddenSections.finalShiftHandover ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    Final Shift Handover (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('finalShiftHandover')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-slate-50/80 dark:bg-slate-950/30 border-b border-slate-100 dark:border-slate-800 text-slate-500 text-[11px] font-bold uppercase tracking-wider">
+                        <th className="px-4 py-3">Handover Item</th>
+                        <th className="px-4 py-3 w-48">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                      {finalShiftHandover.map((row, i) => (
+                        <tr key={i}>
+                          <td className="px-4 py-2.5 font-semibold text-xs text-slate-500">{row.item}</td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="text"
+                              value={row.status}
+                              onChange={(e) => {
+                                const newArr = [...finalShiftHandover];
+                                newArr[i].status = e.target.value;
+                                setFinalShiftHandover(newArr);
+                              }}
+                              className="w-full bg-transparent border-none focus:outline-none p-0 text-sm"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             {/* 11. HR / ADMIN COMMENTS */}
             <div className="space-y-3">
-              <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
-                <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">11</span>
-                HR / Admin Comments
-              </h2>
-              <textarea
-                value={hrAdminComments}
-                onChange={(e) => setHrAdminComments(e.target.value)}
-                placeholder="Enter remarks or summary comments"
-                className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[100px]"
-              />
+              <div className="flex items-center justify-between">
+                <h2 className="text-xs font-bold text-indigo-600 dark:text-lime-400 uppercase tracking-widest flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 rounded bg-indigo-100 dark:bg-lime-950/50 text-[10px]">11</span>
+                  HR / Admin Comments
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => toggleSectionHidden('hrAdminComments')}
+                  className="flex items-center gap-1 text-[11px] font-bold text-rose-500 hover:text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-xl transition-all cursor-pointer"
+                  title="Exclude this section from report & PDF (-)"
+                >
+                  <MinusCircle size={14} /> Exclude Table
+                </button>
+              </div>
+
+              {hiddenSections.hrAdminComments ? (
+                <div className="p-3.5 bg-slate-100/60 dark:bg-slate-900/60 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                    <MinusCircle size={14} className="text-rose-400" />
+                    HR / Admin Comments (Excluded from Report & PDF)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleSectionHidden('hrAdminComments')}
+                    className="text-xs font-bold text-indigo-600 dark:text-lime-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle size={14} /> Restore Section
+                  </button>
+                </div>
+              ) : (
+                <textarea
+                  value={hrAdminComments}
+                  onChange={(e) => setHrAdminComments(e.target.value)}
+                  placeholder="Enter remarks or summary comments"
+                  className="w-full bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 min-h-[100px]"
+                />
+              )}
             </div>
 
             {/* 12. APPROVAL */}
