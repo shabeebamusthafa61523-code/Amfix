@@ -130,17 +130,21 @@ const BasicReportPage = () => {
           preparedTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
         });
 
-        // Try load draft from localStorage
+        // Try load draft / saved report from localStorage
         const draftKey = `basic_report_draft_${realUserId}_${selectedDate}`;
-        const savedDraft = localStorage.getItem(draftKey);
+        const savedKey = `basic_report_saved_${realUserId}_${selectedDate}`;
+        const savedData = localStorage.getItem(savedKey) || localStorage.getItem(draftKey);
 
-        if (savedDraft) {
+        if (savedData) {
           try {
-            const parsed = JSON.parse(savedDraft);
+            const parsed = JSON.parse(savedData);
             setTaskSummary(parsed.taskSummary || []);
             setBlockersTomorrowPlan(parsed.blockersTomorrowPlan || DEFAULT_BLOCKERS_PLAN);
             setStaffSignature(parsed.staffSignature || '');
-            showToast('Loaded draft from local storage', 'success');
+            if (parsed.basicDetails) {
+              setBasicDetails(prev => ({ ...prev, ...parsed.basicDetails, date: selectedDate }));
+            }
+            showToast('Loaded saved report data', 'success');
             setLoading(false);
             return;
           } catch (e) {
@@ -236,16 +240,38 @@ const BasicReportPage = () => {
     loadUserDataAndTasks();
   }, [selectedDate, getAuthHeaders, showToast]);
 
+  // Auto-save edits to localStorage whenever fields change
+  useEffect(() => {
+    if (loading || !currentUser) return;
+    const realUserId = currentUser._id || currentUser.id || currentUser.user_id || (localStorage.getItem('user_id') || '').replace(/"/g, '').trim();
+    if (!realUserId) return;
+
+    const draftKey = `basic_report_draft_${realUserId}_${selectedDate}`;
+    const savedKey = `basic_report_saved_${realUserId}_${selectedDate}`;
+    const dataToSave = {
+      taskSummary,
+      blockersTomorrowPlan,
+      staffSignature,
+      basicDetails
+    };
+    localStorage.setItem(draftKey, JSON.stringify(dataToSave));
+    localStorage.setItem(savedKey, JSON.stringify(dataToSave));
+  }, [taskSummary, blockersTomorrowPlan, staffSignature, basicDetails, selectedDate, currentUser, loading]);
+
   // Save draft locally
   const handleSaveDraft = () => {
-    const draftKey = `basic_report_draft_${currentUser.user_id || 'guest'}_${selectedDate}`;
+    const realUserId = currentUser._id || currentUser.id || currentUser.user_id || (localStorage.getItem('user_id') || '').replace(/"/g, '').trim() || 'guest';
+    const draftKey = `basic_report_draft_${realUserId}_${selectedDate}`;
+    const savedKey = `basic_report_saved_${realUserId}_${selectedDate}`;
     const draftData = {
       taskSummary,
       blockersTomorrowPlan,
-      staffSignature
+      staffSignature,
+      basicDetails
     };
     localStorage.setItem(draftKey, JSON.stringify(draftData));
-    showToast('Draft saved to browser storage', 'success');
+    localStorage.setItem(savedKey, JSON.stringify(draftData));
+    showToast('Report saved to browser storage', 'success');
   };
 
   // Add a new manual activity row
@@ -450,9 +476,18 @@ const BasicReportPage = () => {
       );
 
       if (response.status === 201 || response.status === 200 || response.data?.success) {
-        // Clear local draft
+        // Persist saved report to local storage so page reload/navigation preserves it
         const draftKey = `basic_report_draft_${targetUserId}_${selectedDate}`;
-        localStorage.removeItem(draftKey);
+        const savedKey = `basic_report_saved_${targetUserId}_${selectedDate}`;
+        const reportData = {
+          taskSummary,
+          blockersTomorrowPlan,
+          staffSignature,
+          basicDetails,
+          savedAt: new Date().toISOString()
+        };
+        localStorage.setItem(draftKey, JSON.stringify(reportData));
+        localStorage.setItem(savedKey, JSON.stringify(reportData));
 
         fetchSubmittedDates(targetUserId);
 
