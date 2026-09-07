@@ -1280,7 +1280,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                       RECEIPT VOUCHER
                     </span>
                     <div className="pt-1.5 text-xs space-y-0.5">
-                      <p className="font-semibold" style={{ color: '#0f172a' }}>Receipt No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>#{particularRecNo}</span></p>
+                      <p className="font-semibold" style={{ color: '#0f172a' }}>Receipt No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>{particularRecNo ? particularRecNo.replace(/^#+/, '') : ''}</span></p>
                       <p className="text-[11px]" style={{ color: '#64748b' }}>Payment Date: <strong style={{ color: '#0f172a' }}>{particularReceiptDate}</strong></p>
                     </div>
                   </div>
@@ -1302,7 +1302,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                     </h4>
                     <p className="font-bold text-sm" style={{ color: '#0f172a' }}>{finalClientName}</p>
                     <p className="text-[11px]" style={{ color: '#475569' }}>Payment Method: <strong style={{ color: '#0f172a' }}>{particularPaymentMethod}</strong></p>
-                    <p className="text-[10px]" style={{ color: '#64748b' }}>Invoice Reference: <strong className="font-mono" style={{ color: '#0f172a' }}>{invoiceNo}</strong></p>
+                    <p className="text-[10px]" style={{ color: '#64748b' }}>Invoice Reference: <strong className="font-mono" style={{ color: '#0f172a' }}>{invoiceNo ? invoiceNo.replace(/^#+/, '') : ''}</strong></p>
                     {particularNotes && (
                       <p className="text-[10.5px] italic pt-1 border-t mt-1" style={{ color: '#475569', borderColor: '#e2e8f0' }}>Notes: "{particularNotes}"</p>
                     )}
@@ -1329,16 +1329,16 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                       <tr>
                         <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>Invoice Number</th>
                         <th className="py-2.5 px-3" style={{ color: '#0f172a' }}>Invoice Date</th>
-                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a' }}>Net Payable Amount (₹)</th>
-                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a' }}>Voucher Amount Paid (₹)</th>
+                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a', textAlign: 'right' }}>Net Payable Amount (₹)</th>
+                        <th className="py-2.5 px-3 text-right" style={{ color: '#0f172a', textAlign: 'right' }}>Voucher Amount Paid (₹)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y font-medium" style={{ borderColor: '#e2e8f0' }}>
                       <tr style={{ backgroundColor: '#ffffff' }}>
-                        <td className="py-3 px-3 font-mono font-bold" style={{ color: '#0f172a' }}>{invoiceNo}</td>
+                        <td className="py-3 px-3 font-mono font-bold" style={{ color: '#0f172a' }}>{invoiceNo ? invoiceNo.replace(/^#+/, '') : ''}</td>
                         <td className="py-3 px-3" style={{ color: '#475569' }}>{formattedDate}</td>
-                        <td className="py-3 px-3 text-right font-mono font-semibold text-slate-800" style={{ color: '#0f172a' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</td>
-                        <td className="py-3 px-3 text-right font-mono font-extrabold text-sm" style={{ color: '#047857' }}>₹{Math.round(particularReceiptAmt).toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-3 text-right font-mono font-semibold text-slate-800" style={{ color: '#0f172a', textAlign: 'right' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</td>
+                        <td className="py-3 px-3 text-right font-mono font-extrabold text-sm" style={{ color: '#047857', textAlign: 'right' }}>₹{Math.round(particularReceiptAmt).toLocaleString('en-IN')}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1354,11 +1354,10 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                     <p className="text-[10px] font-normal" style={{ color: '#64748b' }}>Thank you for your business.</p>
                   </div>
                 </div>
-                <div className="text-right text-[10px]" style={{ color: '#64748b' }}>
-                  <div className="h-7 mb-0.5 flex items-end justify-end">
-                    <span className="font-serif italic font-bold text-xs border-b pb-0.5 px-3" style={{ color: '#0f172a', borderColor: '#cbd5e1' }}>{createdByName || 'Accounts Officer'}</span>
-                  </div>
-                  <p className="font-bold uppercase tracking-wider text-[9px]" style={{ color: '#0f172a' }}>Authorized Signatory</p>
+                <div className="text-right text-[10px] space-y-1">
+                  <p className="font-serif italic font-bold text-xs" style={{ color: '#0f172a' }}>{createdByName || 'Accountant'}</p>
+                  <div className="w-36 border-b my-1 border-slate-300 ml-auto" style={{ borderColor: '#cbd5e1' }} />
+                  <p className="font-bold uppercase tracking-wider text-[9px]" style={{ color: '#0f172a' }}>AUTHORIZED SIGNATORY</p>
                 </div>
               </div>
             </div>
@@ -1388,7 +1387,7 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                       INVOICE
                     </span>
                     <div className="pt-1.5 text-xs space-y-0.5">
-                      <p className="font-semibold" style={{ color: '#0f172a' }}>Invoice No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>#{invoiceNo}</span></p>
+                      <p className="font-semibold" style={{ color: '#0f172a' }}>Invoice No: <span className="font-mono font-bold" style={{ color: '#0f172a' }}>{invoiceNo ? invoiceNo.replace(/^#+/, '') : ''}</span></p>
                       <p className="text-[11px]" style={{ color: '#64748b' }}>Issue Date: <strong style={{ color: '#0f172a' }}>{formattedDate}</strong></p>
                       {incomeRecord.dueDate && (
                         <p className="text-[11px]" style={{ color: '#64748b' }}>Due Date: <strong style={{ color: '#0f172a' }}>{new Date(incomeRecord.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></p>
@@ -1463,8 +1462,8 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                         {resolvedSourceType !== 'Academy' && (
                           <th className="py-2.5 px-3 text-center w-16" style={{ color: '#0f172a' }}>Qty</th>
                         )}
-                        <th className="py-2.5 px-3 text-right w-28" style={{ color: '#0f172a' }}>{resolvedSourceType === 'Academy' ? 'Course Fee (₹)' : 'Unit Price (₹)'}</th>
-                        <th className="py-2.5 px-3 text-right w-32" style={{ color: '#0f172a' }}>Amount (₹)</th>
+                        <th className="py-2.5 px-3 text-right w-28" style={{ color: '#0f172a', textAlign: 'right' }}>{resolvedSourceType === 'Academy' ? 'Course Fee (₹)' : 'Unit Price (₹)'}</th>
+                        <th className="py-2.5 px-3 text-right w-32" style={{ color: '#0f172a', textAlign: 'right' }}>Amount (₹)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y font-medium" style={{ borderColor: '#e2e8f0' }}>
@@ -1477,8 +1476,8 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                           {resolvedSourceType !== 'Academy' && (
                             <td className="py-3 px-3 text-center font-mono" style={{ color: '#334155' }}>{Math.round(item.quantity || 1)}</td>
                           )}
-                          <td className="py-3 px-3 text-right font-mono" style={{ color: '#334155' }}>₹{Math.round(parseFloat(item.unitPrice || baseAmt)).toLocaleString('en-IN')}</td>
-                          <td className="py-3 px-3 text-right font-mono font-bold text-xs" style={{ color: '#0f172a' }}>₹{Math.round(parseFloat(item.amount || baseAmt)).toLocaleString('en-IN')}</td>
+                          <td className="py-3 px-3 text-right font-mono" style={{ color: '#334155', textAlign: 'right' }}>₹{Math.round(parseFloat(item.unitPrice || baseAmt)).toLocaleString('en-IN')}</td>
+                          <td className="py-3 px-3 text-right font-mono font-bold text-xs" style={{ color: '#0f172a', textAlign: 'right' }}>₹{Math.round(parseFloat(item.amount || baseAmt)).toLocaleString('en-IN')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1487,11 +1486,11 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
 
                 {/* Financial Totals Summary Card */}
                 <div className="flex justify-end items-start gap-4 pt-1">
-                  {/* Right Summary Box (Light Minimal Clean) */}
-                  <div className="w-full sm:w-64 p-3.5 rounded-xl border text-xs space-y-1.5" style={{ backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
+                  {/* Right Summary Box (Light Minimal Clean - Fixed Width 280px) */}
+                  <div className="w-72 p-3.5 rounded-xl border text-xs space-y-1.5 ml-auto" style={{ width: '280px', backgroundColor: '#f8fafc', color: '#0f172a', borderColor: '#cbd5e1' }}>
                     <div className="flex justify-between font-semibold" style={{ color: '#475569' }}>
                       <span>Subtotal Base:</span>
-                      <span className="font-mono" style={{ color: '#0f172a' }}>₹{Math.round(rawBaseAmt).toLocaleString('en-IN')}</span>
+                      <span className="font-mono text-right" style={{ color: '#0f172a', textAlign: 'right' }}>₹{Math.round(rawBaseAmt).toLocaleString('en-IN')}</span>
                     </div>
 
                     {/* Tax Lines Added to Base */}
@@ -1501,17 +1500,17 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                           <>
                             <div className="flex justify-between text-[11px]" style={{ color: '#475569' }}>
                               <span>CGST ({(numGstRate / 2)}%):</span>
-                              <span className="font-mono" style={{ color: '#0f172a' }}>+ ₹{Math.round(cgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</span>
+                              <span className="font-mono text-right" style={{ color: '#0f172a', textAlign: 'right' }}>+ ₹{Math.round(cgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</span>
                             </div>
                             <div className="flex justify-between text-[11px]" style={{ color: '#475569' }}>
                               <span>SGST ({(numGstRate / 2)}%):</span>
-                              <span className="font-mono" style={{ color: '#0f172a' }}>+ ₹{Math.round(sgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</span>
+                              <span className="font-mono text-right" style={{ color: '#0f172a', textAlign: 'right' }}>+ ₹{Math.round(sgstAmount || calcGstAmt / 2).toLocaleString('en-IN')}</span>
                             </div>
                           </>
                         ) : (
                           <div className="flex justify-between text-[11px]" style={{ color: '#475569' }}>
                             <span>IGST ({numGstRate}%):</span>
-                            <span className="font-mono" style={{ color: '#0f172a' }}>+ ₹{Math.round(igstAmount || calcGstAmt).toLocaleString('en-IN')}</span>
+                            <span className="font-mono text-right" style={{ color: '#0f172a', textAlign: 'right' }}>+ ₹{Math.round(igstAmount || calcGstAmt).toLocaleString('en-IN')}</span>
                           </div>
                         )}
                       </>
@@ -1519,19 +1518,19 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
 
                     <div className="flex justify-between font-bold border-t pt-1" style={{ borderColor: '#e2e8f0', color: '#0f172a' }}>
                       <span>Total:</span>
-                      <span className="font-mono">₹{Math.round(totalBeforeDiscount).toLocaleString('en-IN')}</span>
+                      <span className="font-mono text-right" style={{ textAlign: 'right' }}>₹{Math.round(totalBeforeDiscount).toLocaleString('en-IN')}</span>
                     </div>
 
                     {calcDiscountAmt > 0 && (
                       <div className="flex justify-between font-semibold pt-0.5" style={{ color: '#dc2626' }}>
                         <span>- Discount {discountRate > 0 ? `(${discountRate}${isFlatDiscount ? ' ₹' : '%'})` : ''}:</span>
-                        <span className="font-mono font-bold">- ₹{Math.round(calcDiscountAmt).toLocaleString('en-IN')}</span>
+                        <span className="font-mono font-bold text-right" style={{ textAlign: 'right' }}>- ₹{Math.round(calcDiscountAmt).toLocaleString('en-IN')}</span>
                       </div>
                     )}
 
-                    <div className="flex justify-between border-t pt-2 text-xs font-bold items-center" style={{ borderColor: '#cbd5e1' }}>
-                      <span className="uppercase text-[10px] tracking-wider" style={{ color: '#475569' }}>Total Payable (Incl. GST):</span>
-                      <span className="text-base font-extrabold font-mono" style={{ color: '#0f172a' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</span>
+                    <div className="flex justify-between border-t pt-2 text-xs font-bold items-center gap-2" style={{ borderColor: '#cbd5e1' }}>
+                      <span className="uppercase text-[10px] tracking-wider shrink-0" style={{ color: '#475569' }}>Total Payable (Incl. GST):</span>
+                      <span className="text-base font-extrabold font-mono text-right" style={{ color: '#0f172a', textAlign: 'right' }}>₹{Math.round(calculatedTotalPayable).toLocaleString('en-IN')}</span>
                     </div>
                   </div>
                 </div>
@@ -1555,11 +1554,10 @@ const IncomeInvoiceModal = ({ isOpen, onClose, incomeRecord, initialMode = 'invo
                       <p className="text-[10px] font-normal" style={{ color: '#64748b' }}>Computer Generated Document. No signature required.</p>
                     </div>
                   </div>
-                  <div className="text-right text-[10px]">
-                    <div className="h-7 mb-0.5 flex items-end justify-end">
-                      <span className="font-serif italic font-bold text-xs border-b pb-0.5 px-3" style={{ color: '#0f172a', borderColor: '#cbd5e1' }}>{createdByName || 'Accounts Officer'}</span>
-                    </div>
-                    <p className="font-bold uppercase tracking-wider text-[9px]" style={{ color: '#0f172a' }}>Authorized Signatory</p>
+                  <div className="text-right text-[10px] space-y-1">
+                    <p className="font-serif italic font-bold text-xs" style={{ color: '#0f172a' }}>{createdByName || 'Accountant'}</p>
+                    <div className="w-36 border-b my-1 border-slate-300 ml-auto" style={{ borderColor: '#cbd5e1' }} />
+                    <p className="font-bold uppercase tracking-wider text-[9px]" style={{ color: '#0f172a' }}>AUTHORIZED SIGNATORY</p>
                   </div>
                 </div>
               </div>
