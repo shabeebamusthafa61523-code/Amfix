@@ -58,7 +58,7 @@ export const sendEmail = async (to, subject, htmlContent, textFallback = '') => 
     }
 
     // 2. Secondary: Fallback to SMTP or Simulation
-    const fromAddress = process.env.SMTP_FROM || process.env.EMAIL_FROM || '"KOD.BRAND CRM" <no-reply@kodbrand.com>';
+    const fromAddress = process.env.SMTP_FROM || process.env.EMAIL_FROM || '"AMFIX Enterprise CRM" <no-reply@kodbrand.com>';
     const transporter = createTransporter();
 
     if (!transporter) {
@@ -194,7 +194,7 @@ export const sendTaskStatusUpdateEmail = async ({ recipientEmail, recipientName,
           </div>
         </div>
         <div class="footer">
-          KOD.BRAND CRM System Notification
+          AMFIX Enterprise CRM System Notification
         </div>
       </div>
     </body>
@@ -255,7 +255,7 @@ export const sendNotification = async (userId, message, type = 'info', title = '
               <div class="title">🔔 ${title}</div>
               <div class="desc">${message}</div>
               <hr style="border: none; border-top: 1px solid #f1f5f9; margin-top: 16px;"/>
-              <p style="font-size: 11px; color: #94a3b8; margin: 0;">Sent via KOD.BRAND CRM HQ</p>
+              <p style="font-size: 11px; color: #94a3b8; margin: 0;">Sent via AMFIX Enterprise CRM HQ</p>
             </div>
           </body>
           </html>

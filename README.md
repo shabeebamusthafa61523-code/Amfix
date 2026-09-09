@@ -1,4 +1,4 @@
-# KODBRAND Enterprise CRM & Operations Management System
+# AMFIX Enterprise CRM & Operations Management System
 
 A full-stack, enterprise-grade Customer Relationship Management (CRM) and Operations Tracking System built with **React 19**, **Vite 8**, **Node.js/Express**, and **MongoDB Atlas**. Designed for multi-department organizations with role-based access control (RBAC), executive analytics, lead pipeline management, task tracking, and automated shift reporting.
 

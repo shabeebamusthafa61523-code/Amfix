@@ -1576,7 +1576,7 @@ export const sendSalaryPayslipEmail = async (req, res) => {
           </div>
 
           <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
-            This is an official computer-generated salary advice statement issued by KODBRAND SOLUTIONS HR & Payroll Department.
+            This is an official computer-generated salary advice statement issued by AMFIX ENTERPRISE SOLUTIONS HR & Payroll Department.
           </p>
         </div>
       </div>
@@ -1586,7 +1586,7 @@ export const sendSalaryPayslipEmail = async (req, res) => {
       to: recipientEmail,
       subject: `Official Salary Payslip Statement — ${month} | ${empName}`,
       htmlContent,
-      senderName: headerSenderName || 'KODBRAND',
+      senderName: headerSenderName || 'AMFIX Enterprise CRM',
       senderEmail: headerSenderEmail || null,
       apiKeyOverride: headerApiKey || null
     });

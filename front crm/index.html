@@ -2,9 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/logo2.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <!-- <link rel="shortcut icon" href="/favicon.ico" /> -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CRM</title>
+    <title>AMFIX Enterprise CRM</title>
     <script>
       (function() {
         const theme = localStorage.getItem('theme');
@@ -17,7 +18,27 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div style="position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #4d2796; color: #ffffff; z-index: 99999; font-family: system-ui, -apple-system, sans-serif;">
+        <div style="position: relative; margin-bottom: 2rem; display: flex; align-items: center; justify-content: center; padding: 0 1rem;">
+          <img src="/splash_logo.png" alt="AMFIX ACADEMY Logo" style="height: 110px; width: auto; max-width: 100%; position: relative; z-index: 10; object-fit: contain;" />
+        </div>
+        <div style="width: 160px; height: 4px; background: rgba(255, 255, 255, 0.2); border-radius: 9999px; overflow: hidden; position: relative;">
+          <div style="width: 50%; height: 100%; background: linear-gradient(90deg, #ffffff, #e9d5ff); border-radius: 9999px; animation: loadingBar 1.4s infinite ease-in-out;"></div>
+        </div>
+        <p style="margin-top: 1.25rem; font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: rgba(255, 255, 255, 0.85);">Initializing AMFIX Academy...</p>
+        <style>
+          @keyframes pulseGlow {
+            0%, 100% { transform: scale(0.9); opacity: 0.4; }
+            50% { transform: scale(1.25); opacity: 0.8; }
+          }
+          @keyframes loadingBar {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(200%); }
+          }
+        </style>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

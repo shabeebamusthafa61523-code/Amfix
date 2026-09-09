@@ -94,6 +94,28 @@ const calculateWorkingHours = (checkIn, checkOut) => {
   ).toFixed(2);
 };
 
+const calculateWorkingMinutes = (checkIn, checkOut) => {
+  if (!checkIn) return 0;
+
+  const start = parseAsUTC(checkIn);
+  const end = checkOut ? parseAsUTC(checkOut) : new Date();
+
+  return Math.max(
+    0,
+    Math.round((end.getTime() - start.getTime()) / 60000)
+  );
+};
+
+const formatAccruedMinutes = (checkIn, checkOut) => {
+  const totalMins = calculateWorkingMinutes(checkIn, checkOut);
+  const hrs = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  if (hrs > 0) {
+    return `${totalMins} MINS (${hrs}h ${mins}m)`;
+  }
+  return `${totalMins} MINS`;
+};
+
 // ===============================
 // LIVE CLOCK
 // ===============================
@@ -111,19 +133,19 @@ const LiveClock = () => {
 
   return (
     <>
-      <div className="flex items-baseline gap-4 mb-4">
-        <div className="text-8xl lg:text-[10rem] font-black text-slate-900 dark:text-slate-100 italic tracking-tighter leading-none select-none">
+      <div className="flex items-baseline gap-3 mb-2">
+        <div className="text-6xl lg:text-7xl font-black text-slate-900 dark:text-slate-100 italic tracking-tighter leading-none select-none">
           {time.getHours().toString().padStart(2, '0')}
           <span className="animate-pulse text-indigo-500">:</span>
           {time.getMinutes().toString().padStart(2, '0')}
         </div>
 
-        <div className="text-2xl lg:text-4xl font-mono text-indigo-500/50 font-bold w-12">
+        <div className="text-xl lg:text-2xl font-mono text-indigo-500/50 font-bold w-10">
           {time.getSeconds().toString().padStart(2, '0')}
         </div>
       </div>
 
-      <p className="text-[10px] tracking-[0.5em] text-slate-600 dark:text-slate-400 font-black uppercase mb-12">
+      <p className="text-[10px] tracking-[0.4em] text-slate-600 dark:text-slate-400 font-black uppercase mb-6">
         Universal Time Protocol
       </p>
     </>
@@ -317,17 +339,17 @@ const Attendance = () => {
     }
   };
 
-  const liveWorkingHours = useMemo(() => {
-    if (!todayLog?.check_in_time) return "0.00";
+  const liveWorkingMinutes = useMemo(() => {
+    if (!todayLog?.check_in_time) return 0;
 
     if (todayLog?.check_out_time) {
-      return calculateWorkingHours(
+      return calculateWorkingMinutes(
         todayLog.check_in_time,
         todayLog.check_out_time
       );
     }
 
-    return calculateWorkingHours(
+    return calculateWorkingMinutes(
       todayLog.check_in_time,
       currentTime
     );
@@ -342,16 +364,16 @@ const Attendance = () => {
   }
 
   return (
-    <div className="p-6 lg:p-12 text-slate-600 dark:text-slate-200 font-sans">
-      <div className="max-w-7xl mx-auto">
+    <div className="p-4 lg:p-6 text-slate-600 dark:text-slate-200 font-sans max-h-screen overflow-y-auto lg:overflow-hidden">
+      <div className="max-w-7xl mx-auto space-y-6">
 
         {/* HEADER */}
-        <header className="flex justify-between items-end mb-16">
+        <header className="flex justify-between items-end mb-4">
           <div>
             <motion.h2
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="text-5xl font-black text-slate-900 dark:text-slate-100 italic tracking-tighter leading-none"
+              className="text-3xl lg:text-4xl font-black text-slate-900 dark:text-slate-100 italic tracking-tighter leading-none"
             >
               STAFF.
               <span className="text-indigo-500">
@@ -359,7 +381,7 @@ const Attendance = () => {
               </span>
             </motion.h2>
 
-            <div className="flex items-center gap-2 mt-4">
+            <div className="flex items-center gap-2 mt-2">
               <div
                 className={`h-1.5 w-1.5 rounded-full animate-pulse ${
                   todayLog?.check_in_time && !todayLog?.check_out_time
@@ -380,7 +402,7 @@ const Attendance = () => {
             </div>
           </div>
 
-          <div className="hidden md:block bg-white dark:bg-slate-900 px-6 py-3 rounded-2xl border">
+          <div className="hidden md:block bg-white dark:bg-slate-900 px-5 py-2.5 rounded-xl border text-xs font-bold shadow-xs">
             {currentTime.toLocaleDateString('en-IN', {
               weekday: 'short',
               day: '2-digit',
@@ -397,9 +419,9 @@ const Attendance = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="mb-8"
+              className="mb-4"
             >
-              <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-500 text-[10px] font-black uppercase tracking-widest">
+              <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-500 text-[10px] font-black uppercase tracking-widest">
                 <AlertTriangle size={14} />
                 {error}
               </div>
@@ -411,9 +433,9 @@ const Attendance = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="mb-8"
+              className="mb-4"
             >
-              <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl flex items-center gap-3 text-emerald-400 text-[10px] font-black uppercase tracking-widest">
+              <div className="p-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl flex items-center gap-3 text-emerald-400 text-[10px] font-black uppercase tracking-widest">
                 <CheckCircle2 size={14} />
                 {successMsg}
               </div>
@@ -422,20 +444,20 @@ const Attendance = () => {
 
         </AnimatePresence>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
           {/* LEFT */}
-          <div className="lg:col-span-8 space-y-10">
+          <div className="lg:col-span-8 space-y-6">
 
             {/* MAIN */}
             <div className="relative group">
-              <div className="relative bg-white dark:bg-slate-900 border rounded-[3rem] p-12 lg:p-24 flex flex-col items-center overflow-hidden shadow-xl">
+              <div className="relative bg-white dark:bg-slate-900 border rounded-3xl p-6 lg:p-8 flex flex-col items-center overflow-hidden shadow-lg">
 
-                <Fingerprint className="absolute -bottom-10 -right-10 text-slate-100 dark:text-slate-950/20 w-64 h-64 -rotate-12" />
+                <Fingerprint className="absolute -bottom-10 -right-10 text-slate-100 dark:text-slate-950/20 w-48 h-48 -rotate-12" />
 
                 <LiveClock />
 
-                <div className="grid grid-cols-2 gap-6 w-full max-w-md relative z-10">
+                <div className="grid grid-cols-2 gap-4 w-full max-w-sm relative z-10">
 
                   <motion.button
                     whileHover={{ scale: 1.02 }}
@@ -446,11 +468,11 @@ const Attendance = () => {
                         !todayLog?.check_out_time)
                     }
                     onClick={() => handleAction('check-in')}
-                    className="bg-emerald-500 disabled:opacity-30 hover:bg-emerald-600 p-6 rounded-3xl text-slate-900 font-bold flex flex-col items-center gap-3 cursor-pointer"
+                    className="bg-emerald-500 disabled:opacity-30 hover:bg-emerald-600 p-4 rounded-2xl text-slate-900 font-bold flex flex-col items-center gap-2 cursor-pointer"
                   >
-                    <LogIn size={24} />
+                    <LogIn size={20} />
                     <span className="text-xs uppercase tracking-widest">
-                      Initialize
+                      Login
                     </span>
                   </motion.button>
 
@@ -463,11 +485,11 @@ const Attendance = () => {
                       todayLog?.check_out_time
                     }
                     onClick={() => handleAction('check-out')}
-                    className="bg-red-500 disabled:opacity-30 hover:bg-red-600 p-6 rounded-3xl text-white font-bold flex flex-col items-center gap-3 cursor-pointer"
+                    className="bg-red-500 disabled:opacity-30 hover:bg-red-600 p-4 rounded-2xl text-white font-bold flex flex-col items-center gap-2 cursor-pointer"
                   >
-                    <LogOut size={24} />
+                    <LogOut size={20} />
                     <span className="text-xs uppercase tracking-widest">
-                      Terminate
+                      Logout
                     </span>
                   </motion.button>
 
@@ -493,8 +515,8 @@ const Attendance = () => {
               />
 
               <StatBlock
-                label="Work Hours"
-                value={`${liveWorkingHours}h`}
+                label="Work Minutes"
+                value={`${liveWorkingMinutes} MINS`}
                 icon={Timer}
                 color="text-emerald-400"
               />
@@ -522,9 +544,9 @@ const Attendance = () => {
           <aside className="lg:col-span-4">
             
             {/* SELECTED DATE DETAILS & DROPDOWN CALENDAR */}
-            <div className="bg-white dark:bg-slate-900 border rounded-[2.5rem] p-8 shadow-sm relative">
+            <div className="bg-white dark:bg-slate-900 border rounded-2xl p-6 shadow-sm relative">
               
-              <div className="flex justify-between items-center mb-6 relative">
+              <div className="flex justify-between items-center mb-4 relative">
                 <h2 className="text-[10px] font-black tracking-[0.3em] text-indigo-500 uppercase">
                   Registry Logs
                 </h2>
@@ -632,8 +654,8 @@ const Attendance = () => {
                   />
 
                   <DetailRow
-                    label="Accrued Hours"
-                    value={`${calculateWorkingHours(selectedLog.check_in_time, selectedLog.check_out_time)} HRS`}
+                    label="Accrued Minutes"
+                    value={formatAccruedMinutes(selectedLog.check_in_time, selectedLog.check_out_time)}
                   />
 
                   <DetailRow
@@ -658,14 +680,14 @@ const Attendance = () => {
 };
 
 const StatBlock = ({ label, value, icon: Icon, color }) => (
-  <div className="bg-white dark:bg-slate-900 border p-6 rounded-[2rem] shadow-sm">
-    <Icon size={18} className={`mb-4 ${color}`} />
+  <div className="bg-white dark:bg-slate-900 border p-4 rounded-2xl shadow-xs">
+    <Icon size={16} className={`mb-2 ${color}`} />
 
     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-1">
       {label}
     </p>
 
-    <p className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight">
+    <p className="text-base font-black text-slate-900 dark:text-slate-100 tracking-tight">
       {value}
     </p>
   </div>

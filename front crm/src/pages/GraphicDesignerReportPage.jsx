@@ -849,7 +849,7 @@ const GraphicDesignerReportPage = () => {
       let currentY = 15;
       
       const drawSectionHeader = (title) => {
-        doc.setFillColor(43, 48, 128); // KODBRAND Navy
+        doc.setFillColor(43, 48, 128); // AMFIX Deep Teal
         doc.rect(14, currentY, 182, 7, 'F');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9.5);
@@ -864,7 +864,7 @@ const GraphicDesignerReportPage = () => {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
       doc.setTextColor(255, 255, 255);
-      doc.text("KODBRAND — Monthly Consolidated Report", 18, 20);
+      doc.text("AMFIX Enterprise CRM — Monthly Consolidated Report", 18, 20);
 
       doc.setFontSize(8);
       doc.text("Graphic Designer  ·  CMO Office", 145, 20);

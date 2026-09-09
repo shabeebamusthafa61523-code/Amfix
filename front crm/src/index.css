@@ -3,46 +3,46 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* Strict mapping to user-defined theme colors */
-  --color-indigo-50: #f4f6f9;
-  --color-indigo-100: #e8ecf1;
-  --color-indigo-200: #cbd5e1;
-  --color-indigo-300: #94a3b8;
-  --color-indigo-400: #64748b;
-  --color-indigo-500: #442d82; /* Primary deep blue-slate */
-  --color-indigo-600: #442d82; /* Primary deep blue-slate */
-  --color-indigo-700: #35216b; /* Darker hover */
-  --color-indigo-800: #1d2838;
-  --color-indigo-900: #121924;
-  --color-indigo-950: #0b0f16;
+  /* Strict mapping to user-defined logo theme colors */
+  --color-indigo-50: #f0f7f9;
+  --color-indigo-100: #dceef2;
+  --color-indigo-200: #b9dee6;
+  --color-indigo-300: #88c4d2;
+  --color-indigo-400: #4da3b7;
+  --color-indigo-500: #1f6d85; /* Primary Deep Teal from Logo */
+  --color-indigo-600: #19586b; /* Hover Deep Teal */
+  --color-indigo-700: #134453; /* Darker Deep Teal */
+  --color-indigo-800: #0f323e;
+  --color-indigo-900: #0b222b;
+  --color-indigo-950: #061318;
 
-  --color-lime-50: #f7fcf5;
-  --color-lime-100: #ebf7e6;
-  --color-lime-200: #d6f0cd;
-  --color-lime-300: #bde7b1;
-  --color-lime-400: #b7d333; /* Accent lime green */
-  --color-lime-500: #b7d333; /* Accent lime green */
-  --color-lime-600: #9eb827; /* Darker hover */
-  --color-lime-700: #73aa5d;
-  --color-lime-800: #5f934b;
-  --color-lime-900: #4a7d3a;
+  --color-lime-50: #f4f6fa;
+  --color-lime-100: #e5eaf3;
+  --color-lime-200: #ced8e6;
+  --color-lime-300: #b8c5d8;
+  --color-lime-400: #a3b2c8; /* Secondary Slate Blue from Logo */
+  --color-lime-500: #a3b2c8; /* Secondary Slate Blue from Logo */
+  --color-lime-600: #8596ae; /* Darker Slate Hover */
+  --color-lime-700: #687991;
+  --color-lime-800: #4e5c71;
+  --color-lime-900: #364151;
 
-  --color-emerald-500: #b7d333;
-  --color-emerald-600: #9eb827;
+  --color-emerald-500: #a3b2c8;
+  --color-emerald-600: #8596ae;
 
-  --color-cyan-400: #442d82;
-  --color-cyan-500: #442d82;
-  --color-cyan-600: #35216b;
+  --color-cyan-400: #1f6d85;
+  --color-cyan-500: #1f6d85;
+  --color-cyan-600: #19586b;
 
-  --color-rose-500: #e26a6a; /* Premium soft corporate red */
+  --color-rose-500: #e26a6a;
   --color-rose-600: #c95353;
   --color-rose-700: #b03d3d;
   
   --color-red-500: #e26a6a;
   --color-red-600: #c95353;
 
-  --color-orange-500: #442d82;
-  --color-orange-600: #35216b;
+  --color-orange-500: #1f6d85;
+  --color-orange-600: #19586b;
 }
 
 /* 1. Global Core Reset */
@@ -83,9 +83,9 @@ div[class*="h-[2px]"][class*="bg-gradient-to-r"] {
   transition: border-color 0.2s, box-shadow 0.2s !important;
 
   &:hover {
-    border-color: #442d82 !important;
+    border-color: #1f6d85 !important;
     background-color: #ffffff !important;
-    box-shadow: 0 4px 12px rgba(68, 45, 130, 0.08) !important;
+    box-shadow: 0 4px 12px rgba(31, 109, 133, 0.12) !important;
     transform: none !important;
   }
 
@@ -95,7 +95,7 @@ div[class*="h-[2px]"][class*="bg-gradient-to-r"] {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
 
     &:hover {
-      border-color: #b7d333 !important;
+      border-color: #a3b2c8 !important;
       background-color: #1e293b !important;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
     }
@@ -190,22 +190,22 @@ aside[class*="fixed"] {
 
 /* Active sidebar item styling matching accent */
 div[class*="bg-indigo-600"][class*="shadow-xl"] {
-  background-color: #442d82 !important;
+  background-color: #1f6d85 !important;
   color: #ffffff !important;
   box-shadow: none !important;
-  border: 1px solid #442d82 !important;
+  border: 1px solid #1f6d85 !important;
 }
 
-/* Indicator dots - map to Accent #b7d333 */
+/* Indicator dots - map to Accent #a3b2c8 */
 div[class*="bg-lime-400"][class*="rounded-full"] {
-  background-color: #b7d333 !important;
-  box-shadow: 0 0 8px rgba(183, 211, 51, 0.6) !important;
+  background-color: #a3b2c8 !important;
+  box-shadow: 0 0 8px rgba(163, 178, 200, 0.6) !important;
 }
 
 header[class*="fixed"] > div {
   background-color: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
-  box-shadow: 0 2px 12px rgba(68, 45, 130, 0.04) !important;
+  box-shadow: 0 2px 12px rgba(31, 109, 133, 0.04) !important;
 }
 
 .dark header[class*="fixed"] > div {
@@ -232,19 +232,19 @@ span[class*="italic"] {
 span[class*="bg-orange-500"],
 span[class*="bg-amber-500"],
 span[class*="text-orange-500"] {
-  background-color: rgba(68, 45, 130, 0.08) !important;
-  color: #442d82 !important;
-  border: 1px solid rgba(68, 45, 130, 0.15) !important;
+  background-color: rgba(31, 109, 133, 0.08) !important;
+  color: #1f6d85 !important;
+  border: 1px solid rgba(31, 109, 133, 0.15) !important;
 }
 
 div[class*="bg-slate-500"],
 div[class*="bg-amber-500"],
 div[class*="bg-indigo-500"] {
-  background-color: #442d82 !important;
+  background-color: #1f6d85 !important;
 }
 
 div[class*="bg-emerald-500"] {
-  background-color: #b7d333 !important;
+  background-color: #a3b2c8 !important;
   color: #1e293b !important;
 }
 
@@ -272,8 +272,8 @@ input, select, textarea {
 }
 
 input:focus, select:focus, textarea:focus {
-  border-color: #442d82 !important;
-  box-shadow: 0 0 0 2px rgba(68, 45, 130, 0.15) !important;
+  border-color: #1f6d85 !important;
+  box-shadow: 0 0 0 2px rgba(31, 109, 133, 0.15) !important;
   outline: none !important;
 }
 

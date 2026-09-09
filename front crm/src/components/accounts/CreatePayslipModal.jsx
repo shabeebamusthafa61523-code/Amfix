@@ -478,7 +478,7 @@ const CreatePayslipModal = ({ isOpen, onClose, onSuccess }) => {
                   </div>
                 )}
                 <div>
-                  <label className="block text-[11px] text-slate-500 font-semibold mb-1">KODBRAND Integrity</label>
+                  <label className="block text-[11px] text-slate-500 font-semibold mb-1">AMFIX Integrity</label>
                   <input
                     type="number"
                     value={integrityAward}

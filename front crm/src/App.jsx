@@ -171,9 +171,15 @@ const LandingRoute = () => {
   return <Navigate to="/login" replace />;
 };
 
+import OpeningLoader from './components/OpeningLoader';
+
 function App() {
+  const [showOpeningLoader, setShowOpeningLoader] = React.useState(true);
+
   return (
-    <UserProvider><Router>
+    <UserProvider>
+      {showOpeningLoader && <OpeningLoader onComplete={() => setShowOpeningLoader(false)} />}
+      <Router>
       <Routes>
         {/* Auth Routes - No Sidebar */}
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />

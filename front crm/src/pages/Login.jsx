@@ -175,9 +175,9 @@ const Login = () => {
         <div className="text-center mb-10">
          <div className="flex justify-center items-center mb-10">
           <img 
-            src="/logo2.png" 
-            alt="KODBRAND Logo" 
-            className="h-22 w-auto object-contain" 
+            src={isDark ? "/logo_white.png" : "/logo_dark.png"} 
+            alt="AMFIX ACADEMY Logo" 
+            className="h-24 max-w-full w-auto object-contain filter drop-shadow-md transition-all duration-300" 
           />
         </div>
 

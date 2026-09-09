@@ -175,7 +175,7 @@ export const sendBrevoSms = async ({ recipientMobile, message, sender = null, ta
     cleanMobile = `+91${cleanMobile}`;
   }
 
-  const senderName = sender || process.env.BREVO_SMS_SENDER || 'KODBRAND';
+  const senderName = sender || process.env.BREVO_SMS_SENDER || 'AMFIX Enterprise CRM';
 
   if (!apiKey) {
     console.log(`\n================== 📱 SIMULATED SMS DELIVERY 💾 ==================`);

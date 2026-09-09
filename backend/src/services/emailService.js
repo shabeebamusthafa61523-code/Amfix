@@ -76,7 +76,7 @@ export const sendEmail = async ({
   }
 
   const defaultSenderEmail = senderEmail || process.env.BREVO_SENDER_EMAIL || process.env.VITE_EMAIL_SENDER_ADDRESS || process.env.SMTP_FROM || 'kodbrandsolutions@gmail.com';
-  const defaultSenderName = senderName || process.env.BREVO_SENDER_NAME || process.env.VITE_EMAIL_SENDER_NAME || 'KODBRAND';
+  const defaultSenderName = senderName || process.env.BREVO_SENDER_NAME || process.env.VITE_EMAIL_SENDER_NAME || 'AMFIX Enterprise CRM';
 
   // 1. Try Brevo API v3
   const apiKey = (apiKeyOverride && String(apiKeyOverride).trim()) || getBrevoApiKey();

@@ -120,7 +120,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
       advanceSalary:      Number(rec.advanceSalary || 0),
       otherDeductions:    Number(rec.otherDeductions || 0),
       otherDeductionsRemark: rec.otherDeductionsRemark || '',
-      companyName:        rec.companyName || 'KODBRAND SOLUTIONS',
+      companyName:        rec.companyName || 'AMFIX ENTERPRISE SOLUTIONS',
       companyAddressLine1: rec.companyAddressLine1 || '3rd Floor, Aranyakam Building',
       companyAddressLine2: rec.companyAddressLine2 || 'thamarauzhi road, up hill',
       companyAddressLine3: rec.companyAddressLine3 || 'malappuram, kerala-676505',
@@ -634,7 +634,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                           ['specialAllowance', 'Special Allowance'],
                           ['transportAllowance', 'Transport Allowance'],
                           ['otherAllowance', 'Other Allowance'],
-                          ['integrityAward', 'KODBRAND Integrity Award'],
+                          ['integrityAward', 'AMFIX Integrity Award'],
                           ['bonus', 'Bonus'],
                         ].map(([field, label]) => (
                           <tr key={field}>
@@ -730,7 +730,7 @@ const PayslipModal = ({ isOpen, onClose, salaryRecord, onSaved, isSmall = false 
                     </div>
                   ) : (
                     <>
-                      <p className="font-black text-[#0D1E4A]">{edited.companyName || 'KODBRAND SOLUTIONS'}</p>
+                      <p className="font-black text-[#0D1E4A]">{edited.companyName || 'AMFIX ENTERPRISE SOLUTIONS'}</p>
                       <p>{edited.companyAddressLine1 || '3rd Floor, Aranyakam Building'}</p>
                       <p>{edited.companyAddressLine2 || 'thamarauzhi road, up hill'}</p>
                       <p>{edited.companyAddressLine3 || 'malappuram, kerala-676505'}</p>

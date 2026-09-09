@@ -78,7 +78,7 @@ const salaryPaymentSchema = new mongoose.Schema({
   },
   companyName: {
     type: String,
-    default: 'KODBRAND SOLUTIONS'
+    default: 'AMFIX ENTERPRISE SOLUTIONS'
   },
   companyAddressLine1: {
     type: String,
