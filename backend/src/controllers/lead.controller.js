@@ -257,22 +257,6 @@ export const leadController = {
       }
 
       try {
-        const session = await mongoose.startSession();
-        await session.withTransaction(async () => {
-          const [newLead] = await Lead.create([leadPayload], { session });
-          createdLead = newLead;
-          const initialFollowup = new LeadFollowup({
-            leadId: newLead._id,
-            remarks: remarks || 'Lead created in CRM.',
-            statusChangedTo: newLead.status,
-            nextFollowUpDate: newLead.nextFollowUpDate,
-            createdBy: createdById
-          });
-          await initialFollowup.save({ session });
-        });
-        await session.endSession();
-      } catch (txErr) {
-        // Fallback for standalone MongoDB deployments where transactions are not supported
         createdLead = await Lead.create(leadPayload);
         const initialFollowup = new LeadFollowup({
           leadId: createdLead._id,
@@ -282,9 +266,11 @@ export const leadController = {
           createdBy: createdById
         });
         await initialFollowup.save();
+      } catch (err) {
+        throw err;
       }
 
-      // Post transactions (async)
+      // Post updates (async)
       await clearAnalyticsCache();
       logAudit('CREATE_LEAD', req, createdLead._id, { leadName: createdLead.leadName, status: createdLead.status });
 
@@ -307,7 +293,6 @@ export const leadController = {
    * PUT /api/v1/leads/update/:id
    */
   updateLead: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const id = req.params.id || req.body.id || req.body._id;
 
@@ -315,108 +300,97 @@ export const leadController = {
         return res.status(400).json({ success: false, message: 'Valid Lead ID is required.' });
       }
 
-      let updatedLead;
       const userId = req.user?.id || req.user?._id;
+      const lead = await Lead.findById(id);
+      if (!lead) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
 
-      await session.withTransaction(async () => {
-        const lead = await Lead.findById(id).session(session);
-        if (!lead) {
-          throw new Error('NOT_FOUND_ERROR: Lead not found');
+      const {
+        leadName, companyName, email, phone, city, source,
+        interestedService, campaignName, leadPlatform, assignedTo, status, priority, remarks, nextFollowUpDate, lostReason,
+        clientMeetingFixed, admissionYesNo, leadsReceivedDate,
+        followUpDate1, followUpDate2, followUpDate3, followUpDate4, followUpDate5
+      } = req.body;
+
+      const previousStatus = lead.status;
+      const previousAssignment = lead.assignedTo;
+
+      if (leadName !== undefined) lead.leadName = leadName;
+      if (companyName !== undefined) lead.companyName = companyName;
+      if (email !== undefined) lead.email = email;
+      if (phone !== undefined) lead.phone = phone;
+      if (city !== undefined) lead.city = city;
+      if (source !== undefined) lead.source = source;
+      if (interestedService !== undefined) lead.interestedService = interestedService;
+      if (campaignName !== undefined) lead.campaignName = campaignName;
+      if (leadPlatform !== undefined) lead.leadPlatform = leadPlatform;
+      if (priority !== undefined) lead.priority = priority;
+      if (clientMeetingFixed !== undefined) lead.clientMeetingFixed = clientMeetingFixed;
+      if (admissionYesNo !== undefined) lead.admissionYesNo = admissionYesNo;
+      if (remarks !== undefined) lead.remarks = remarks;
+      if (nextFollowUpDate !== undefined) lead.nextFollowUpDate = nextFollowUpDate ? new Date(nextFollowUpDate) : null;
+      if (leadsReceivedDate !== undefined) lead.leadsReceivedDate = leadsReceivedDate ? new Date(leadsReceivedDate) : null;
+      if (followUpDate1 !== undefined) lead.followUpDate1 = followUpDate1 ? new Date(followUpDate1) : null;
+      if (followUpDate2 !== undefined) lead.followUpDate2 = followUpDate2 ? new Date(followUpDate2) : null;
+      if (followUpDate3 !== undefined) lead.followUpDate3 = followUpDate3 ? new Date(followUpDate3) : null;
+      if (followUpDate4 !== undefined) lead.followUpDate4 = followUpDate4 ? new Date(followUpDate4) : null;
+      if (followUpDate5 !== undefined) lead.followUpDate5 = followUpDate5 ? new Date(followUpDate5) : null;
+
+      if (assignedTo !== undefined) {
+        const targetAssignedId = (assignedTo && typeof assignedTo === 'object') ? (assignedTo._id || assignedTo.id) : assignedTo;
+        lead.assignedTo = (targetAssignedId && mongoose.Types.ObjectId.isValid(targetAssignedId)) ? targetAssignedId : null;
+      }
+
+      if (status !== undefined) {
+        lead.status = status;
+        if (status === 'Converted' && previousStatus !== 'Converted') {
+          lead.convertedAt = new Date();
+          lead.lostReason = undefined;
+        } else if (status === 'Lost') {
+          lead.lostReason = lostReason || 'Not specified';
+          lead.convertedAt = undefined;
+        } else {
+          lead.convertedAt = undefined;
+          lead.lostReason = undefined;
         }
+      }
 
+      await lead.save();
 
+      // Change history logic
+      const changes = [];
+      if (status && status !== previousStatus) {
+        changes.push(`Status changed from "${previousStatus}" to "${status}"`);
+      }
+      if (assignedTo !== undefined && String(assignedTo || '') !== String(previousAssignment || '')) {
+        const targetAssignedId = (assignedTo && typeof assignedTo === 'object') ? (assignedTo._id || assignedTo.id) : assignedTo;
+        const staff = (targetAssignedId && mongoose.Types.ObjectId.isValid(targetAssignedId)) ? await User.findById(targetAssignedId).lean() : null;
+        const staffName = staff ? staff.name : 'Unassigned/Unknown';
+        changes.push(`Lead assigned to "${staffName}"`);
+      }
 
-        const {
-          leadName, companyName, email, phone, city, source,
-          interestedService, campaignName, leadPlatform, assignedTo, status, priority, remarks, nextFollowUpDate, lostReason,
-          clientMeetingFixed, admissionYesNo, leadsReceivedDate,
-          followUpDate1, followUpDate2, followUpDate3, followUpDate4, followUpDate5
-        } = req.body;
+      if (changes.length > 0) {
+        const changeFollowup = new LeadFollowup({
+          leadId: lead._id,
+          remarks: `Lead updated. ${changes.join('. ')}.`,
+          statusChangedTo: status || lead.status,
+          nextFollowUpDate: lead.nextFollowUpDate,
+          createdBy: userId
+        });
+        await changeFollowup.save();
+      }
 
-        const previousStatus = lead.status;
-        const previousAssignment = lead.assignedTo;
-
-        if (leadName !== undefined) lead.leadName = leadName;
-        if (companyName !== undefined) lead.companyName = companyName;
-        if (email !== undefined) lead.email = email;
-        if (phone !== undefined) lead.phone = phone;
-        if (city !== undefined) lead.city = city;
-        if (source !== undefined) lead.source = source;
-        if (interestedService !== undefined) lead.interestedService = interestedService;
-        if (campaignName !== undefined) lead.campaignName = campaignName;
-        if (leadPlatform !== undefined) lead.leadPlatform = leadPlatform;
-        if (priority !== undefined) lead.priority = priority;
-        if (clientMeetingFixed !== undefined) lead.clientMeetingFixed = clientMeetingFixed;
-        if (admissionYesNo !== undefined) lead.admissionYesNo = admissionYesNo;
-        if (remarks !== undefined) lead.remarks = remarks;
-        if (nextFollowUpDate !== undefined) lead.nextFollowUpDate = nextFollowUpDate ? new Date(nextFollowUpDate) : null;
-        if (leadsReceivedDate !== undefined) lead.leadsReceivedDate = leadsReceivedDate ? new Date(leadsReceivedDate) : null;
-        if (followUpDate1 !== undefined) lead.followUpDate1 = followUpDate1 ? new Date(followUpDate1) : null;
-        if (followUpDate2 !== undefined) lead.followUpDate2 = followUpDate2 ? new Date(followUpDate2) : null;
-        if (followUpDate3 !== undefined) lead.followUpDate3 = followUpDate3 ? new Date(followUpDate3) : null;
-        if (followUpDate4 !== undefined) lead.followUpDate4 = followUpDate4 ? new Date(followUpDate4) : null;
-        if (followUpDate5 !== undefined) lead.followUpDate5 = followUpDate5 ? new Date(followUpDate5) : null;
-
-        if (assignedTo !== undefined) {
-          lead.assignedTo = mongoose.Types.ObjectId.isValid(assignedTo) ? assignedTo : null;
-        }
-
-        if (status !== undefined) {
-          lead.status = status;
-          if (status === 'Converted' && previousStatus !== 'Converted') {
-            lead.convertedAt = new Date();
-            lead.lostReason = undefined;
-          } else if (status === 'Lost') {
-            lead.lostReason = lostReason || 'Not specified';
-            lead.convertedAt = undefined;
-          } else {
-            lead.convertedAt = undefined;
-            lead.lostReason = undefined;
-          }
-        }
-
-        await lead.save({ session });
-        updatedLead = lead;
-
-        // Change history logic
-        const changes = [];
-        if (status && status !== previousStatus) {
-          changes.push(`Status changed from "${previousStatus}" to "${status}"`);
-        }
-        if (assignedTo !== undefined && String(assignedTo || '') !== String(previousAssignment || '')) {
-          const staff = await User.findById(assignedTo).lean();
-          const staffName = staff ? staff.name : 'Unassigned/Unknown';
-          changes.push(`Lead assigned to "${staffName}"`);
-        }
-
-        if (changes.length > 0) {
-          const changeFollowup = new LeadFollowup({
-            leadId: lead._id,
-            remarks: `Lead updated. ${changes.join('. ')}.`,
-            statusChangedTo: status || lead.status,
-            nextFollowUpDate: lead.nextFollowUpDate,
-            createdBy: userId
-          });
-          await changeFollowup.save({ session });
-        }
-      });
-
-      await session.endSession();
       await clearAnalyticsCache();
-      logAudit('UPDATE_LEAD', req, updatedLead._id, { updateStatus: 'Basic tracking logged' });
+      logAudit('UPDATE_LEAD', req, lead._id, { updateStatus: 'Basic tracking logged' });
 
       return res.status(200).json({
         success: true,
         message: 'Lead updated successfully',
-        data: updatedLead
+        data: lead
       });
     } catch (error) {
-      await session.endSession();
       console.error('Error updating lead:', error);
-      
-      if (error.message.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
-      if (error.message.startsWith('FORBIDDEN_ERROR:')) return res.status(403).json({ success: false, message: error.message.split(': ')[1] });
-      
       return res.status(500).json({ success: false, message: 'Failed to update lead', error: error.message });
     }
   },
@@ -425,7 +399,6 @@ export const leadController = {
    * POST /api/v1/leads/followup
    */
   addFollowUp: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const leadId = req.body.leadId || req.body.id || req.params.id;
       const { remarks, nextFollowUpDate, callSummary, meetingNotes, statusChangedTo } = req.body;
@@ -438,57 +411,51 @@ export const leadController = {
         return res.status(400).json({ success: false, message: 'At least one summary field required.' });
       }
 
-      let createdFollowup;
       const createdById = req.user?.id || req.user?._id;
 
-      await session.withTransaction(async () => {
-        const lead = await Lead.findById(leadId).session(session);
-        if (!lead) {
-          throw new Error('NOT_FOUND_ERROR: Lead not found');
-        }
+      const lead = await Lead.findById(leadId);
+      if (!lead) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
 
-        const followup = new LeadFollowup({
-          leadId,
-          remarks: remarks || 'Follow-up logged.',
-          nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
-          callSummary,
-          meetingNotes,
-          statusChangedTo: statusChangedTo || lead.status,
-          createdBy: createdById
-        });
-        await followup.save({ session });
-        createdFollowup = followup;
-
-        if (statusChangedTo) {
-          const previousStatus = lead.status;
-          lead.status = statusChangedTo;
-          if (statusChangedTo === 'Converted' && previousStatus !== 'Converted') {
-            lead.convertedAt = new Date();
-            lead.lostReason = undefined;
-          } else if (statusChangedTo === 'Lost') {
-            lead.lostReason = req.body.lostReason || 'Not specified';
-            lead.convertedAt = undefined;
-          }
-        }
-
-        if (nextFollowUpDate !== undefined) lead.nextFollowUpDate = nextFollowUpDate ? new Date(nextFollowUpDate) : null;
-        if (remarks) lead.remarks = remarks;
-
-        await lead.save({ session });
+      const followup = new LeadFollowup({
+        leadId,
+        remarks: remarks || 'Follow-up logged.',
+        nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
+        callSummary,
+        meetingNotes,
+        statusChangedTo: statusChangedTo || lead.status,
+        createdBy: createdById
       });
+      await followup.save();
 
-      await session.endSession();
+      if (statusChangedTo) {
+        const previousStatus = lead.status;
+        lead.status = statusChangedTo;
+        if (statusChangedTo === 'Converted' && previousStatus !== 'Converted') {
+          lead.convertedAt = new Date();
+          lead.lostReason = undefined;
+        } else if (statusChangedTo === 'Lost') {
+          lead.lostReason = req.body.lostReason || 'Not specified';
+          lead.convertedAt = undefined;
+        }
+      }
+
+      if (nextFollowUpDate !== undefined) lead.nextFollowUpDate = nextFollowUpDate ? new Date(nextFollowUpDate) : null;
+      if (remarks) lead.remarks = remarks;
+
+      await lead.save();
+
       await clearAnalyticsCache();
       logAudit('ADD_FOLLOWUP', req, leadId, { statusChangedTo });
 
       return res.status(201).json({
         success: true,
         message: 'Follow-up logged successfully',
-        data: createdFollowup
+        data: followup
       });
     } catch (error) {
-      await session.endSession();
-      if (error.message.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
+      console.error('Error adding follow-up:', error);
       return res.status(500).json({ success: false, message: 'Failed to record follow-up', error: error.message });
     }
   },
@@ -497,7 +464,6 @@ export const leadController = {
    * POST /api/v1/leads/status-update
    */
   updateStatus: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const leadId = req.body.leadId || req.body.id || req.params.id;
       const { status, lostReason } = req.body;
@@ -506,44 +472,42 @@ export const leadController = {
         return res.status(400).json({ success: false, message: 'Lead ID and Status are required.' });
       }
 
-      await session.withTransaction(async () => {
-        const lead = await Lead.findById(leadId).session(session);
-        if (!lead) throw new Error('NOT_FOUND_ERROR: Lead not found');
+      const lead = await Lead.findById(leadId);
+      if (!lead) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
 
-        const previousStatus = lead.status;
-        lead.status = status;
+      const previousStatus = lead.status;
+      lead.status = status;
 
-        if (status === 'Converted' && previousStatus !== 'Converted') {
-          lead.convertedAt = new Date();
-          lead.lostReason = undefined;
-        } else if (status === 'Lost') {
-          lead.lostReason = lostReason || 'Not specified';
-          lead.convertedAt = undefined;
-        } else {
-          lead.convertedAt = undefined;
-          lead.lostReason = undefined;
-        }
+      if (status === 'Converted' && previousStatus !== 'Converted') {
+        lead.convertedAt = new Date();
+        lead.lostReason = undefined;
+      } else if (status === 'Lost') {
+        lead.lostReason = lostReason || 'Not specified';
+        lead.convertedAt = undefined;
+      } else {
+        lead.convertedAt = undefined;
+        lead.lostReason = undefined;
+      }
 
-        await lead.save({ session });
+      await lead.save();
 
-        const followup = new LeadFollowup({
-          leadId,
-          remarks: `Status updated directly from "${previousStatus}" to "${status}".`,
-          statusChangedTo: status,
-          nextFollowUpDate: lead.nextFollowUpDate,
-          createdBy: req.user?.id || req.user?._id
-        });
-        await followup.save({ session });
+      const followup = new LeadFollowup({
+        leadId,
+        remarks: `Status updated directly from "${previousStatus}" to "${status}".`,
+        statusChangedTo: status,
+        nextFollowUpDate: lead.nextFollowUpDate,
+        createdBy: req.user?.id || req.user?._id
       });
+      await followup.save();
 
-      await session.endSession();
       await clearAnalyticsCache();
       logAudit('STATUS_UPDATE', req, leadId, { status });
 
       return res.status(200).json({ success: true, message: 'Lead status updated successfully' });
     } catch (error) {
-      await session.endSession();
-      if (error.message.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
+      console.error('Error updating status:', error);
       return res.status(500).json({ success: false, message: 'Failed to update status', error: error.message });
     }
   },
@@ -552,7 +516,6 @@ export const leadController = {
    * DELETE /api/v1/leads/delete/:id
    */
   deleteLead: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const id = req.params.id || req.body.id || req.body._id;
 
@@ -560,32 +523,20 @@ export const leadController = {
         return res.status(400).json({ success: false, message: 'Valid Lead ID required.' });
       }
 
-      await session.withTransaction(async () => {
-        const lead = await Lead.findById(id).session(session);
-        if (!lead) throw new Error('NOT_FOUND_ERROR: Lead not found');
+      const lead = await Lead.findById(id);
+      if (!lead) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
 
-        const userRole = String(req.user?.role || req.user?.role_id || '').toLowerCase().trim();
-        const userId = req.user?.id || req.user?._id;
-        const isPrivileged = ['1', '2', 'hr', 'admin'].includes(userRole);
-        
-        // Ownership check bypassed per user request to allow delete permissions for leads, leadstelecaller, and leads counselor pages
-        // if (!isPrivileged && String(lead.assignedTo) !== String(userId)) {
-        //   throw new Error('FORBIDDEN_ERROR: Unprivileged removal restriction applied.');
-        // }
+      await Lead.findByIdAndDelete(id);
+      await LeadFollowup.deleteMany({ leadId: id });
 
-        await Lead.findByIdAndDelete(id).session(session);
-        await LeadFollowup.deleteMany({ leadId: id }).session(session);
-      });
-
-      await session.endSession();
       await clearAnalyticsCache();
       logAudit('DELETE_LEAD', req, id, { deletedResource: id });
 
       return res.status(200).json({ success: true, message: 'Lead records clean-purged successfully.' });
     } catch (error) {
-      await session.endSession();
-      if (error.message.startsWith('NOT_FOUND_ERROR:')) return res.status(404).json({ success: false, message: error.message.split(': ')[1] });
-      if (error.message.startsWith('FORBIDDEN_ERROR:')) return res.status(403).json({ success: false, message: error.message.split(': ')[1] });
+      console.error('Error deleting lead:', error);
       return res.status(500).json({ success: false, message: 'Failed to delete lead', error: error.message });
     }
   },
@@ -595,7 +546,6 @@ export const leadController = {
    * Optimizes many writes through rapid standard batch arrays
    */
   importLeads: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const { leads } = req.body;
       if (!leads || !Array.isArray(leads) || leads.length === 0) {
@@ -603,54 +553,48 @@ export const leadController = {
       }
 
       const createdById = req.user?.id || req.user?._id;
-      let insertedCount = 0;
 
-      await session.withTransaction(async () => {
-        const leadRecords = leads.map(item => ({
-          leadName: item.leadName || 'Unnamed Lead',
-          phone: item.phone ? String(item.phone).replace(/^p:/i, '').trim() : '0000000000',
-          email: item.email || '',
-          companyName: item.companyName || '',
-          city: item.city || '',
-          source: item.source || 'Imported Excel',
-          interestedService: item.interestedService || '',
-          campaignName: item.campaignName || '',
-          leadPlatform: item.leadPlatform || '',
-          status: item.status || 'New',
-          priority: item.priority || 'Medium',
-          clientMeetingFixed: item.clientMeetingFixed || '',
-          admissionYesNo: item.admissionYesNo || '',
-          remarks: item.remarks || 'Imported from Excel spreadsheet.',
-          leadsReceivedDate: item.leadsReceivedDate ? new Date(item.leadsReceivedDate) : null,
-          followUpDate1: item.followUpDate1 ? new Date(item.followUpDate1) : null,
-          followUpDate2: item.followUpDate2 ? new Date(item.followUpDate2) : null,
-          followUpDate3: item.followUpDate3 ? new Date(item.followUpDate3) : null,
-          followUpDate4: item.followUpDate4 ? new Date(item.followUpDate4) : null,
-          followUpDate5: item.followUpDate5 ? new Date(item.followUpDate5) : null,
-          createdBy: createdById
-        }));
+      const leadRecords = leads.map(item => ({
+        leadName: item.leadName || 'Unnamed Lead',
+        phone: item.phone ? String(item.phone).replace(/^p:/i, '').trim() : '0000000000',
+        email: item.email || '',
+        companyName: item.companyName || '',
+        city: item.city || '',
+        source: item.source || 'Imported Excel',
+        interestedService: item.interestedService || '',
+        campaignName: item.campaignName || '',
+        leadPlatform: item.leadPlatform || '',
+        status: item.status || 'New',
+        priority: item.priority || 'Medium',
+        clientMeetingFixed: item.clientMeetingFixed || '',
+        admissionYesNo: item.admissionYesNo || '',
+        remarks: item.remarks || 'Imported from Excel spreadsheet.',
+        leadsReceivedDate: item.leadsReceivedDate ? new Date(item.leadsReceivedDate) : null,
+        followUpDate1: item.followUpDate1 ? new Date(item.followUpDate1) : null,
+        followUpDate2: item.followUpDate2 ? new Date(item.followUpDate2) : null,
+        followUpDate3: item.followUpDate3 ? new Date(item.followUpDate3) : null,
+        followUpDate4: item.followUpDate4 ? new Date(item.followUpDate4) : null,
+        followUpDate5: item.followUpDate5 ? new Date(item.followUpDate5) : null,
+        createdBy: createdById
+      }));
 
-        // Optimized bulk insertion via session option passing
-        const insertedLeads = await Lead.insertMany(leadRecords, { session });
-        insertedCount = insertedLeads.length;
+      const insertedLeads = await Lead.insertMany(leadRecords);
+      const insertedCount = insertedLeads.length;
 
-        const followupRecords = insertedLeads.map(lead => ({
-          leadId: lead._id,
-          remarks: lead.remarks || 'Lead imported from Excel.',
-          statusChangedTo: lead.status,
-          createdBy: createdById
-        }));
+      const followupRecords = insertedLeads.map(lead => ({
+        leadId: lead._id,
+        remarks: lead.remarks || 'Lead imported from Excel.',
+        statusChangedTo: lead.status,
+        createdBy: createdById
+      }));
 
-        await LeadFollowup.insertMany(followupRecords, { session });
-      });
+      await LeadFollowup.insertMany(followupRecords);
 
-      await session.endSession();
       await clearAnalyticsCache();
       logAudit('IMPORT_LEADS', req, 'bulk', { count: insertedCount });
 
       return res.status(201).json({ success: true, message: `Successfully imported ${insertedCount} leads.` });
     } catch (error) {
-      await session.endSession();
       console.error('Error importing leads:', error);
       return res.status(500).json({ success: false, message: 'Failed to import leads', error: error.message });
     }
@@ -661,7 +605,6 @@ export const leadController = {
    * Replaced sequential slow for-loops with high-speed parallel Mongoose bulkWrites
    */
   bulkUpdateStatus: async (req, res) => {
-    const session = await mongoose.startSession();
     try {
       const { leadIds, status, lostReason } = req.body;
 
@@ -678,9 +621,8 @@ export const leadController = {
       const bulkLeadOperations = [];
       const followupRecordsToInsert = [];
 
-      // Fetch dynamic verification fields ahead of loop calculations
       const validIds = leadIds.filter(id => mongoose.Types.ObjectId.isValid(id));
-      const structuralLeadsMap = await Lead.find({ _id: { $in: validIds } }).session(session);
+      const structuralLeadsMap = await Lead.find({ _id: { $in: validIds } });
 
       for (const id of leadIds) {
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -694,7 +636,6 @@ export const leadController = {
           continue;
         }
 
-        // Row Security validations
         if (!isPrivileged && String(currentLead.assignedTo) !== String(userId)) {
           failedLeads.push({ id, reason: 'Access Denied (Ownership restriction)' });
           continue;
@@ -713,7 +654,6 @@ export const leadController = {
           updateFields.$unset = { convertedAt: "", lostReason: "" };
         }
 
-        // Queue Bulk update executions for structural efficiency
         bulkLeadOperations.push({
           updateOne: {
             filter: { _id: id },
@@ -732,15 +672,11 @@ export const leadController = {
         updatedLeads.push(id);
       }
 
-      // Execute combined execution writes atomically within isolated single query pipelines
       if (bulkLeadOperations.length > 0) {
-        await session.withTransaction(async () => {
-          await Lead.bulkWrite(bulkLeadOperations, { session });
-          await LeadFollowup.insertMany(followupRecordsToInsert, { session });
-        });
+        await Lead.bulkWrite(bulkLeadOperations);
+        await LeadFollowup.insertMany(followupRecordsToInsert);
       }
 
-      await session.endSession();
       await clearAnalyticsCache();
       logAudit('BULK_STATUS_UPDATE', req, 'bulk', { updatedCount: updatedLeads.length });
 
@@ -752,7 +688,6 @@ export const leadController = {
         failedLeads
       });
     } catch (error) {
-      await session.endSession();
       console.error('Error executing bulk state variations:', error);
       return res.status(500).json({ success: false, message: 'Failed operational pipeline execution.', error: error.message });
     }

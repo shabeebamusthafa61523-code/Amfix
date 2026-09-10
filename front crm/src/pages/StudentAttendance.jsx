@@ -772,23 +772,23 @@ const StudentAttendance = () => {
                         <div className="grid grid-cols-2 gap-3">
                           <button 
                             onClick={() => handleAction(studentId, 'present')}
-                            className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                            className={`py-3.5 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
                               isPresent 
-                              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/10' 
-                              : 'bg-slate-50 dark:bg-slate-950 text-emerald-600 border border-slate-100 dark:border-slate-850 hover:bg-emerald-500 hover:text-white'
+                              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 border border-emerald-500' 
+                              : 'bg-slate-50 dark:bg-slate-950 text-emerald-600 dark:text-emerald-400 border border-slate-100 dark:border-slate-850 hover:bg-emerald-50 dark:hover:bg-emerald-950/60'
                             }`}
                           >
-                            <CheckCircle2 size={14} /> {isPresent ? 'Saved' : 'Present'}
+                            <CheckCircle2 size={14} /> Present
                           </button>
                           <button 
                             onClick={() => handleAction(studentId, 'absent')}
-                            className={`py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                            className={`py-3.5 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer ${
                               isAbsent 
-                              ? 'bg-red-600 text-white shadow-lg shadow-red-600/10' 
-                              : 'bg-slate-50 dark:bg-slate-950 text-red-600 border border-slate-100 dark:border-slate-850 hover:bg-red-500 hover:text-white'
+                              ? 'bg-red-600 text-white shadow-lg shadow-red-600/20 border border-red-500' 
+                              : 'bg-slate-50 dark:bg-slate-950 text-red-600 dark:text-red-400 border border-slate-100 dark:border-slate-850 hover:bg-red-50 dark:hover:bg-red-950/60'
                             }`}
                           >
-                            <XCircle size={14} /> {isAbsent ? 'Saved' : 'Absent'}
+                            <XCircle size={14} /> Absent
                           </button>
                         </div>
                       </div>
@@ -850,15 +850,23 @@ const StudentAttendance = () => {
                                 </button>
                                 <button 
                                   onClick={() => handleAction(studentId, 'present')} 
-                                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${status === 'PRESENT' ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-100 dark:bg-slate-800 text-emerald-500 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white'}`}
+                                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    status === 'PRESENT' 
+                                    ? 'bg-emerald-600 text-white shadow-md border border-emerald-500' 
+                                    : 'bg-slate-100 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 border border-slate-200/80 dark:border-slate-700/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/60'
+                                  }`}
                                 >
-                                  Present
+                                  <CheckCircle2 size={13} /> Present
                                 </button>
                                 <button 
                                   onClick={() => handleAction(studentId, 'absent')} 
-                                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer ${status === 'ABSENT' ? 'bg-red-600 text-white shadow-md' : 'bg-red-500/10 dark:bg-red-800 text-red-500 dark:text-red-400 hover:bg-red-500 hover:text-white'}`}
+                                  className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    status === 'ABSENT' 
+                                    ? 'bg-red-600 text-white shadow-md border border-red-500' 
+                                    : 'bg-slate-100 dark:bg-slate-800 text-red-600 dark:text-red-400 border border-slate-200/80 dark:border-slate-700/80 hover:bg-red-50 dark:hover:bg-red-950/60'
+                                  }`}
                                 >
-                                  Absent
+                                  <XCircle size={13} /> Absent
                                 </button>
                               </div>
                             </td>
