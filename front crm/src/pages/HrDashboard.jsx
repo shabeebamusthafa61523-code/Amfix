@@ -233,6 +233,9 @@ export default function HrDashboard() {
 
     users.forEach(u => {
       if (!u.isActive && u.status === 'inactive') return;
+      const roleStr = String(u.role?.name || u.role || '').toLowerCase();
+      const roleIdStr = String(u.role_id || u.roleId || '').toLowerCase();
+      if (u.isSuperAdmin === true || u.is_super_admin === true || roleStr === 'superadmin' || roleStr === 'super admin' || roleStr === '0' || roleIdStr === '0') return;
 
       let isOnline = attendedUserIds.has(u._id.toString());
       const attRecord = attendance.find(a => a.user_id.toString() === u._id.toString());

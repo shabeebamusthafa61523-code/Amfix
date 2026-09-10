@@ -603,12 +603,12 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         }`}
       >
         {/* Logo header */}
-        <div className="h-16 flex items-center justify-between px-5 shrink-0 overflow-hidden border-b border-slate-100 dark:border-slate-800/40">
+        <div className={`h-16 flex items-center shrink-0 overflow-hidden border-b border-slate-100 dark:border-slate-800/40 ${isCollapsed ? 'justify-center px-2' : 'justify-between px-5'}`}>
           <div className="flex items-center gap-3">
             {!isCollapsed ? (
-              <img src="/logo3.png" alt="AMFIX Academy Logo" className="h-10 w-auto object-contain rounded-lg" />
+              <img src="/logo3.png" alt="AMFIX Academy Logo" className="h-10 w-auto object-contain" />
             ) : (
-              <img src="/logo2.png" alt="AMFIX Academy Logo Icon" className="h-9 w-9 object-contain rounded-lg shrink-0" />
+              <img src="/logo2.png" alt="AMFIX Academy Logo Icon" className="h-7.5 max-h-[30px] w-auto max-w-[30px] object-contain shrink-0 transition-transform" />
             )}
           </div>
           <button
@@ -677,7 +677,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         }`}
       >
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 dark:border-slate-800/80 shrink-0">
-          <img src="/logo3.png" alt="AMFIX Academy Logo" className="h-10 w-auto object-contain rounded-lg" />
+          <img src="/logo3.png" alt="AMFIX Academy Logo" className="h-10 w-auto object-contain" />
           <button 
             onClick={() => setIsMobileOpen(false)}
             className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"

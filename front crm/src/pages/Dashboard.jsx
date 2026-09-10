@@ -33,6 +33,25 @@ import { AiAnalyzeButton, AiAnalyzeModal } from '../components/AiAnalyzeModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+const isSuperAdminUser = (u) => {
+  if (!u) return false;
+  const roleStr = String(u.role?.name || u.role?.title || u.role || '').toLowerCase().trim();
+  const roleIdStr = String(u.role_id?.name || u.role_id || u.roleId || '').toLowerCase().trim();
+  const emailStr = String(u.email || '').toLowerCase().trim();
+  const desigStr = String(u.designation || '').toLowerCase().trim();
+  return (
+    u.isSuperAdmin === true ||
+    u.is_super_admin === true ||
+    roleStr === 'superadmin' ||
+    roleStr === 'super admin' ||
+    roleStr === '0' ||
+    roleIdStr === '0' ||
+    roleIdStr === 'superadmin' ||
+    emailStr.includes('superadmin') ||
+    desigStr === 'super admin'
+  );
+};
+
 const Dashboard = ({ isEmbedded = false, mdData = null }) => {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -369,6 +388,7 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
   // Filtered operators list
   const filteredUsers = useMemo(() => {
     return allUsers.filter(u => {
+      if (isSuperAdminUser(u)) return false;
       if (globalDepartment !== "all") {
         const deptName = u.departmentId?.name || u.department || "";
         if (deptName.toLowerCase() !== globalDepartment.toLowerCase()) return false;
@@ -485,7 +505,7 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
     // Departments that belong to MD view only — excluded from admin Operational Task Analytics
     const MD_ONLY_DEPTS = ["academy", "hr analytics", "hr/admin", "hr", "daily task tracker"];
 
-    let list = allUsers.map(u => {
+    let list = allUsers.filter(u => !isSuperAdminUser(u)).map(u => {
       const userIdStr = String(u.id || u._id || "").trim();
       const userTasks = tasks.filter(t => {
         const assignedId = (t.assigned_to && typeof t.assigned_to === "object")
@@ -1083,6 +1103,7 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
   // ----------------------------------------------------
   const renderAdminView = () => {
     const filteredUsersCount = allUsers.filter(u => {
+      if (isSuperAdminUser(u)) return false;
       if (globalDepartment === "all") return true;
       const deptName = u.departmentId?.name || u.department || "";
       return deptName.toLowerCase() === globalDepartment.toLowerCase();
