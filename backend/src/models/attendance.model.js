@@ -44,6 +44,21 @@ const attendanceSchema = new mongoose.Schema({
   overtime: {
     type: String,
     default: '0.00'
+  },
+
+  check_in_latitude: {
+    type: Number,
+    default: null
+  },
+
+  check_in_longitude: {
+    type: Number,
+    default: null
+  },
+
+  distance_from_office_meters: {
+    type: Number,
+    default: null
   }
 
 }, {

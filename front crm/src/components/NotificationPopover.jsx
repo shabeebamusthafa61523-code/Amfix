@@ -85,7 +85,7 @@ const NotificationPopover = ({
                     }`}
                   >
                     {!n.isRead && (
-                      <div className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-indigo-600 rounded-full shadow-[0_0_10px_#4f46e5]" />
+                      <div className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-indigo-600 rounded-full shadow-[0_0_10px_#4C259A]" />
                     )}
 
                     <div className="flex justify-between items-start mb-1 gap-2">

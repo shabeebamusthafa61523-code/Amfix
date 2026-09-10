@@ -3,26 +3,26 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* Strict mapping to user-defined logo theme colors */
-  --color-indigo-50: #f0f7f9;
-  --color-indigo-100: #dceef2;
-  --color-indigo-200: #b9dee6;
-  --color-indigo-300: #88c4d2;
-  --color-indigo-400: #4da3b7;
-  --color-indigo-500: #1f6d85; /* Primary Deep Teal from Logo */
-  --color-indigo-600: #19586b; /* Hover Deep Teal */
-  --color-indigo-700: #134453; /* Darker Deep Teal */
-  --color-indigo-800: #0f323e;
-  --color-indigo-900: #0b222b;
-  --color-indigo-950: #061318;
+  /* Strict mapping to brand theme color #4c259a */
+  --color-indigo-50: #f3f0fd;
+  --color-indigo-100: #e4daf9;
+  --color-indigo-200: #cdb8f3;
+  --color-indigo-300: #b08ee9;
+  --color-indigo-400: #8b57dc;
+  --color-indigo-500: #4c259a; /* Primary Brand Purple */
+  --color-indigo-600: #3f1e82; /* Hover Brand Purple */
+  --color-indigo-700: #331869; /* Darker Brand Purple */
+  --color-indigo-800: #271151;
+  --color-indigo-900: #1c0b3b;
+  --color-indigo-950: #100524;
 
   --color-lime-50: #f4f6fa;
   --color-lime-100: #e5eaf3;
   --color-lime-200: #ced8e6;
   --color-lime-300: #b8c5d8;
-  --color-lime-400: #a3b2c8; /* Secondary Slate Blue from Logo */
-  --color-lime-500: #a3b2c8; /* Secondary Slate Blue from Logo */
-  --color-lime-600: #8596ae; /* Darker Slate Hover */
+  --color-lime-400: #a3b2c8;
+  --color-lime-500: #a3b2c8;
+  --color-lime-600: #8596ae;
   --color-lime-700: #687991;
   --color-lime-800: #4e5c71;
   --color-lime-900: #364151;
@@ -30,9 +30,9 @@
   --color-emerald-500: #a3b2c8;
   --color-emerald-600: #8596ae;
 
-  --color-cyan-400: #1f6d85;
-  --color-cyan-500: #1f6d85;
-  --color-cyan-600: #19586b;
+  --color-cyan-400: #4c259a;
+  --color-cyan-500: #4c259a;
+  --color-cyan-600: #3f1e82;
 
   --color-rose-500: #e26a6a;
   --color-rose-600: #c95353;
@@ -41,8 +41,8 @@
   --color-red-500: #e26a6a;
   --color-red-600: #c95353;
 
-  --color-orange-500: #1f6d85;
-  --color-orange-600: #19586b;
+  --color-orange-500: #4c259a;
+  --color-orange-600: #3f1e82;
 }
 
 /* 1. Global Core Reset */
@@ -83,9 +83,9 @@ div[class*="h-[2px]"][class*="bg-gradient-to-r"] {
   transition: border-color 0.2s, box-shadow 0.2s !important;
 
   &:hover {
-    border-color: #1f6d85 !important;
+    border-color: #4c259a !important;
     background-color: #ffffff !important;
-    box-shadow: 0 4px 12px rgba(31, 109, 133, 0.12) !important;
+    box-shadow: 0 4px 12px rgba(76, 37, 154, 0.12) !important;
     transform: none !important;
   }
 
@@ -190,10 +190,10 @@ aside[class*="fixed"] {
 
 /* Active sidebar item styling matching accent */
 div[class*="bg-indigo-600"][class*="shadow-xl"] {
-  background-color: #1f6d85 !important;
+  background-color: #4c259a !important;
   color: #ffffff !important;
   box-shadow: none !important;
-  border: 1px solid #1f6d85 !important;
+  border: 1px solid #4c259a !important;
 }
 
 /* Indicator dots - map to Accent #a3b2c8 */
@@ -205,7 +205,7 @@ div[class*="bg-lime-400"][class*="rounded-full"] {
 header[class*="fixed"] > div {
   background-color: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
-  box-shadow: 0 2px 12px rgba(31, 109, 133, 0.04) !important;
+  box-shadow: 0 2px 12px rgba(76, 37, 154, 0.04) !important;
 }
 
 .dark header[class*="fixed"] > div {
@@ -232,15 +232,15 @@ span[class*="italic"] {
 span[class*="bg-orange-500"],
 span[class*="bg-amber-500"],
 span[class*="text-orange-500"] {
-  background-color: rgba(31, 109, 133, 0.08) !important;
-  color: #1f6d85 !important;
-  border: 1px solid rgba(31, 109, 133, 0.15) !important;
+  background-color: rgba(76, 37, 154, 0.08) !important;
+  color: #4c259a !important;
+  border: 1px solid rgba(76, 37, 154, 0.15) !important;
 }
 
 div[class*="bg-slate-500"],
 div[class*="bg-amber-500"],
 div[class*="bg-indigo-500"] {
-  background-color: #1f6d85 !important;
+  background-color: #4c259a !important;
 }
 
 div[class*="bg-emerald-500"] {
@@ -272,8 +272,8 @@ input, select, textarea {
 }
 
 input:focus, select:focus, textarea:focus {
-  border-color: #1f6d85 !important;
-  box-shadow: 0 0 0 2px rgba(31, 109, 133, 0.15) !important;
+  border-color: #4c259a !important;
+  box-shadow: 0 0 0 2px rgba(76, 37, 154, 0.15) !important;
   outline: none !important;
 }
 

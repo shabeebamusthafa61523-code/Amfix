@@ -177,7 +177,7 @@ const Login = () => {
           <img 
             src={isDark ? "/logo_white.png" : "/logo_dark.png"} 
             alt="AMFIX ACADEMY Logo" 
-            className="h-24 max-w-full w-auto object-contain filter drop-shadow-md transition-all duration-300" 
+            className="h-24 max-w-full w-auto object-contain transition-all duration-300" 
           />
         </div>
 

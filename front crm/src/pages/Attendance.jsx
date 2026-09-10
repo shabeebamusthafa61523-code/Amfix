@@ -297,17 +297,51 @@ const Attendance = () => {
     fetchSelectedDateStatus(selectedDate);
   }, [selectedDate, fetchSelectedDateStatus]);
 
+  const getCurrentPositionPromise = () => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        return reject(new Error("Geolocation is not supported by your browser."));
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve(pos.coords),
+        (err) => {
+          let msg = "Could not fetch your location.";
+          if (err.code === 1) {
+            msg = "Location access denied. Please allow location permissions in your browser to check in at the office.";
+          } else if (err.code === 2) {
+            msg = "Location unavailable. Please ensure GPS/location service is enabled on your device.";
+          } else if (err.code === 3) {
+            msg = "Location request timed out. Please try again.";
+          }
+          reject(new Error(msg));
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  };
+
   const handleAction = async (type) => {
     setError(null);
     setSuccessMsg(null);
     setActionLoading(true);
 
     try {
+      let bodyData = {};
+
+      if (type === 'check-in') {
+        const coords = await getCurrentPositionPromise();
+        bodyData = {
+          latitude: coords.latitude,
+          longitude: coords.longitude
+        };
+      }
+
       const response = await fetch(
         `${API_BASE}/attendance/${type}`,
         {
           method: 'POST',
-          headers: getHeaders()
+          headers: getHeaders(),
+          body: JSON.stringify(bodyData)
         }
       );
 
@@ -333,7 +367,7 @@ const Attendance = () => {
 
       setTimeout(() => {
         setError(null);
-      }, 5000);
+      }, 7000);
     } finally {
       setActionLoading(false);
     }

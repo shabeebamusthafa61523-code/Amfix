@@ -76,6 +76,22 @@ const serializeAttendance = (record) => {
   };
 };
 
+const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
+  try {
+    const R = 6371000; // Earth radius in meters
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  } catch {
+    return Infinity;
+  }
+};
+
 // ===============================
 // CHECK IN
 // ===============================
@@ -85,6 +101,40 @@ export const checkIn = async (req, res) => {
     if (!req.user) {
       return res.status(401).json({
         detail: "Authentication required."
+      });
+    }
+
+    const { latitude, longitude } = req.body || {};
+
+    if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) {
+      return res.status(400).json({
+        detail: "Location access is required. Please enable GPS/location to check in at the office."
+      });
+    }
+
+    const userLat = parseFloat(latitude);
+    const userLng = parseFloat(longitude);
+
+    if (isNaN(userLat) || isNaN(userLng)) {
+      return res.status(400).json({
+        detail: "Invalid location coordinates provided."
+      });
+    }
+
+    const officeLat = parseFloat(process.env.OFFICE_LATITUDE) || -11.0300977;
+    const officeLng = parseFloat(process.env.OFFICE_LONGITUDE) || -76.0972006;
+    const maxRadius = parseFloat(process.env.OFFICE_RADIUS_METERS) || 50;
+    const disableGeofence = String(process.env.OFFICE_GEOFENCE_DISABLED).toLowerCase() === 'true';
+
+    const distanceMeters = getDistanceFromLatLonInMeters(userLat, userLng, officeLat, officeLng);
+
+    if (!disableGeofence && distanceMeters > maxRadius) {
+      const distanceFormatted = distanceMeters >= 1000
+        ? `${(distanceMeters / 1000).toFixed(2)} km`
+        : `${Math.round(distanceMeters)} meters`;
+
+      return res.status(403).json({
+        detail: `Location verification failed: You are currently ${distanceFormatted} away from the office. Attendance can only be marked within ${maxRadius} meters of the office.`
       });
     }
 
@@ -119,7 +169,10 @@ export const checkIn = async (req, res) => {
             date: todayStr,
             status: 'PRESENT',
             check_in_time: now,
-            is_late: checkIsLate(now)
+            is_late: checkIsLate(now),
+            check_in_latitude: userLat,
+            check_in_longitude: userLng,
+            distance_from_office_meters: Math.round(distanceMeters)
           }
         },
         {

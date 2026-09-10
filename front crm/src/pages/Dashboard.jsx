@@ -562,11 +562,11 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
           <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
             <defs>
               <linearGradient id="userTodoGrad" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#1f6d85" />
+                <stop offset="0%" stopColor="#4C259A" />
                 <stop offset="100%" stopColor="#b7d333" />
               </linearGradient>
               <filter id="shadow-user" x="-10%" y="-20%" width="120%" height="150%">
-                <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#1f6d85" floodOpacity="0.25" />
+                <feDropShadow dx="0" dy="1.5" stdDeviation="2" floodColor="#4C259A" floodOpacity="0.25" />
               </filter>
             </defs>
 
@@ -744,7 +744,7 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
     const chartHeight = height - paddingTop - paddingBottom;
 
     const lineColors = [
-      "#1f6d85", // indigo
+      "#4C259A", // indigo
       "#ec4899", // pink
       "#b7d333", // emerald
       "#f59e0b", // amber
@@ -868,7 +868,7 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
   const leadSourceData = useMemo(() => {
     if (!sourcePerformance) return [];
     return sourcePerformance.slice(0, 6).map((src, i) => {
-      const colors = ["#1f6d85", "#b7d333", "#f59e0b", "#ec4899", "#06b6d4", "#8b5cf6"];
+      const colors = ["#4C259A", "#b7d333", "#f59e0b", "#ec4899", "#06b6d4", "#8b5cf6"];
       return {
         label: src.source || "Unknown",
         value: src.totalLeads || 0,
@@ -1017,8 +1017,8 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
           <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
             <defs>
               <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#1f6d85" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="#1f6d85" stopOpacity="0.0" />
+                <stop offset="0%" stopColor="#4C259A" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#4C259A" stopOpacity="0.0" />
               </linearGradient>
             </defs>
 
@@ -1042,7 +1042,7 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
               <path 
                 d={pathD} 
                 fill="none" 
-                stroke="#1f6d85" 
+                stroke="#4C259A" 
                 strokeWidth="2.5" 
                 strokeLinecap="round" 
                 className="drop-shadow-[0_2px_6px_rgba(99,102,241,0.35)]" 
@@ -1056,7 +1056,7 @@ const Dashboard = ({ isEmbedded = false, mdData = null }) => {
                   cx={p.x} 
                   cy={p.y} 
                   r="4" 
-                  fill="#1f6d85" 
+                  fill="#4C259A" 
                   stroke="#fff" 
                   strokeWidth="1.5" 
                   className="cursor-pointer transition-all duration-300 group-hover/anchor:r-5 group-hover/anchor:fill-lime-400" 
