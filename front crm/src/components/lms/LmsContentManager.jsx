@@ -257,7 +257,7 @@ const LmsContentManager = ({ courseId, syllabus = [], onContentUpdated }) => {
         </div>
         <button
           onClick={() => handleOpenAddModal()}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2"
+          className="bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-slate-200 text-white dark:text-slate-900 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
         >
           <Plus size={16} /> Add Lesson
         </button>
@@ -271,7 +271,7 @@ const LmsContentManager = ({ courseId, syllabus = [], onContentUpdated }) => {
             <p className="text-xs font-medium text-slate-500">No LMS lessons created for this course yet.</p>
             <button
               onClick={() => handleOpenAddModal()}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold"
+              className="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-4 py-2 rounded-xl text-xs font-bold"
             >
               Create First Lesson
             </button>
@@ -281,7 +281,7 @@ const LmsContentManager = ({ courseId, syllabus = [], onContentUpdated }) => {
             <div key={mod.moduleId || modIdx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-5 shadow-xs">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
                 <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center">
+                  <span className="w-8 h-8 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-black text-xs flex items-center justify-center">
                     {modIdx + 1}
                   </span>
                   <div>
@@ -293,7 +293,7 @@ const LmsContentManager = ({ courseId, syllabus = [], onContentUpdated }) => {
                 </div>
                 <button
                   onClick={() => handleOpenAddModal(mod.moduleId)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Plus size={14} /> Add Lesson to Module
                 </button>
@@ -307,7 +307,7 @@ const LmsContentManager = ({ courseId, syllabus = [], onContentUpdated }) => {
                   {mod.lessons.map((lesson, lessonIdx) => (
                     <div key={lesson._id} className="flex items-center justify-between p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-2xl gap-4">
                       <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+                        <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                           {lesson.contentType === 'VIDEO' && <Video size={18} />}
                           {lesson.contentType === 'PDF' && <FileText size={18} />}
                           {lesson.contentType === 'DOCUMENT' && <FileText size={18} />}

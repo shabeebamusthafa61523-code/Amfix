@@ -39,6 +39,8 @@ const userSchema = new mongoose.Schema({
   googleId: { type: String },
   isGoogleAuth: { type: Boolean, default: false },
   lastLogin: { type: Date },
+  customCheckInTime: { type: String, default: '09:30' },
+  customCheckOutTime: { type: String, default: '18:30' },
 }, { timestamps: true });
 
 // Case-insensitive index searching support for the controller search features

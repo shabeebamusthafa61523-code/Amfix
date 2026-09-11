@@ -114,6 +114,7 @@ const menuItems = [
   { icon: UserCheck, label: 'Recruitment', path: '/recruitment', category: 'People & HR', allowedRoles: ['0', '1', '2', '3', '10', 'hr', 'admin', 'superadmin', 'manager', 'team_lead', 'teamlead', 'recruiter'], allowedDesignationNames: ['hr', 'recruiter', 'admin', 'manager'] },
   { icon: Users, label: 'Users', path: '/users', category: 'People & HR', allowedRoles: ['1', '2', 'hr', 'admin'], allowedDepartmentNames: ['hr', 'admin'] },
   { icon: Building, label: 'Departments', path: '/departments', category: 'People & HR', allowedRoles: ['1', '2', 'hr', 'admin'] },
+  { icon: Clock, label: 'Attendance Logs', path: '/attendance-logs', category: 'People & HR' },
   { icon: ShieldCheck, label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'People & HR', allowedRoles: ['0', 'superadmin'], allowedDepartmentNames: ['hr', 'admin', 'hr/admin', 'hr & admin'] },
 
   // --- SALES & CRM ---
@@ -171,6 +172,7 @@ const menuItems = [
 
   // --- DAILY OPERATIONS ---
   { icon: Clock, label: 'Attendance', path: '/attendance', category: 'Daily Operations', excludeRoles: ['1', '2', 'hr', 'admin'] },
+  { icon: Clock, label: 'Attendance Logs', path: '/attendance-logs', category: 'Daily Operations' },
   { icon: ListCheck, label: 'Task Assign', path: '/todo', category: 'Daily Operations' },
 ];
 

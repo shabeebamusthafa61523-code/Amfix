@@ -349,6 +349,8 @@ export const userController = {
         address: u.address,
         identityType: u.identityType,
         identityNumber: u.identityNumber,
+        customCheckInTime: u.customCheckInTime || '09:30',
+        customCheckOutTime: u.customCheckOutTime || '18:30',
         permissions: u.permissions || [],
         isSuperAdmin: u.isSuperAdmin || u.role === 'superadmin'
         });
@@ -430,6 +432,8 @@ export const userController = {
           address: user.address,
           identityType: user.identityType,
           identityNumber: user.identityNumber,
+          customCheckInTime: user.customCheckInTime || '09:30',
+          customCheckOutTime: user.customCheckOutTime || '18:30',
           permissions: user.permissions || [],
           isSuperAdmin: user.isSuperAdmin || user.role === 'superadmin'
         }
@@ -462,7 +466,9 @@ export const userController = {
         salary,
         address,
         identityType,
-        identityNumber
+        identityNumber,
+        customCheckInTime,
+        customCheckOutTime
       } = req.body;
 
       const searchConditions = [{ email }];
@@ -528,7 +534,9 @@ export const userController = {
           salary: parseFloat(salary) || 0,
           address: address || '',
           identityType: identityType || 'aadhaar',
-          identityNumber: identityNumber || ''
+          identityNumber: identityNumber || '',
+          customCheckInTime: customCheckInTime || '09:30',
+          customCheckOutTime: customCheckOutTime || '18:30'
         });
 
       await recordAudit(req, {
@@ -570,7 +578,9 @@ export const userController = {
           avatar: newUser.avatar || newUser.profile_image || null,
           profile_image: newUser.profile_image || newUser.avatar || null,
           profileImage: newUser.avatar || newUser.profile_image || null,
-          status: newUser.status
+          status: newUser.status,
+          customCheckInTime: newUser.customCheckInTime,
+          customCheckOutTime: newUser.customCheckOutTime
         }
       });
 
@@ -616,7 +626,9 @@ export const userController = {
         qualification,
         institution,
         passingYear,
-        coursePreference
+        coursePreference,
+        customCheckInTime,
+        customCheckOutTime
       } = req.body;
 
       const existingUser =
@@ -661,6 +673,8 @@ export const userController = {
       if (institution !== undefined) updateFields.institution = institution;
       if (passingYear !== undefined) updateFields.passingYear = passingYear;
       if (coursePreference !== undefined) updateFields.coursePreference = coursePreference;
+      if (customCheckInTime !== undefined) updateFields.customCheckInTime = customCheckInTime || '09:30';
+      if (customCheckOutTime !== undefined) updateFields.customCheckOutTime = customCheckOutTime || '18:30';
 
       if (email && email !== existingUser.email) {
         const emailTaken = await User.findOne({ email, _id: { $ne: id } });
@@ -751,7 +765,9 @@ export const userController = {
           profile_image: updatedUser.avatar || updatedUser.profile_image || null,
           profileImage: updatedUser.avatar || updatedUser.profile_image || null,
           status: updatedUser.status,
-          isActive: updatedUser.isActive
+          isActive: updatedUser.isActive,
+          customCheckInTime: updatedUser.customCheckInTime,
+          customCheckOutTime: updatedUser.customCheckOutTime
         }
       });
 

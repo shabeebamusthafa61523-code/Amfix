@@ -59,6 +59,21 @@ const attendanceSchema = new mongoose.Schema({
   distance_from_office_meters: {
     type: Number,
     default: null
+  },
+
+  check_out_latitude: {
+    type: Number,
+    default: null
+  },
+
+  check_out_longitude: {
+    type: Number,
+    default: null
+  },
+
+  check_out_distance_from_office_meters: {
+    type: Number,
+    default: null
   }
 
 }, {

@@ -328,7 +328,7 @@ const Attendance = () => {
     try {
       let bodyData = {};
 
-      if (type === 'check-in') {
+      if (type === 'check-in' || type === 'check-out') {
         const coords = await getCurrentPositionPromise();
         bodyData = {
           latitude: coords.latitude,

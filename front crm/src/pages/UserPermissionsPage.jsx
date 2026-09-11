@@ -47,6 +47,7 @@ const ALL_SIDEBAR_ITEMS = [
 
   // HR & Recruitment
   { label: 'Attendance', path: '/attendance', category: 'HR', desc: 'Daily attendance clock-in/out logs' },
+  { label: 'Attendance Logs', path: '/attendance-logs', category: 'HR', desc: 'Detailed everyday login/logout times, location & working hours logs' },
   { label: 'Leave Requests', path: '/leaves', category: 'HR', desc: 'Leave request application & approvals' },
   { label: 'Recruitment', path: '/recruitment', category: 'HR', desc: 'Recruitment directory, candidate pipeline & offer letters' },
   { label: 'Student Attendance', path: '/student-attendance', category: 'HR', desc: 'Student batch attendance logs' },

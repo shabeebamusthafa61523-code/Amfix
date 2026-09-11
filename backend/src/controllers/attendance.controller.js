@@ -3,6 +3,8 @@
 // ===============================
 
 import Attendance from '../models/attendance.model.js';
+import User from '../models/user.model.js';
+import mongoose from 'mongoose';
 
 const getISTDate = () => {
   return new Intl.DateTimeFormat('en-CA', {
@@ -10,7 +12,7 @@ const getISTDate = () => {
   }).format(new Date());
 };
 
-const checkIsLate = (dateObj) => {
+const checkIsLate = (dateObj, targetTimeStr = '09:30') => {
   try {
     const istTime = dateObj.toLocaleString('en-US', {
       timeZone: 'Asia/Kolkata',
@@ -23,9 +25,20 @@ const checkIsLate = (dateObj) => {
       .split(':')
       .map(Number);
 
+    let targetHours = 9;
+    let targetMinutes = 30;
+
+    if (targetTimeStr && typeof targetTimeStr === 'string' && targetTimeStr.includes(':')) {
+      const parts = targetTimeStr.split(':').map(Number);
+      if (!isNaN(parts[0]) && !isNaN(parts[1])) {
+        targetHours = parts[0];
+        targetMinutes = parts[1];
+      }
+    }
+
     return (
-      hours > 9 ||
-      (hours === 9 && minutes > 0)
+      hours > targetHours ||
+      (hours === targetHours && minutes > targetMinutes)
     );
 
   } catch {
@@ -121,10 +134,11 @@ export const checkIn = async (req, res) => {
       });
     }
 
-    const officeLat = parseFloat(process.env.OFFICE_LATITUDE) || -11.0300977;
-    const officeLng = parseFloat(process.env.OFFICE_LONGITUDE) || -76.0972006;
-    const maxRadius = parseFloat(process.env.OFFICE_RADIUS_METERS) || 50;
-    const disableGeofence = String(process.env.OFFICE_GEOFENCE_DISABLED).toLowerCase() === 'true';
+    const hasOfficeConfig = process.env.OFFICE_LATITUDE !== undefined && process.env.OFFICE_LONGITUDE !== undefined;
+    const officeLat = hasOfficeConfig ? parseFloat(process.env.OFFICE_LATITUDE) : 10.9463015;
+    const officeLng = hasOfficeConfig ? parseFloat(process.env.OFFICE_LONGITUDE) : 76.1374676;
+    const maxRadius = parseFloat(process.env.OFFICE_RADIUS_METERS) || 200000;
+    const disableGeofence = String(process.env.OFFICE_GEOFENCE_DISABLED).toLowerCase() === 'true' || !hasOfficeConfig;
 
     const distanceMeters = getDistanceFromLatLonInMeters(userLat, userLng, officeLat, officeLng);
 
@@ -132,14 +146,20 @@ export const checkIn = async (req, res) => {
       const distanceFormatted = distanceMeters >= 1000
         ? `${(distanceMeters / 1000).toFixed(2)} km`
         : `${Math.round(distanceMeters)} meters`;
+      const maxRadiusFormatted = maxRadius >= 1000
+        ? `${(maxRadius / 1000).toFixed(0)} km`
+        : `${Math.round(maxRadius)} meters`;
 
       return res.status(403).json({
-        detail: `Location verification failed: You are currently ${distanceFormatted} away from the office. Attendance can only be marked within ${maxRadius} meters of the office.`
+        detail: `Location verification failed: You are currently ${distanceFormatted} away from the office. Attendance can only be marked within ${maxRadiusFormatted} of the office.`
       });
     }
 
     const userId =
       req.user.id || req.user._id;
+
+    const userObj = await User.findById(userId).select('customCheckInTime');
+    const shiftInTime = userObj?.customCheckInTime || '09:30';
 
     const todayStr = getISTDate();
 
@@ -169,7 +189,7 @@ export const checkIn = async (req, res) => {
             date: todayStr,
             status: 'PRESENT',
             check_in_time: now,
-            is_late: checkIsLate(now),
+            is_late: checkIsLate(now, shiftInTime),
             check_in_latitude: userLat,
             check_in_longitude: userLng,
             distance_from_office_meters: Math.round(distanceMeters)
@@ -203,6 +223,44 @@ export const checkOut = async (req, res) => {
     if (!req.user) {
       return res.status(401).json({
         detail: "Authentication required."
+      });
+    }
+
+    const { latitude, longitude } = req.body || {};
+
+    if (latitude === undefined || longitude === undefined || latitude === null || longitude === null) {
+      return res.status(400).json({
+        detail: "Location access is required. Please enable GPS/location to check out."
+      });
+    }
+
+    const userLat = parseFloat(latitude);
+    const userLng = parseFloat(longitude);
+
+    if (isNaN(userLat) || isNaN(userLng)) {
+      return res.status(400).json({
+        detail: "Invalid location coordinates provided."
+      });
+    }
+
+    const hasOfficeConfig = process.env.OFFICE_LATITUDE !== undefined && process.env.OFFICE_LONGITUDE !== undefined;
+    const officeLat = hasOfficeConfig ? parseFloat(process.env.OFFICE_LATITUDE) : 10.9463015;
+    const officeLng = hasOfficeConfig ? parseFloat(process.env.OFFICE_LONGITUDE) : 76.1374676;
+    const maxRadius = parseFloat(process.env.OFFICE_RADIUS_METERS) || 200000;
+    const disableGeofence = String(process.env.OFFICE_GEOFENCE_DISABLED).toLowerCase() === 'true' || !hasOfficeConfig;
+
+    const distanceMeters = getDistanceFromLatLonInMeters(userLat, userLng, officeLat, officeLng);
+
+    if (!disableGeofence && distanceMeters > maxRadius) {
+      const distanceFormatted = distanceMeters >= 1000
+        ? `${(distanceMeters / 1000).toFixed(2)} km`
+        : `${Math.round(distanceMeters)} meters`;
+      const maxRadiusFormatted = maxRadius >= 1000
+        ? `${(maxRadius / 1000).toFixed(0)} km`
+        : `${Math.round(maxRadius)} meters`;
+
+      return res.status(403).json({
+        detail: `Location verification failed: You are currently ${distanceFormatted} away from the office. Check-out can only be marked within ${maxRadiusFormatted} of the office.`
       });
     }
 
@@ -244,6 +302,9 @@ export const checkOut = async (req, res) => {
       metrics.working_hours;
     record.overtime =
       metrics.overtime;
+    record.check_out_latitude = userLat;
+    record.check_out_longitude = userLng;
+    record.check_out_distance_from_office_meters = Math.round(distanceMeters);
 
     await record.save();
 
@@ -299,10 +360,228 @@ export const getAllAttendanceByDate =
     async (req, res) => {
       try {
         const { date } = req.params;
-        const records = await Attendance.find({ date });
+        const records = await Attendance.find({ date }).populate('user_id', 'name email employeeId profile_image department role designation');
         return res.status(200).json(records.map(serializeAttendance));
       } catch (err) {
         console.error(err);
         return res.status(500).json({ detail: "Server Error" });
       }
     };
+
+// ===============================
+// GET ATTENDANCE LOGS / REPORT
+// ===============================
+export const getAttendanceLogs = async (req, res) => {
+  try {
+    const { 
+      startDate, 
+      endDate, 
+      userId, 
+      search, 
+      status, 
+      sortOrder = 'desc', 
+      sortBy = 'date',
+      page,
+      limit
+    } = req.query;
+
+    const query = {};
+
+    // Date range filter
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) query.date.$gte = startDate;
+      if (endDate) query.date.$lte = endDate;
+    }
+
+    // User ID filter
+    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      query.user_id = userId;
+    }
+
+    // Status filter
+    if (status && status !== 'ALL') {
+      if (status === 'LATE') {
+        query.is_late = true;
+      } else {
+        query.status = status;
+      }
+    }
+
+    // Search query on User fields
+    if (search && search.trim() !== '') {
+      const escapedSearch = search.trim().replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+      const searchRegex = new RegExp(escapedSearch, 'i');
+      const matchingUsers = await User.find({
+        $or: [
+          { name: searchRegex },
+          { email: searchRegex },
+          { employeeId: searchRegex }
+        ]
+      }).select('_id');
+
+      const userIds = matchingUsers.map(u => u._id);
+      query.user_id = { $in: userIds };
+    }
+
+    // Sorting order (date-wise asc or desc)
+    let sortObj = {};
+    const direction = sortOrder === 'asc' ? 1 : -1;
+
+    if (sortBy === 'date') {
+      sortObj = { date: direction, check_in_time: direction };
+    } else if (sortBy === 'check_in_time') {
+      sortObj = { check_in_time: direction };
+    } else if (sortBy === 'working_hours') {
+      sortObj = { working_hours: direction };
+    } else {
+      sortObj = { date: direction };
+    }
+
+    const isPagination = page !== undefined && limit !== undefined;
+    const p = Math.max(1, parseInt(page, 10) || 1);
+    const l = Math.max(1, parseInt(limit, 10) || 100);
+    const skip = (p - 1) * l;
+
+    let dbQuery = Attendance.find(query)
+      .populate('user_id', 'name email employeeId profile_image department role designation')
+      .sort(sortObj);
+
+    if (isPagination) {
+      dbQuery = dbQuery.skip(skip).limit(l);
+    }
+
+    const [records, totalRecords] = await Promise.all([
+      dbQuery.lean(),
+      Attendance.countDocuments(query)
+    ]);
+
+    // Calculate Summary Metrics
+    const allRecordsForSummary = await Attendance.find(query).select('status is_late working_hours');
+    let totalPresent = 0;
+    let totalLate = 0;
+    let totalHours = 0;
+
+    allRecordsForSummary.forEach(r => {
+      if (r.status === 'PRESENT') totalPresent++;
+      if (r.is_late) totalLate++;
+      if (r.working_hours) totalHours += parseFloat(r.working_hours) || 0;
+    });
+
+    const formattedRecords = records.map(r => ({
+      ...r,
+      id: String(r._id),
+      user: r.user_id || null,
+      user_id: r.user_id?._id ? String(r.user_id._id) : (r.user_id ? String(r.user_id) : null)
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: formattedRecords,
+      pagination: {
+        total: totalRecords,
+        page: isPagination ? p : 1,
+        limit: isPagination ? l : totalRecords,
+        pages: isPagination ? Math.ceil(totalRecords / l) : 1
+      },
+      summary: {
+        totalRecords,
+        totalPresent,
+        totalLate,
+        totalHours: totalHours.toFixed(2),
+        avgHours: totalPresent > 0 ? (totalHours / totalPresent).toFixed(2) : "0.00"
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching attendance logs:', error);
+    return res.status(500).json({
+      success: false,
+      detail: 'Failed to fetch attendance logs',
+      error: error.message
+    });
+  }
+};
+
+// ===============================
+// UPDATE ATTENDANCE RECORD (ADMIN / EDIT)
+// ===============================
+export const updateAttendanceRecord = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, check_in_time, check_out_time, is_late } = req.body;
+
+    const record = await Attendance.findById(id);
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Attendance record not found.' });
+    }
+
+    if (status !== undefined) {
+      record.status = status;
+    }
+
+    if (is_late !== undefined) {
+      record.is_late = Boolean(is_late);
+    }
+
+    const parseDateTimeStr = (dateStr, timeStr) => {
+      if (!timeStr) return null;
+      if (timeStr instanceof Date) return timeStr;
+      if (typeof timeStr === 'string' && (timeStr.includes('T') || timeStr.includes('Z'))) {
+        const d = new Date(timeStr);
+        return isNaN(d.getTime()) ? null : d;
+      }
+      if (typeof timeStr === 'string') {
+        const [h, m] = timeStr.split(':');
+        if (h !== undefined && m !== undefined && dateStr) {
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const d = new Date(year, month - 1, day, parseInt(h, 10), parseInt(m, 10), 0);
+          return isNaN(d.getTime()) ? null : d;
+        }
+      }
+      return null;
+    };
+
+    if (check_in_time !== undefined) {
+      if (!check_in_time) {
+        record.check_in_time = null;
+      } else {
+        const parsedIn = parseDateTimeStr(record.date, check_in_time);
+        if (parsedIn) record.check_in_time = parsedIn;
+      }
+    }
+
+    if (check_out_time !== undefined) {
+      if (!check_out_time) {
+        record.check_out_time = null;
+      } else {
+        const parsedOut = parseDateTimeStr(record.date, check_out_time);
+        if (parsedOut) record.check_out_time = parsedOut;
+      }
+    }
+
+    if (record.check_in_time && record.check_out_time) {
+      const diffMs = new Date(record.check_out_time) - new Date(record.check_in_time);
+      if (diffMs > 0) {
+        const hours = diffMs / (1000 * 60 * 60);
+        record.working_hours = hours.toFixed(2);
+      }
+    }
+
+    await record.save();
+    await record.populate('user_id', 'name email employeeId profile_image');
+
+    return res.status(200).json({
+      success: true,
+      message: 'Attendance record updated successfully.',
+      data: serializeAttendance(record)
+    });
+  } catch (error) {
+    console.error('Error updating attendance record:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update attendance record',
+      error: error.message
+    });
+  }
+};

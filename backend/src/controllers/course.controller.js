@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Course from '../models/course.model.js';
+import CourseCategory from '../models/courseCategory.model.js';
 import Batch from '../models/batch.model.js';
 import User from '../models/user.model.js';
 import Counter from '../models/counter.model.js';
@@ -462,6 +463,150 @@ export const courseController = {
       return res.status(200).json({
         success: true,
         message: 'Course deleted successfully.'
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * GET /api/v1/academy/categories
+   * Fetch all course categories with auto-seeding if empty
+   */
+  getCategories: async (req, res, next) => {
+    try {
+      let categories = await CourseCategory.find().sort({ name: 1 }).lean();
+      
+      if (categories.length === 0) {
+        const defaults = [
+          'Web Development',
+          'Mobile Development',
+          'Design',
+          'Digital Marketing',
+          'Data Science',
+          'Software Engineering',
+          'Business'
+        ];
+        await CourseCategory.insertMany(defaults.map(name => ({ name })));
+        categories = await CourseCategory.find().sort({ name: 1 }).lean();
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: categories
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * POST /api/v1/academy/categories
+   * Create a new course category
+   */
+  createCategory: async (req, res, next) => {
+    try {
+      const { name, description } = req.body;
+      if (!name || !name.trim()) {
+        throw new AppError('Category name is required.', 400);
+      }
+
+      const trimmedName = name.trim();
+      const existing = await CourseCategory.findOne({
+        name: { $regex: `^${trimmedName.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}$`, $options: 'i' }
+      });
+
+      if (existing) {
+        throw new AppError(`Category '${trimmedName}' already exists.`, 409);
+      }
+
+      const newCategory = await CourseCategory.create({
+        name: trimmedName,
+        description: description ? description.trim() : '',
+        createdBy: req.user?.id || req.user?._id
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Category created successfully.',
+        data: newCategory
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * PUT /api/v1/academy/categories/:id
+   * Update existing category
+   */
+  updateCategory: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { name, description } = req.body;
+
+      const category = await CourseCategory.findById(id);
+      if (!category) {
+        throw new AppError('Category not found.', 404);
+      }
+
+      const oldName = category.name;
+      if (name && name.trim() && name.trim().toLowerCase() !== oldName.toLowerCase()) {
+        const trimmedName = name.trim();
+        const existing = await CourseCategory.findOne({
+          _id: { $ne: id },
+          name: { $regex: `^${trimmedName.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}$`, $options: 'i' }
+        });
+        if (existing) {
+          throw new AppError(`Category '${trimmedName}' already exists.`, 409);
+        }
+        category.name = trimmedName;
+
+        // Cascade update to existing Course documents
+        await Course.updateMany(
+          { category: oldName },
+          { $set: { category: trimmedName } }
+        );
+      }
+
+      if (description !== undefined) {
+        category.description = description.trim();
+      }
+
+      await category.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Category updated successfully.',
+        data: category
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * DELETE /api/v1/academy/categories/:id
+   * Delete category if no courses are attached
+   */
+  deleteCategory: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const category = await CourseCategory.findById(id);
+      if (!category) {
+        throw new AppError('Category not found.', 404);
+      }
+
+      const courseCount = await Course.countDocuments({ category: category.name });
+      if (courseCount > 0) {
+        throw new AppError(`Cannot delete category '${category.name}' because ${courseCount} course(s) are assigned to it.`, 400);
+      }
+
+      await CourseCategory.findByIdAndDelete(id);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Category deleted successfully.'
       });
     } catch (error) {
       next(error);

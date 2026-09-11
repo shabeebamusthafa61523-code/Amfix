@@ -5,14 +5,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BookOpen, Plus, Search, LayoutGrid, List, ChevronRight, Loader2, 
   Clock, Layers, CheckCircle2, Archive, Eye, Edit, X, Trash2, 
-  FolderKanban, ShieldCheck, ArrowUpRight
+  FolderKanban, ShieldCheck, ArrowUpRight, Pencil, Check
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
-const CATEGORIES = [
-  'ALL',
+const DEFAULT_CATEGORIES = [
   'Web Development',
   'Mobile Development',
   'Design',
@@ -59,6 +58,18 @@ const CourseManagement = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [stats, setStats] = useState({ totalCourses: 0, activeCourses: 0, archivedCourses: 0, draftCourses: 0 });
 
+  // Dynamic Category State
+  const [categoriesList, setCategoriesList] = useState(DEFAULT_CATEGORIES.map(name => ({ _id: name, name })));
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatDesc, setNewCatDesc] = useState('');
+  const [editingCatId, setEditingCatId] = useState(null);
+  const [editingCatName, setEditingCatName] = useState('');
+  const [editingCatDesc, setEditingCatDesc] = useState('');
+  const [isCatSubmitting, setIsCatSubmitting] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
+  const [isDeleteCatModalOpen, setIsDeleteCatModalOpen] = useState(false);
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -88,6 +99,136 @@ const CourseManagement = () => {
     };
   }, []);
 
+  const fetchCategories = useCallback(async () => {
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/categories`
+        : `${cleanBase}/v1/academy/categories`;
+
+      const res = await fetch(endpoint, { headers: getHeaders() });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.data) && data.data.length > 0) {
+          setCategoriesList(data.data);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to fetch course categories:", err);
+    }
+  }, [getHeaders]);
+
+  const handleAddCategory = async (e) => {
+    e.preventDefault();
+    if (!newCatName.trim()) {
+      showToast('Category name is required.', 'warning');
+      return;
+    }
+    setIsCatSubmitting(true);
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/categories`
+        : `${cleanBase}/v1/academy/categories`;
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ name: newCatName.trim(), description: newCatDesc.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Category '${newCatName.trim()}' created!`, 'success');
+        setNewCatName('');
+        setNewCatDesc('');
+        await fetchCategories();
+        if (data.data?.name) {
+          setFormData(prev => ({ ...prev, category: data.data.name }));
+        }
+      } else {
+        showToast(data.message || data.error || 'Failed to create category.', 'warning');
+      }
+    } catch (err) {
+      console.error('Error adding category:', err);
+      showToast('Error creating category.', 'error');
+    } finally {
+      setIsCatSubmitting(false);
+    }
+  };
+
+  const handleUpdateCategory = async (catId) => {
+    if (!editingCatName.trim()) {
+      showToast('Category name cannot be empty.', 'warning');
+      return;
+    }
+    setIsCatSubmitting(true);
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/categories/${catId}`
+        : `${cleanBase}/v1/academy/categories/${catId}`;
+
+      const res = await fetch(endpoint, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({ name: editingCatName.trim(), description: editingCatDesc.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Category updated successfully!', 'success');
+        setEditingCatId(null);
+        await fetchCategories();
+        await fetchCourses();
+      } else {
+        showToast(data.message || data.error || 'Failed to update category.', 'warning');
+      }
+    } catch (err) {
+      console.error('Error updating category:', err);
+      showToast('Error updating category.', 'error');
+    } finally {
+      setIsCatSubmitting(false);
+    }
+  };
+
+  const handleOpenDeleteCategoryModal = (catObj) => {
+    setCategoryToDelete(catObj);
+    setIsDeleteCatModalOpen(true);
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete) return;
+    const catId = categoryToDelete._id || categoryToDelete.id;
+    const catName = categoryToDelete.name;
+
+    setIsCatSubmitting(true);
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const endpoint = cleanBase.endsWith('/v1')
+        ? `${cleanBase}/academy/categories/${catId}`
+        : `${cleanBase}/v1/academy/categories/${catId}`;
+
+      const res = await fetch(endpoint, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Category '${catName}' deleted successfully!`, 'success');
+        setIsDeleteCatModalOpen(false);
+        setCategoryToDelete(null);
+        await fetchCategories();
+        await fetchCourses();
+      } else {
+        showToast(data.message || data.error || 'Failed to delete category.', 'warning');
+      }
+    } catch (err) {
+      console.error('Error deleting category:', err);
+      showToast('Error deleting category.', 'error');
+    } finally {
+      setIsCatSubmitting(false);
+    }
+  };
+
   const fetchCourses = useCallback(async () => {
     setLoading(true);
     try {
@@ -115,8 +256,9 @@ const CourseManagement = () => {
   }, [searchQuery, selectedCategory, selectedStatus, getHeaders, showToast]);
 
   useEffect(() => {
+    fetchCategories();
     fetchCourses();
-  }, [fetchCourses]);
+  }, [fetchCategories, fetchCourses]);
 
   const handleOpenAddModal = () => {
     setEditingCourse(null);
@@ -408,9 +550,13 @@ const CourseManagement = () => {
             onChange={(e) => setSelectedCategory(e.target.value)}
             className="px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-wider bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 outline-none cursor-pointer"
           >
-            {CATEGORIES.map(c => (
-              <option key={c} value={c} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Category: {c}</option>
-            ))}
+            <option value="ALL" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Category: ALL</option>
+            {categoriesList.map(c => {
+              const name = typeof c === 'string' ? c : c.name;
+              return (
+                <option key={name} value={name} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Category: {name}</option>
+              );
+            })}
           </select>
 
           <select
@@ -716,15 +862,28 @@ const CourseManagement = () => {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="space-y-1">
-                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
+                          <button
+                            type="button"
+                            onClick={() => setIsCategoryModalOpen(true)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[9px] font-black uppercase text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 border border-indigo-200 dark:border-indigo-800 rounded-xl transition-all cursor-pointer shadow-sm"
+                            title="Add / Edit / Delete Categories"
+                          >
+                            <Plus size={11} /> Manage Categories
+                          </button>
+                        </div>
                         <select
                           value={formData.category}
                           onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                           className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 px-4 text-slate-900 dark:text-slate-100 outline-none text-sm cursor-pointer"
                         >
-                          {CATEGORIES.filter(c => c !== 'ALL').map(c => (
-                            <option key={c} value={c} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">{c}</option>
-                          ))}
+                          {categoriesList.map(c => {
+                            const name = typeof c === 'string' ? c : c.name;
+                            return (
+                              <option key={name} value={name} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">{name}</option>
+                            );
+                          })}
                         </select>
                       </div>
 
@@ -929,6 +1088,194 @@ const CourseManagement = () => {
                 >
                   {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                   <span>{isDeleting ? 'Deleting...' : 'Delete Course'}</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>,
+      document.body
+    )}
+
+    {/* Category Management Modal */}
+    {createPortal(
+      <AnimatePresence>
+        {isCategoryModalOpen && (
+          <div className="fixed inset-0 z-[999999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden my-auto"
+            >
+              <button
+                onClick={() => { setIsCategoryModalOpen(false); setEditingCatId(null); }}
+                className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="mb-6">
+                <h3 className="text-xl font-black uppercase tracking-tight text-slate-900 dark:text-slate-100">
+                  Manage <span className="text-indigo-600">Course Categories</span>
+                </h3>
+                <p className="text-xs text-slate-400 font-medium mt-1">Add, edit, or remove course categories across the academy.</p>
+              </div>
+
+              {/* Add New Category Form */}
+              <form onSubmit={handleAddCategory} className="space-y-3 mb-6 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">Add New Category</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Category Name (e.g. AI & ML)"
+                    value={newCatName}
+                    onChange={(e) => setNewCatName(e.target.value)}
+                    className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-slate-100 outline-none focus:border-indigo-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isCatSubmitting}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-md shadow-indigo-600/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                  >
+                    <Plus size={14} /> Add
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Short Description (Optional)"
+                  value={newCatDesc}
+                  onChange={(e) => setNewCatDesc(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 dark:text-slate-100 outline-none focus:border-indigo-500"
+                />
+              </form>
+
+              {/* Category List */}
+              <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">Existing Categories ({categoriesList.length})</label>
+                {categoriesList.map(cat => {
+                  const catId = cat._id || cat.id || cat.name;
+                  const catName = typeof cat === 'string' ? cat : cat.name;
+                  const isEditing = editingCatId === catId;
+
+                  return (
+                    <div key={catId} className="flex items-center justify-between p-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl transition-all">
+                      {isEditing ? (
+                        <div className="flex-1 flex items-center gap-2 mr-2">
+                          <input
+                            type="text"
+                            value={editingCatName}
+                            onChange={(e) => setEditingCatName(e.target.value)}
+                            className="flex-1 bg-slate-50 dark:bg-slate-900 border border-indigo-500 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 dark:text-slate-100 outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateCategory(catId)}
+                            disabled={isCatSubmitting}
+                            className="p-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500 transition-colors cursor-pointer"
+                            title="Save Changes"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCatId(null)}
+                            className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="min-w-0 pr-2">
+                            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">{catName}</h4>
+                            {cat.description && (
+                              <p className="text-[10px] text-slate-400 truncate">{cat.description}</p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingCatId(catId);
+                                setEditingCatName(catName);
+                                setEditingCatDesc(cat.description || '');
+                              }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
+                              title="Edit Category"
+                            >
+                              <Pencil size={13} />
+                            </button>
+                             <button
+                              type="button"
+                              onClick={() => handleOpenDeleteCategoryModal(typeof cat === 'string' ? { id: cat, name: cat } : cat)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 transition-colors cursor-pointer"
+                              title="Delete Category"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setIsCategoryModalOpen(false); setEditingCatId(null); }}
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>,
+      document.body
+    )}
+
+    {/* Category Delete Confirmation Modal */}
+    {createPortal(
+      <AnimatePresence>
+        {isDeleteCatModalOpen && categoryToDelete && (
+          <div className="fixed inset-0 z-[9999999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden my-auto"
+            >
+              <div className="w-12 h-12 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center mb-4">
+                <Trash2 size={24} />
+              </div>
+              <h3 className="text-xl font-extrabold text-slate-900 dark:text-slate-100 tracking-tight mb-2">
+                Delete Category?
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-6">
+                Are you sure you want to permanently delete category <strong className="text-slate-800 dark:text-slate-200">"{categoryToDelete.name}"</strong>? Any active courses using this category must be reassigned first.
+              </p>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setIsDeleteCatModalOpen(false); setCategoryToDelete(null); }}
+                  className="px-5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteCategory}
+                  disabled={isCatSubmitting}
+                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-md shadow-rose-600/20 flex items-center gap-2 cursor-pointer"
+                >
+                  {isCatSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                  <span>{isCatSubmitting ? 'Deleting...' : 'Delete Category'}</span>
                 </button>
               </div>
             </motion.div>

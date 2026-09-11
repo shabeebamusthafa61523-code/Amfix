@@ -14,6 +14,12 @@ router.use(protectRoute);
 // Eligible Instructors List
 router.get('/instructors', courseController.getEligibleInstructors);
 
+// Course Category Routes
+router.get('/categories', courseController.getCategories);
+router.post('/categories', requireAdminOrStaff, courseController.createCategory);
+router.put('/categories/:id', requireAdminOrStaff, courseController.updateCategory);
+router.delete('/categories/:id', requireAdminOrStaff, courseController.deleteCategory);
+
 // Course Management Routes (Module 4.2)
 router.get('/courses', courseController.getCourses);
 router.post('/courses', requireAdminOrStaff, courseController.createCourse);

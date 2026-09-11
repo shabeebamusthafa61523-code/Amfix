@@ -336,7 +336,7 @@ const CourseDetails = () => {
   if (loading) {
     return (
       <div className="bg-white dark:bg-slate-950 min-h-screen flex flex-col items-center justify-center py-40 gap-4">
-        <Loader2 className="animate-spin text-indigo-500" size={44} />
+        <Loader2 className="animate-spin text-slate-600 dark:text-slate-400" size={44} />
         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Loading Course Overview...</p>
       </div>
     );
@@ -349,7 +349,7 @@ const CourseDetails = () => {
         <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 uppercase">Course Not Found</h2>
         <button
           onClick={() => navigate('/academy/courses')}
-          className="mt-4 bg-indigo-600 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer"
+          className="mt-4 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest cursor-pointer"
         >
           Return to Course Catalog
         </button>
@@ -360,7 +360,7 @@ const CourseDetails = () => {
   const batches = course.batches || [];
 
   return (
-    <div className="bg-white dark:bg-slate-950 min-h-screen text-slate-600 dark:text-slate-200 font-sans selection:bg-indigo-500/30 transition-colors duration-300">
+    <div className="bg-white dark:bg-slate-950 min-h-screen text-slate-600 dark:text-slate-200 font-sans transition-colors duration-300">
       <div className="relative max-w-[1600px] mx-auto px-4 md:px-8 py-12 space-y-10">
         
         {/* Clean Header Bar */}
@@ -368,7 +368,7 @@ const CourseDetails = () => {
           <div className="flex items-center justify-between gap-4">
             <button
               onClick={() => navigate('/academy/courses')}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600 rounded-2xl transition-all text-xs font-black uppercase tracking-widest cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 rounded-2xl transition-all text-xs font-black uppercase tracking-widest cursor-pointer"
             >
               <ArrowLeft size={16} /> Back to Courses
             </button>
@@ -388,7 +388,7 @@ const CourseDetails = () => {
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="px-3.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-slate-700">
+                <span className="px-3.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
                   {course.courseCode}
                 </span>
                 <span className="px-3.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
@@ -423,7 +423,7 @@ const CourseDetails = () => {
             onClick={() => setActiveTab('OVERVIEW')}
             className={`pb-4 px-6 text-xs font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 flex items-center gap-2 ${
               activeTab === 'OVERVIEW'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                ? 'border-slate-900 dark:border-slate-100 text-slate-900 dark:text-slate-100'
                 : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
@@ -433,7 +433,7 @@ const CourseDetails = () => {
             onClick={() => setActiveTab('LMS_CONTENT')}
             className={`pb-4 px-6 text-xs font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 flex items-center gap-2 ${
               activeTab === 'LMS_CONTENT'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                ? 'border-slate-900 dark:border-slate-100 text-slate-900 dark:text-slate-100'
                 : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
@@ -443,7 +443,7 @@ const CourseDetails = () => {
             onClick={() => setActiveTab('ASSIGNMENTS')}
             className={`pb-4 px-6 text-xs font-black uppercase tracking-wider transition-all cursor-pointer border-b-2 flex items-center gap-2 ${
               activeTab === 'ASSIGNMENTS'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                ? 'border-slate-900 dark:border-slate-100 text-slate-900 dark:text-slate-100'
                 : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
             }`}
           >
@@ -459,7 +459,7 @@ const CourseDetails = () => {
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-[2.5rem] shadow-sm">
                 <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-3">
-                    <BookOpen className="text-indigo-600 dark:text-indigo-400" size={24} />
+                    <BookOpen className="text-slate-900 dark:text-slate-100" size={24} />
                     <h2 className="text-xl font-bold uppercase tracking-tight text-slate-900 dark:text-slate-100">
                       Course Syllabus & Modules
                     </h2>
@@ -486,7 +486,7 @@ const CourseDetails = () => {
                             className="w-full p-6 flex items-center justify-between text-left hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-4">
-                              <span className="w-9 h-9 rounded-2xl bg-indigo-600 text-white font-black text-sm flex items-center justify-center flex-shrink-0">
+                              <span className="w-9 h-9 rounded-2xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-black text-sm flex items-center justify-center flex-shrink-0">
                                 {modIdx + 1}
                               </span>
                               <div>
@@ -510,7 +510,7 @@ const CourseDetails = () => {
                             <div className="px-6 pb-6 pt-2 space-y-3 border-t border-slate-100 dark:border-slate-800/80">
                               {(mod.topics || []).map((top, topIdx) => (
                                 <div key={top.topicId || topIdx} className="flex items-start gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                                  <span className="w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold text-xs flex items-center justify-center flex-shrink-0">
+                                  <span className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center flex-shrink-0">
                                     {topIdx + 1}
                                   </span>
                                   <div>
@@ -538,14 +538,14 @@ const CourseDetails = () => {
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-[2.5rem] shadow-sm">
                 <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-3">
-                    <FolderKanban className="text-indigo-600 dark:text-indigo-400" size={24} />
+                    <FolderKanban className="text-slate-900 dark:text-slate-100" size={24} />
                     <h2 className="text-xl font-bold uppercase tracking-tight text-slate-900 dark:text-slate-100">
                       Batches Hub
                     </h2>
                   </div>
                   <button
                     onClick={handleOpenAddBatchModal}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white p-2.5 rounded-xl transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+                    className="bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-slate-200 text-white dark:text-slate-900 p-2.5 rounded-xl transition-all cursor-pointer shadow-md"
                     title="Schedule New Batch"
                   >
                     <Plus size={18} />
@@ -558,7 +558,7 @@ const CourseDetails = () => {
                     <p className="text-xs">No batches currently scheduled for this course.</p>
                     <button
                       onClick={handleOpenAddBatchModal}
-                      className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest cursor-pointer inline-flex items-center gap-1.5"
+                      className="bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-slate-200 text-white dark:text-slate-900 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest cursor-pointer inline-flex items-center gap-1.5"
                     >
                       <Plus size={14} /> Schedule Batch
                     </button>
@@ -574,7 +574,7 @@ const CourseDetails = () => {
                         <div key={batchId} className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl space-y-4 shadow-xs">
                           <div className="flex items-start justify-between">
                             <div>
-                              <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 inline-block mb-1">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 inline-block mb-1">
                                 {b.batchCode}
                               </span>
                               <h3 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-slate-100">
@@ -582,7 +582,7 @@ const CourseDetails = () => {
                               </h3>
                             </div>
                             <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
-                              b.status === 'UPCOMING' ? 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20' :
+                              b.status === 'UPCOMING' ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700' :
                               b.status === 'ONGOING' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
                               b.status === 'CANCELLED' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' :
                               'bg-slate-200 dark:bg-slate-800 text-slate-500'
@@ -594,7 +594,7 @@ const CourseDetails = () => {
                           <div className="space-y-2 text-xs">
                             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                               <span className="flex items-center gap-1.5 font-semibold">
-                                <Calendar size={14} className="text-indigo-500" /> Date Range:
+                                <Calendar size={14} className="text-slate-500" /> Date Range:
                               </span>
                               <span className="font-bold text-slate-800 dark:text-slate-200">
                                 {new Date(b.startDate).toLocaleDateString()} - {new Date(b.endDate).toLocaleDateString()}
@@ -603,7 +603,7 @@ const CourseDetails = () => {
 
                             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                               <span className="flex items-center gap-1.5 font-semibold">
-                                <Clock size={14} className="text-indigo-500" /> Time & Days:
+                                <Clock size={14} className="text-slate-500" /> Time & Days:
                               </span>
                               <span className="font-bold text-slate-800 dark:text-slate-200">
                                 {b.startTime} - {b.endTime} ({(b.daysOfWeek || []).join(', ')})
@@ -612,7 +612,7 @@ const CourseDetails = () => {
 
                             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                               <span className="flex items-center gap-1.5 font-semibold">
-                                <Users size={14} className="text-indigo-500" /> Max Capacity:
+                                <Users size={14} className="text-slate-500" /> Max Capacity:
                               </span>
                               <span className="font-bold text-slate-800 dark:text-slate-200">
                                 {b.capacity} Seats
@@ -621,9 +621,9 @@ const CourseDetails = () => {
 
                             <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 pt-1">
                               <span className="flex items-center gap-1.5 font-semibold">
-                                <User size={14} className="text-indigo-500" /> Instructor(s):
+                                <User size={14} className="text-slate-500" /> Instructor(s):
                               </span>
-                              <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                              <span className="font-bold text-slate-900 dark:text-slate-100">
                                 {Array.isArray(b.instructors) && b.instructors.length > 0
                                   ? b.instructors.map(i => i.name || 'Staff').join(', ')
                                   : (instructor.name || 'Unassigned')}
@@ -634,7 +634,7 @@ const CourseDetails = () => {
                           <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                             <button
                               onClick={() => handleOpenEditBatchModal(b)}
-                              className="flex-1 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-600 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                              className="flex-1 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5"
                             >
                               <Edit size={12} /> Edit Batch
                             </button>
@@ -697,10 +697,10 @@ const CourseDetails = () => {
               <header className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-950">
                 <div>
                   <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight">
-                    {editingBatch ? 'Edit' : 'Schedule'} <span className="text-indigo-600">Batch</span>
+                    {editingBatch ? 'Edit' : 'Schedule'} <span className="text-slate-900 dark:text-slate-100">Batch</span>
                   </h2>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-1">
-                    Course Batch Configuration Node
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+                    Academy Batch Operations Node
                   </p>
                 </div>
                 <button
@@ -711,13 +711,39 @@ const CourseDetails = () => {
                 </button>
               </header>
 
+              {/* Tab Navigation */}
+              <div className="flex border-b border-slate-100 dark:border-slate-800 px-8 bg-white dark:bg-slate-900">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('basic')}
+                  className={`py-4 px-6 font-black text-xs uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
+                    activeTab === 'basic' 
+                      ? 'border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-100' 
+                      : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  1. Timing & Capacity
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('days')}
+                  className={`py-4 px-6 font-black text-xs uppercase tracking-widest border-b-2 transition-all cursor-pointer ${
+                    activeTab === 'days' 
+                      ? 'border-slate-900 text-slate-900 dark:border-slate-100 dark:text-slate-100' 
+                      : 'border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  2. Days & Instructors
+                </button>
+              </div>
+
               <form onSubmit={handleSubmitBatch} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-1">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Batch Code (Auto-generated if blank)</label>
                     <input
                       type="text"
-                      placeholder="e.g. BTC-2026-000001"
+                      placeholder="e.g. MERN-B1-2026"
                       value={batchFormData.batchCode}
                       onChange={(e) => setBatchFormData({ ...batchFormData, batchCode: e.target.value })}
                       className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 px-4 text-slate-900 dark:text-slate-100 outline-none text-sm font-medium"
@@ -729,7 +755,7 @@ const CourseDetails = () => {
                     <input
                       required
                       type="text"
-                      placeholder="e.g. MERN 2026 Morning Batch"
+                      placeholder="e.g. MERN Morning Cohort 1"
                       value={batchFormData.batchName}
                       onChange={(e) => setBatchFormData({ ...batchFormData, batchName: e.target.value })}
                       className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl py-3.5 px-4 text-slate-900 dark:text-slate-100 outline-none text-sm font-medium"
@@ -739,9 +765,8 @@ const CourseDetails = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Date *</label>
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Date</label>
                     <input
-                      required
                       type="date"
                       value={batchFormData.startDate}
                       onChange={(e) => setBatchFormData({ ...batchFormData, startDate: e.target.value })}
@@ -750,9 +775,8 @@ const CourseDetails = () => {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Date *</label>
+                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Date</label>
                     <input
-                      required
                       type="date"
                       value={batchFormData.endDate}
                       onChange={(e) => setBatchFormData({ ...batchFormData, endDate: e.target.value })}
@@ -763,22 +787,22 @@ const CourseDetails = () => {
 
                 {/* Days of Week Selection */}
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Schedule Days of Week *</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Weekly Schedule Days</label>
                   <div className="flex flex-wrap gap-2">
                     {DAYS_OF_WEEK.map(day => {
-                      const isSelected = (batchFormData.daysOfWeek || []).includes(day);
+                      const isSelected = batchFormData.daysOfWeek.includes(day);
                       return (
                         <button
                           key={day}
                           type="button"
                           onClick={() => handleDayToggle(day)}
-                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                            isSelected 
-                              ? 'bg-indigo-600 text-white border-indigo-500 shadow-md' 
-                              : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50'
+                          className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer border ${
+                            isSelected
+                              ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100 shadow-sm'
+                              : 'bg-white dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:border-slate-300'
                           }`}
                         >
-                          {day}
+                          {day.substring(0, 3)}
                         </button>
                       );
                     })}
@@ -837,7 +861,7 @@ const CourseDetails = () => {
                             setBatchFormData(prev => ({ ...prev, instructorIds: allIds, instructorId: allIds[0] || '' }));
                           }
                         }}
-                        className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 hover:underline uppercase tracking-wider cursor-pointer"
+                        className="text-[9px] font-black text-slate-900 dark:text-slate-100 hover:underline uppercase tracking-wider cursor-pointer"
                       >
                         {(batchFormData.instructorIds || []).length === instructors.length ? 'Deselect All' : 'Select All'}
                       </button>
@@ -853,7 +877,7 @@ const CourseDetails = () => {
                         return (
                           <span 
                             key={instId}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-indigo-600 text-white shadow-xs"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-xs"
                           >
                             <User size={12} />
                             {instName}
@@ -875,10 +899,10 @@ const CourseDetails = () => {
                     <button
                       type="button"
                       onClick={() => setIsInstructorDropdownOpen(!isInstructorDropdownOpen)}
-                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-800 dark:text-slate-200 flex items-center justify-between cursor-pointer"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-500/50 text-slate-800 dark:text-slate-200 flex items-center justify-between cursor-pointer"
                     >
                       <span className="text-slate-600 dark:text-slate-300 font-medium truncate flex items-center gap-2">
-                        <User size={16} className="text-indigo-500 shrink-0" />
+                        <User size={16} className="text-slate-500 shrink-0" />
                         {(batchFormData.instructorIds || []).length === 0 
                           ? '-- Select Assigned Instructors --' 
                           : `${(batchFormData.instructorIds || []).length} Instructor(s) Selected`}
@@ -897,7 +921,7 @@ const CourseDetails = () => {
                             value={instructorSearchText}
                             onChange={(e) => setInstructorSearchText(e.target.value)}
                             placeholder="Search instructors by name or role..."
-                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-9 pr-3 text-xs text-slate-900 dark:text-slate-100 outline-none focus:border-indigo-500"
+                            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-2 pl-9 pr-3 text-xs text-slate-900 dark:text-slate-100 outline-none focus:border-slate-500"
                           />
                         </div>
 
@@ -926,13 +950,13 @@ const CourseDetails = () => {
                                   onClick={() => handleToggleInstructorSelection(instId)}
                                   className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all border ${
                                     isChecked 
-                                      ? 'bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500/50 text-indigo-900 dark:text-indigo-200 font-bold' 
+                                      ? 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold' 
                                       : 'bg-white dark:bg-slate-950 border-slate-100 dark:border-slate-800/60 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900'
                                   }`}
                                 >
                                   <div className="flex items-center gap-2.5 truncate">
                                     <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
-                                      isChecked ? 'bg-indigo-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                                      isChecked ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
                                     }`}>
                                       {inst.name ? inst.name.charAt(0).toUpperCase() : 'I'}
                                     </div>
@@ -943,7 +967,7 @@ const CourseDetails = () => {
                                   </div>
 
                                   <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 ${
-                                    isChecked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-700'
+                                    isChecked ? 'bg-slate-900 border-slate-900 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-900' : 'border-slate-300 dark:border-slate-700'
                                   }`}>
                                     {isChecked && <CheckCircle2 size={12} />}
                                   </div>
@@ -968,7 +992,7 @@ const CourseDetails = () => {
                   <button
                     type="submit"
                     disabled={isSubmittingBatch}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/20"
+                    className="bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-slate-200 text-white dark:text-slate-900 px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 cursor-pointer shadow-lg shadow-slate-900/10"
                   >
                     {isSubmittingBatch ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
                     {editingBatch ? 'Update Batch' : 'Confirm Batch'}

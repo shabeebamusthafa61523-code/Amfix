@@ -206,7 +206,7 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
         </div>
         <button
           onClick={() => handleOpenAddModal()}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2"
+          className="bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 dark:hover:bg-slate-200 text-white dark:text-slate-900 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
         >
           <Plus size={16} /> Create Assignment
         </button>
@@ -220,7 +220,7 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
             <div key={mod.moduleId || modIdx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center">
+                  <span className="w-8 h-8 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-black text-xs flex items-center justify-center">
                     {modIdx + 1}
                   </span>
                   <h3 className="text-base font-extrabold uppercase text-slate-900 dark:text-slate-100">
@@ -229,7 +229,7 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
                 </div>
                 <button
                   onClick={() => handleOpenAddModal(mod.moduleId)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1.5"
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1.5"
                 >
                   <Plus size={14} /> Add Assignment
                 </button>
@@ -243,7 +243,7 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
                     <div key={asg._id} className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl space-y-3 shadow-xs">
                       <div className="flex items-start justify-between">
                         <div>
-                          <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 inline-block mb-1">
+                          <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 inline-block mb-1">
                             Max {asg.maxMarks} Marks
                           </span>
                           <h4 className="text-sm font-black uppercase tracking-tight text-slate-900 dark:text-slate-100">
@@ -261,7 +261,7 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
 
                       <div className="flex items-center justify-between text-xs text-slate-400 font-semibold pt-1">
                         <span className="flex items-center gap-1">
-                          <Calendar size={13} className="text-indigo-500" />
+                          <Calendar size={13} className="text-slate-500" />
                           {asg.dueDate ? `Due: ${new Date(asg.dueDate).toLocaleDateString()}` : 'No due date'}
                         </span>
                         <span className="uppercase text-[10px] text-slate-500">
@@ -273,7 +273,7 @@ const AssignmentManager = ({ courseId, syllabus = [] }) => {
                       <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                         <button
                           onClick={() => fetchSubmissions(asg)}
-                          className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                          className="flex-1 py-2 bg-slate-900 dark:bg-slate-100 hover:bg-slate-800 text-white dark:text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5"
                         >
                           <Users size={14} /> Submissions Queue
                         </button>

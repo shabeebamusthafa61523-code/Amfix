@@ -42,6 +42,7 @@ const ALL_SIDEBAR_ITEMS = [
   { label: 'Departments', path: '/departments', category: 'People & HR' },
   { label: 'Recruitment', path: '/recruitment', category: 'People & HR' },
   { label: 'Attendance', path: '/attendance', category: 'People & HR' },
+  { label: 'Attendance Logs', path: '/attendance-logs', category: 'People & HR' },
   { label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'People & HR' },
 
   // --- SALES & CRM ---
@@ -1217,7 +1218,9 @@ const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesigna
     salary: '',
     address: '',
     identityType: 'aadhaar',
-    identityNumber: ''
+    identityNumber: '',
+    customCheckInTime: '09:30',
+    customCheckOutTime: '18:30'
   });
   const [preview, setPreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1423,6 +1426,14 @@ const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesigna
               <input required name="identityNumber" className="w-full text-xs py-2" placeholder="ID NUMBER" value={form.identityNumber} onChange={handleInputChange} />
             </div>
             <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider block ml-1">Custom Shift Check-In Time</label>
+              <input type="time" name="customCheckInTime" className="w-full text-xs py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-100" value={form.customCheckInTime || '09:30'} onChange={handleInputChange} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider block ml-1">Custom Shift Check-Out Time</label>
+              <input type="time" name="customCheckOutTime" className="w-full text-xs py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 outline-none focus:border-indigo-500 text-slate-800 dark:text-slate-100" value={form.customCheckOutTime || '18:30'} onChange={handleInputChange} />
+            </div>
+            <div className="space-y-1">
               <label className="text-[10px] font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider block ml-1">Profile Photo</label>
               <div className="relative group flex items-center gap-2 w-full border border-dashed border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1.5 bg-slate-50 dark:bg-slate-900 hover:border-indigo-500 transition-all cursor-pointer">
                 <input type="file" className="absolute inset-0 opacity-0 cursor-pointer w-full" onChange={handleAvatarChange} />
@@ -1478,10 +1489,34 @@ const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDes
     salary: user.salary || '',
     address: user.address || '',
     identityType: user.identityType || 'aadhaar',
-    identityNumber: user.identityNumber || ''
+    identityNumber: user.identityNumber || '',
+    customCheckInTime: user.customCheckInTime || '09:30',
+    customCheckOutTime: user.customCheckOutTime || '18:30'
   });
   const [preview, setPreview] = useState(user.avatar || user.profile_image || null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setForm({
+      employeeId: user.employeeId || '',
+      name: user.name || '',
+      phone: user.phone || '',
+      email: user.email || '',
+      designation: user.designationId || user.designation || '',
+      departmentId: user.departmentId?._id || user.departmentId || user.department || '',
+      reportingManager: user.reportingManager || '',
+      status: user.status || 'active',
+      role: user.role || 'employee',
+      avatar: null,
+      joining_date: user.joining_date ? new Date(user.joining_date).toISOString().split('T')[0] : '',
+      salary: user.salary || '',
+      address: user.address || '',
+      identityType: user.identityType || 'aadhaar',
+      identityNumber: user.identityNumber || '',
+      customCheckInTime: user.customCheckInTime || '09:30',
+      customCheckOutTime: user.customCheckOutTime || '18:30'
+    });
+  }, [user]);
 
   useEffect(() => {
     if (!form.designation || designations.some(d => String(d.id) === String(form.designation))) return;
@@ -1684,6 +1719,14 @@ const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDes
               <input required name="identityNumber" className="w-full" placeholder="ID NUMBER" value={form.identityNumber} onChange={handleInputChange} />
             </div>
             <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider block ml-1">Custom Shift Check-In Time</label>
+              <input type="time" name="customCheckInTime" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500 dark:focus:border-indigo-400 cursor-pointer" value={form.customCheckInTime || '09:30'} onChange={handleInputChange} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider block ml-1">Custom Shift Check-Out Time</label>
+              <input type="time" name="customCheckOutTime" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500 dark:focus:border-indigo-400 cursor-pointer" value={form.customCheckOutTime || '18:30'} onChange={handleInputChange} />
+            </div>
+            <div className="space-y-1.5">
               <label className="text-[10px] font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider block ml-1">Profile Photo</label>
               <div className="relative group flex items-center gap-2 w-full border border-dashed border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1.5 bg-slate-50 dark:bg-slate-900 hover:border-indigo-500 transition-all cursor-pointer">
                 <input type="file" className="absolute inset-0 opacity-0 cursor-pointer w-full" onChange={handleAvatarChange} />
@@ -1820,6 +1863,7 @@ const ViewModal = ({ user, getDesignationName, getDepartmentName, onClose }) => 
                 { label: 'System Role', value: user.role, upper: true },
                 { label: 'Department', value: getDepartmentName(user) },
                 { label: 'Rep. Manager', value: user.reportingManager || 'Unassigned' },
+                { label: 'Shift Timing', value: `${user.customCheckInTime || '09:30'} - ${user.customCheckOutTime || '18:30'}` },
                 { label: 'Monthly Salary', value: `₹${user.salary || '0'}` },
                 { label: 'Joining Date', value: user.joining_date ? new Date(user.joining_date).toLocaleDateString() : 'N/A' },
                 { label: 'Identity Type', value: user.identityType, upper: true },
