@@ -74,6 +74,16 @@ const attendanceSchema = new mongoose.Schema({
   check_out_distance_from_office_meters: {
     type: Number,
     default: null
+  },
+
+  check_in_ip: {
+    type: String,
+    default: null
+  },
+
+  check_out_ip: {
+    type: String,
+    default: null
   }
 
 }, {

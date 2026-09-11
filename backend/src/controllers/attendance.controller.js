@@ -89,6 +89,12 @@ const serializeAttendance = (record) => {
   };
 };
 
+const getClientIp = (req) => {
+  const rawIp = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.connection?.remoteAddress || '';
+  const firstIp = rawIp.split(',')[0].trim().replace(/^::ffff:/, '');
+  return firstIp || '127.0.0.1';
+};
+
 const getDistanceFromLatLonInMeters = (lat1, lon1, lat2, lon2) => {
   try {
     const R = 6371000; // Earth radius in meters
@@ -115,6 +121,21 @@ export const checkIn = async (req, res) => {
       return res.status(401).json({
         detail: "Authentication required."
       });
+    }
+
+    const clientIp = getClientIp(req);
+
+    // Wi-Fi IP Verification Check (if configured via env OFFICE_WIFI_IPS or REQUIRE_WIFI_VERIFICATION)
+    const officeWifiIpsConfig = process.env.OFFICE_WIFI_IPS;
+    const requireWifi = String(process.env.REQUIRE_WIFI_VERIFICATION).toLowerCase() === 'true' || (officeWifiIpsConfig && officeWifiIpsConfig.trim().length > 0);
+
+    if (requireWifi && officeWifiIpsConfig) {
+      const allowedIps = officeWifiIpsConfig.split(',').map(ip => ip.trim().replace(/^::ffff:/, ''));
+      if (allowedIps.length > 0 && !allowedIps.includes(clientIp)) {
+        return res.status(403).json({
+          detail: `Wi-Fi verification failed: You are connected to IP (${clientIp}). Attendance check-in can only be marked while connected to the Office Wi-Fi network.`
+        });
+      }
     }
 
     const { latitude, longitude } = req.body || {};
@@ -192,7 +213,8 @@ export const checkIn = async (req, res) => {
             is_late: checkIsLate(now, shiftInTime),
             check_in_latitude: userLat,
             check_in_longitude: userLng,
-            distance_from_office_meters: Math.round(distanceMeters)
+            distance_from_office_meters: Math.round(distanceMeters),
+            check_in_ip: clientIp
           }
         },
         {
@@ -224,6 +246,21 @@ export const checkOut = async (req, res) => {
       return res.status(401).json({
         detail: "Authentication required."
       });
+    }
+
+    const clientIp = getClientIp(req);
+
+    // Wi-Fi IP Verification Check (if configured via env OFFICE_WIFI_IPS or REQUIRE_WIFI_VERIFICATION)
+    const officeWifiIpsConfig = process.env.OFFICE_WIFI_IPS;
+    const requireWifi = String(process.env.REQUIRE_WIFI_VERIFICATION).toLowerCase() === 'true' || (officeWifiIpsConfig && officeWifiIpsConfig.trim().length > 0);
+
+    if (requireWifi && officeWifiIpsConfig) {
+      const allowedIps = officeWifiIpsConfig.split(',').map(ip => ip.trim().replace(/^::ffff:/, ''));
+      if (allowedIps.length > 0 && !allowedIps.includes(clientIp)) {
+        return res.status(403).json({
+          detail: `Wi-Fi verification failed: You are connected to IP (${clientIp}). Check-out can only be marked while connected to the Office Wi-Fi network.`
+        });
+      }
     }
 
     const { latitude, longitude } = req.body || {};
@@ -305,6 +342,7 @@ export const checkOut = async (req, res) => {
     record.check_out_latitude = userLat;
     record.check_out_longitude = userLng;
     record.check_out_distance_from_office_meters = Math.round(distanceMeters);
+    record.check_out_ip = clientIp;
 
     await record.save();
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
@@ -63,7 +63,14 @@ const SidebarPermissionsPage = () => {
     fetchUsers();
   }, [fetchUsers]);
 
-  const filteredUsers = users.filter(u => {
+  const nonSuperAdminUsers = useMemo(() => {
+    return users.filter(u => {
+      const isSA = u.isSuperAdmin === true || u.is_super_admin === true || u.role === 'superadmin' || u.role_id === '0' || String(u.role).toLowerCase() === 'superadmin';
+      return !isSA;
+    });
+  }, [users]);
+
+  const filteredUsers = nonSuperAdminUsers.filter(u => {
     const q = search.toLowerCase().trim();
     const matchSearch = !q || 
       (u.name || '').toLowerCase().includes(q) || 
@@ -117,10 +124,10 @@ const SidebarPermissionsPage = () => {
 
         <div className="flex items-center gap-2 text-xs font-bold">
           <span className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 rounded-xl border border-indigo-500/20">
-            {users.length} Total Users
+            {nonSuperAdminUsers.length} Total Users
           </span>
           <span className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20">
-            {users.filter(u => u.permissions && u.permissions.length > 0).length} Configured
+            {nonSuperAdminUsers.filter(u => u.permissions && u.permissions.length > 0).length} Configured
           </span>
         </div>
       </div>

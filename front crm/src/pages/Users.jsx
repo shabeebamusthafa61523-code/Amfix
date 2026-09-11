@@ -349,11 +349,29 @@ const Users = () => {
         const userObj = JSON.parse(savedUser);
         const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
         const designation = String(userObj.designation || '').toLowerCase().trim();
-        const designationId = String(userObj.designationId?._id || userObj.designationId || userObj.designation_id || '').trim();
         return role === 'hr' || designation.includes('hr');
       }
     } catch (e) {
       console.error("Error checking HR role in Users:", e);
+    }
+    return false;
+  }, []);
+
+  const isLoggedInSuperAdmin = useMemo(() => {
+    try {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        const userObj = JSON.parse(savedUser);
+        const role = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
+        return Boolean(
+          userObj.isSuperAdmin === true ||
+          userObj.is_super_admin === true ||
+          role === 'superadmin' ||
+          role === '0'
+        );
+      }
+    } catch (e) {
+      console.error("Error checking superadmin status in Users page:", e);
     }
     return false;
   }, []);
@@ -884,6 +902,7 @@ const Users = () => {
             onDesignationDeleted={handleDesignationDeleted}
             departments={departments}
             showToast={showToast}
+            isLoggedInSuperAdmin={isLoggedInSuperAdmin}
           />
         )}
         {isEditOpen && selectedUser && (
@@ -901,6 +920,7 @@ const Users = () => {
             onDesignationDeleted={handleDesignationDeleted}
             departments={departments}
             showToast={showToast}
+            isLoggedInSuperAdmin={isLoggedInSuperAdmin}
           />
         )}
         {isViewOpen && selectedUser && (
@@ -1198,10 +1218,15 @@ const DesignationSelect = ({
 };
 
 // --- CREATE MODAL ---
-const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesignationCreated, onDesignationUpdated, onDesignationDeleted, departments, showToast }) => {
+const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesignationCreated, onDesignationUpdated, onDesignationDeleted, departments, showToast, isLoggedInSuperAdmin }) => {
   useEffect(() => {
     window.scrollTo({ top: 0 });
   }, []);
+
+  const availableRoles = useMemo(() => {
+    if (isLoggedInSuperAdmin) return ROLES;
+    return ROLES.filter(r => r.name !== 'superadmin' && r.id !== '0');
+  }, [isLoggedInSuperAdmin]);
 
   const [form, setForm] = useState({
     employeeId: `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -1399,7 +1424,7 @@ const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesigna
             <div className="space-y-1">
               <label className="text-[10px] font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider block ml-1">System Role</label>
               <select name="role" className="w-full text-xs py-2" value={form.role} onChange={handleInputChange}>
-                {ROLES.map(r => (
+                {availableRoles.map(r => (
                   <option key={r.id} value={r.name}>{r.name.toUpperCase()}</option>
                 ))}
               </select>
@@ -1469,10 +1494,15 @@ const CreateModal = ({ onClose, refresh, getAuthHeaders, designations, onDesigna
 };
 
 // --- EDIT MODAL ---
-const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDesignationCreated, onDesignationUpdated, onDesignationDeleted, departments, showToast }) => {
+const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDesignationCreated, onDesignationUpdated, onDesignationDeleted, departments, showToast, isLoggedInSuperAdmin }) => {
   useEffect(() => {
     window.scrollTo({ top: 0 });
   }, []);
+
+  const availableRoles = useMemo(() => {
+    if (isLoggedInSuperAdmin) return ROLES;
+    return ROLES.filter(r => r.name !== 'superadmin' && r.id !== '0');
+  }, [isLoggedInSuperAdmin]);
 
   const [form, setForm] = useState({
     employeeId: user.employeeId || '',
@@ -1692,7 +1722,7 @@ const EditModal = ({ user, onClose, refresh, getAuthHeaders, designations, onDes
             <div className="space-y-1.5">
               <label className="text-[10px] font-black uppercase text-indigo-500 dark:text-indigo-400 tracking-wider block ml-1">System Role</label>
               <select name="role" className="w-full" value={form.role} onChange={handleInputChange}>
-                {ROLES.map(r => (
+                {availableRoles.map(r => (
                   <option key={r.id} value={r.name}>{r.name.toUpperCase()}</option>
                 ))}
               </select>

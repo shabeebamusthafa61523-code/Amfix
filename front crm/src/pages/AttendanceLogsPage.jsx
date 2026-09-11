@@ -23,6 +23,7 @@ import {
   Building,
   Timer,
   Pencil,
+  Wifi,
   X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -374,7 +375,7 @@ export default function AttendanceLogsPage() {
   // CSV Export
   const exportToCSV = () => {
     if (filteredLogs.length === 0) return;
-    const headers = ['Date', 'Employee Name', 'Employee ID', 'Email', 'Login Time', 'Logout Time', 'Working Hours (Hrs)', 'Late', 'Distance from Office (m)', 'Latitude', 'Longitude', 'Status'];
+    const headers = ['Date', 'Employee Name', 'Employee ID', 'Email', 'Login Time', 'Logout Time', 'Working Hours (Hrs)', 'Late', 'Distance from Office (m)', 'Check-In IP', 'Check-Out IP', 'Latitude', 'Longitude', 'Status'];
     const rows = filteredLogs.map(item => [
       item.date || '',
       item.user?.name || 'N/A',
@@ -385,6 +386,8 @@ export default function AttendanceLogsPage() {
       item.working_hours || '0.00',
       item.is_late ? 'Yes' : 'No',
       item.distance_from_office_meters !== null ? item.distance_from_office_meters : 'N/A',
+      item.check_in_ip || 'N/A',
+      item.check_out_ip || 'N/A',
       item.check_in_latitude || '',
       item.check_in_longitude || '',
       item.status || 'UNMARKED'
@@ -753,25 +756,33 @@ export default function AttendanceLogsPage() {
                               )}
                             </td>
 
-                            {/* Location & Office Distance */}
+                            {/* Location & Office Distance & Wi-Fi IP */}
                             <td className="px-6 py-4 text-center whitespace-nowrap">
-                              {hasCoords ? (
-                                <a
-                                  href={`https://www.google.com/maps?q=${item.check_in_latitude},${item.check_in_longitude}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all"
-                                  title={`Coords: ${item.check_in_latitude}, ${item.check_in_longitude}`}
-                                >
-                                  <MapPin size={12} className="text-indigo-500" />
-                                  {item.distance_from_office_meters !== null 
-                                    ? `${item.distance_from_office_meters}m Office` 
-                                    : 'GPS Verified'}
-                                  <ExternalLink size={10} />
-                                </a>
-                              ) : (
-                                <span className="text-[10px] text-slate-400 font-semibold italic">Manual / Default</span>
-                              )}
+                              <div className="flex flex-col items-center gap-1">
+                                {hasCoords ? (
+                                  <a
+                                    href={`https://www.google.com/maps?q=${item.check_in_latitude},${item.check_in_longitude}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition-all"
+                                    title={`Coords: ${item.check_in_latitude}, ${item.check_in_longitude}`}
+                                  >
+                                    <MapPin size={12} className="text-indigo-500" />
+                                    {item.distance_from_office_meters !== null 
+                                      ? `${item.distance_from_office_meters}m Office` 
+                                      : 'GPS Verified'}
+                                    <ExternalLink size={10} />
+                                  </a>
+                                ) : (
+                                  <span className="text-[10px] text-slate-400 font-semibold italic">Manual / Default</span>
+                                )}
+                                {(item.check_in_ip || item.check_out_ip) && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/60" title={`In IP: ${item.check_in_ip || 'N/A'} | Out IP: ${item.check_out_ip || 'N/A'}`}>
+                                    <Wifi size={10} className="text-emerald-500" />
+                                    {item.check_in_ip || item.check_out_ip}
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
                             {/* Status */}
