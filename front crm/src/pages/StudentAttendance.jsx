@@ -6,7 +6,7 @@ import {
   Search, Calendar as CalendarIcon, GraduationCap, Loader2, LayoutGrid, List, 
   ChevronLeft, ChevronRight, UserCheck, UserPlus, ShieldCheck, AlertCircle, 
   CheckCircle2, XCircle, X, User, Mail, Lock, Phone, ShieldPlus, CreditCard,
-  Download, FileSpreadsheet, Eye, Edit, MapPin, BookOpen, Camera, Upload, ImageIcon
+  Download, FileSpreadsheet, Eye, Edit, MapPin, BookOpen, Camera, Upload, ImageIcon, Trash2
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable'; 
@@ -495,6 +495,43 @@ const StudentAttendance = () => {
     }
   };
 
+  const handleDeleteStudent = async (student) => {
+    const studentId = student?._id || student?.id;
+    const studentName = student?.name || 'this student';
+
+    if (!studentId) return;
+
+    if (!window.confirm(`Are you sure you want to permanently delete student "${studentName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      let response = await fetch(`${cleanBase}/v1/users/${studentId}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+
+      if (!response.ok) {
+        response = await fetch(`${cleanBase}/v1/users/delete/${studentId}`, {
+          method: 'DELETE',
+          headers: getHeaders(),
+        });
+      }
+
+      if (response.ok) {
+        showToast(`Student "${studentName}" deleted successfully!`, 'success');
+        fetchStudents();
+      } else {
+        const body = await response.json().catch(() => ({}));
+        showToast(body.message || body.detail || 'Failed to delete student.', 'error');
+      }
+    } catch (err) {
+      console.error('Delete Student Error:', err);
+      showToast(err.message || 'Network error while deleting student.', 'error');
+    }
+  };
+
   const handleAction = async (studentId, type) => {
     const targetStatus = type.toUpperCase(); 
     const previousState = { ...attendanceData };
@@ -762,12 +799,29 @@ const StudentAttendance = () => {
                       </div>
 
                       <div className="space-y-3">
-                        <button
-                          onClick={() => handleOpenProfile(studentId)}
-                          className="w-full py-2 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-indigo-600 border border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
-                        >
-                          <Eye size={12} /> Profile
-                        </button>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            onClick={() => handleOpenProfile(studentId)}
+                            className="py-2 rounded-xl bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-indigo-600 border border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
+                            title="View Profile"
+                          >
+                            <Eye size={12} /> Profile
+                          </button>
+                          <button
+                            onClick={() => handleOpenEditModal(s)}
+                            className="py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 border border-indigo-100 dark:border-indigo-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
+                            title="Edit Student"
+                          >
+                            <Edit size={12} /> Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteStudent(s)}
+                            className="py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 border border-rose-100 dark:border-rose-800 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-1 cursor-pointer"
+                            title="Delete Student"
+                          >
+                            <Trash2 size={12} /> Delete
+                          </button>
+                        </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <button 
@@ -840,13 +894,27 @@ const StudentAttendance = () => {
                               </span>
                             </td>
                             <td className="px-8 py-6">
-                              <div className="flex justify-end items-center gap-3">
+                              <div className="flex justify-end items-center gap-2">
                                 <button
                                   onClick={() => handleOpenProfile(studentId)}
                                   className="p-2 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 text-slate-600 dark:text-slate-300 hover:text-indigo-600 rounded-xl transition-all cursor-pointer"
                                   title="View Profile"
                                 >
                                   <Eye size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleOpenEditModal(s)}
+                                  className="p-2 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 text-indigo-600 dark:text-indigo-400 rounded-xl transition-all cursor-pointer"
+                                  title="Edit Student"
+                                >
+                                  <Edit size={14} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteStudent(s)}
+                                  className="p-2 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 text-rose-600 dark:text-rose-400 rounded-xl transition-all cursor-pointer"
+                                  title="Delete Student"
+                                >
+                                  <Trash2 size={14} />
                                 </button>
                                 <button 
                                   onClick={() => handleAction(studentId, 'present')} 
@@ -922,6 +990,9 @@ const StudentAttendance = () => {
           setSelectedProfileStudentId(null);
         }}
         onEditStudent={handleOpenEditModal}
+        onDeleteStudent={(deletedId) => {
+          fetchStudents();
+        }}
         getHeaders={getHeaders}
       />
 

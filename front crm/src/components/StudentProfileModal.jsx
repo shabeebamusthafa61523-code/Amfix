@@ -3,12 +3,12 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, User, Mail, Phone, MapPin, GraduationCap, ShieldCheck, 
-  Calendar, Award, CreditCard, BookOpen, CheckCircle2, AlertCircle, Edit, Loader2, Save
+  Calendar, Award, CreditCard, BookOpen, CheckCircle2, AlertCircle, Edit, Loader2, Save, Trash2
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL;
 
-const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHeaders }) => {
+const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, onDeleteStudent, getHeaders }) => {
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -184,6 +184,44 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
     }
   };
 
+  const handleDeleteProfile = async () => {
+    if (!studentId) return;
+    const name = studentName || 'this student';
+    if (!window.confirm(`Are you sure you want to permanently delete student "${name}"? This action cannot be undone.`)) {
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const cleanBase = (API_BASE || '/api').replace(/\/$/, '');
+      const reqHeaders = getHeaders ? getHeaders() : {};
+
+      let res = await fetch(`${cleanBase}/v1/users/${studentId}`, {
+        method: 'DELETE',
+        headers: reqHeaders
+      });
+
+      if (!res.ok) {
+        res = await fetch(`${cleanBase}/v1/users/delete/${studentId}`, {
+          method: 'DELETE',
+          headers: reqHeaders
+        });
+      }
+
+      if (res.ok) {
+        if (onClose) onClose();
+        if (onDeleteStudent) onDeleteStudent(studentId);
+      } else {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message || body.detail || 'Failed to delete student');
+      }
+    } catch (err) {
+      setError(err.message || 'Error deleting student');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return createPortal(
     <AnimatePresence>
       <div className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6">
@@ -250,6 +288,7 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
                     </button>
                   </>
                 ) : (
+                  <>
                     <button
                       onClick={() => {
                         if (onEditStudent) {
@@ -259,10 +298,19 @@ const StudentProfileModal = ({ studentId, isOpen, onClose, onEditStudent, getHea
                           handleStartEditing();
                         }
                       }}
-                      className="flex items-center gap-2 bg-white text-indigo-900 hover:bg-indigo-50 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md cursor-pointer"
+                      className="flex items-center gap-2 bg-white text-indigo-900 hover:bg-indigo-50 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md cursor-pointer"
                     >
                       <Edit size={14} /> Edit Profile
                     </button>
+                    <button
+                      onClick={handleDeleteProfile}
+                      disabled={saving}
+                      className="flex items-center gap-2 bg-rose-500 hover:bg-rose-600 text-white px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md cursor-pointer disabled:opacity-50"
+                      title="Delete Student"
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </>
                 )}
               </div>
             </div>
