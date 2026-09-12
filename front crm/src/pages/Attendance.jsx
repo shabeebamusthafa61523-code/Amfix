@@ -159,22 +159,6 @@ const LiveClock = () => {
 const Attendance = () => {
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      try {
-        const userObj = JSON.parse(savedUser);
-        const currentUserRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
-        const isAdmin = ['1', '2', 'hr', 'admin'].includes(currentUserRole);
-        if (isAdmin) {
-          navigate('/dashboard', { replace: true });
-        }
-      } catch (err) {
-        console.error("Failed to parse user for admin check:", err);
-      }
-    }
-  }, [navigate]);
-
   const [todayLog, setTodayLog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -330,9 +314,22 @@ const Attendance = () => {
 
       if (type === 'check-in' || type === 'check-out') {
         const coords = await getCurrentPositionPromise();
+        
+        let clientIp = '';
+        try {
+          const ipRes = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(3000) });
+          if (ipRes.ok) {
+            const ipData = await ipRes.json();
+            clientIp = ipData.ip || '';
+          }
+        } catch (e) {
+          console.warn('Could not fetch client public IP:', e);
+        }
+
         bodyData = {
           latitude: coords.latitude,
-          longitude: coords.longitude
+          longitude: coords.longitude,
+          clientIp
         };
       }
 

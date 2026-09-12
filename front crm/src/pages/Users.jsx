@@ -11,6 +11,8 @@ import { useToast } from '../components/ToastProvider';
 import ConfirmModal from '../components/ConfirmModal';
 import PerformanceTab from '../components/PerformanceTab';
 import PerformanceDashboard from './PerformanceDashboard';
+import { ALL_SIDEBAR_ITEMS, isSuperAdminUser, getAvailableSidebarItemsForUser } from '../utils/sidebarItems';
+
 const RAW_API_BASE = import.meta.env.VITE_API_URL || '/api';
 const API_BASE = (RAW_API_BASE.endsWith('/') ? RAW_API_BASE.slice(0, -1) : RAW_API_BASE).replace(/\/+$/, '');
 const ROLES = [
@@ -18,83 +20,6 @@ const ROLES = [
   { id: "1", name: "hr" },
   { id: "2", name: "admin" },
   { id: "3", name: "employee" }
-];
-
-const ALL_SIDEBAR_ITEMS = [
-  // --- OVERVIEW & GENERAL ---
-  { label: 'Admin Dashboard', path: '/dashboard', category: 'Overview' },
-  { label: 'Approvals', path: '/approvals', category: 'Overview' },
-  { label: 'Leave Requests', path: '/leaves', category: 'Overview' },
-  { label: 'Notifications', path: '/notifications', category: 'Overview' },
-
-  // --- DASHBOARDS ---
-  { label: 'MD Dashboard', path: '/md-dashboard', category: 'Dashboards' },
-  { label: 'HR Dashboard', path: '/hr-dashboard', category: 'Dashboards' },
-  { label: 'Lead Dashboard', path: '/lead-dashboard', category: 'Dashboards' },
-  { label: 'Marketing Dashboard', path: '/marketing-dashboard', category: 'Dashboards' },
-  { label: 'Dev Dashboard', path: '/developer-dashboard', category: 'Dashboards' },
-  { label: 'GD Dashboard', path: '/graphic-designer-dashboard', category: 'Dashboards' },
-  { label: 'Video Dashboard', path: '/videographer-dashboard', category: 'Dashboards' },
-  { label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Dashboards' },
-
-  // --- PEOPLE & HR ---
-  { label: 'Users', path: '/users', category: 'People & HR' },
-  { label: 'Departments', path: '/departments', category: 'People & HR' },
-  { label: 'Recruitment', path: '/recruitment', category: 'People & HR' },
-  { label: 'Attendance', path: '/attendance', category: 'People & HR' },
-  { label: 'Attendance Logs', path: '/attendance-logs', category: 'People & HR' },
-  { label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'People & HR' },
-
-  // --- SALES & CRM ---
-  { label: 'Clients', path: '/clients', category: 'Sales & CRM' },
-  { label: 'Leads Directory', path: '/leads', category: 'Sales & CRM' },
-  { label: 'Client Leads', path: '/client-leads', category: 'Sales & CRM' },
-  { label: 'Student Leads', path: '/leads-telecaller', category: 'Sales & CRM' },
-  { label: 'Lead Counselor', path: '/lead-counselor', category: 'Sales & CRM' },
-
-  // --- MARKETING & WORK ---
-  { label: 'Projects', path: '/projects', category: 'Marketing & Work' },
-  { label: 'Task Assign', path: '/todo', category: 'Marketing & Work' },
-  { label: 'Content Calendar', path: '/calendar-work', category: 'Marketing & Work' },
-
-  // --- FINANCE & PAYROLL ---
-  { label: 'Accounts', path: '/accounts', category: 'Finance & Payroll' },
-  { label: 'Sales', path: '/accounts/income', category: 'Finance & Payroll' },
-  { label: 'Income', path: '/accounts/sales', category: 'Finance & Payroll' },
-  { label: 'Purchase', path: '/accounts/purchase', category: 'Finance & Payroll' },
-  { label: 'Create Invoice', path: '/accounts/create-invoice', category: 'Finance & Payroll' },
-  { label: 'Expense Categories', path: '/accounts/categories', category: 'Finance & Payroll' },
-  { label: 'Expense', path: '/accounts/expenses', category: 'Finance & Payroll' },
-  { label: 'Salary Payment', path: '/accounts/salary', category: 'Finance & Payroll' },
-  { label: 'Cash & Bank', path: '/accounts/cash-book', category: 'Finance & Payroll' },
-  { label: 'Operation', path: '/accounts/operation', category: 'Finance & Payroll' },
-  { label: 'Financial Report', path: '/accounts/reports', category: 'Finance & Payroll' },
-  { label: 'Payslips', path: '/payslips', category: 'Finance & Payroll' },
-  { label: 'Personal Payslip', path: '/my-payslip', category: 'Finance & Payroll' },
-
-  // --- ACADEMY & LMS ---
-  { label: 'Course Management', path: '/academy/courses', category: 'Academy & LMS' },
-  { label: 'Batches', path: '/academy/batches', category: 'Academy & LMS' },
-  { label: 'Enrollment Tracking', path: '/academy/enrollments', category: 'Academy & LMS' },
-  { label: 'Student Attendance', path: '/student-attendance', category: 'Academy & LMS' },
-  { label: 'My LMS Learning', path: '/academy/learning', category: 'Academy & LMS' },
-
-  // --- REPORTS & ANALYTICS ---
-  { label: 'KPI Analytics', path: '/performance-dashboard', category: 'Reports' },
-  { label: 'AI Reports', path: '/ai-report', category: 'Reports' },
-  { label: 'Employee Reports', path: '/employee-reports', category: 'Reports' },
-  { label: 'Daily Report', path: '/basic-report', category: 'Reports' },
-  { label: 'Team Reports', path: '/team-reports', category: 'Reports' },
-  { label: 'HR Shift Report', path: '/hr-report', category: 'Reports' },
-  { label: 'Ops Shift Report', path: '/ops-report', category: 'Reports' },
-  { label: 'Accountant Shift Report', path: '/accountant-report', category: 'Reports' },
-  { label: 'Marketing Shift Report', path: '/marketing-report', category: 'Reports' },
-  { label: 'Developer Report', path: '/developer-report', category: 'Reports' },
-  { label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports' },
-  { label: 'Videographer Report', path: '/videographer-report', category: 'Reports' },
-  { label: 'Academic Counselor Report', path: '/academic-counselor-report', category: 'Reports' },
-  { label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports' },
-  { label: 'HOD Marketing Report', path: '/hod-marketing-report', category: 'Reports' }
 ];
 
 const STATUS_META = {
@@ -107,6 +32,20 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
   const [selectedPermissions, setSelectedPermissions] = useState([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const loggedInUser = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('user');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return null;
+  }, []);
+
+  const isLoggedInSuperAdmin = isSuperAdminUser(loggedInUser);
+
+  const availableSidebarItems = useMemo(() => {
+    return getAvailableSidebarItemsForUser(loggedInUser);
+  }, [loggedInUser]);
 
   useEffect(() => {
     if (user) {
@@ -124,7 +63,7 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
   };
 
   const handleSelectAll = () => {
-    setSelectedPermissions(ALL_SIDEBAR_ITEMS.map(i => i.label));
+    setSelectedPermissions(availableSidebarItems.map(i => i.label));
   };
 
   const handleDeselectAll = () => {
@@ -143,8 +82,8 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
         },
         body: JSON.stringify({
           permissions: selectedPermissions,
-          isSuperAdmin,
-          role: isSuperAdmin ? 'superadmin' : (user.role === 'superadmin' ? 'admin' : user.role)
+          isSuperAdmin: isLoggedInSuperAdmin ? isSuperAdmin : user.isSuperAdmin,
+          role: (isLoggedInSuperAdmin && isSuperAdmin) ? 'superadmin' : (user.role === 'superadmin' ? 'admin' : user.role)
         })
       });
 
@@ -159,12 +98,14 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
           const updatedLocalUser = {
             ...currentUser,
             permissions: selectedPermissions,
-            isSuperAdmin,
-            role: isSuperAdmin ? 'superadmin' : currentUser.role
+            isSuperAdmin: isLoggedInSuperAdmin ? isSuperAdmin : currentUser.isSuperAdmin,
+            role: (isLoggedInSuperAdmin && isSuperAdmin) ? 'superadmin' : currentUser.role
           };
           localStorage.setItem('user', JSON.stringify(updatedLocalUser));
           window.dispatchEvent(new Event('storage'));
         }
+
+        window.dispatchEvent(new Event('permissionsUpdated'));
 
         onSave();
         onClose();
@@ -179,8 +120,8 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
     }
   };
 
-  // Group items by category
-  const categories = [...new Set(ALL_SIDEBAR_ITEMS.map(i => i.category))];
+  // Group items by category from availableSidebarItems
+  const categories = [...new Set(availableSidebarItems.map(i => i.category))];
 
   return (
     <motion.div
@@ -218,15 +159,28 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
                 <Shield size={20} />
               </div>
               <div>
-                <span className="font-extrabold text-sm text-slate-900 dark:text-slate-100 block">Grant Super Admin Access</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">Super Admins have unrestricted access to all pages, settings, and sidebar items across the platform.</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-sm text-slate-900 dark:text-slate-100 block">Grant Super Admin Access</span>
+                  {!isLoggedInSuperAdmin && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                      <Lock size={10} /> Locked
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-slate-500 dark:text-slate-400 block">Super Admins have unrestricted access to all pages, settings, and sidebar items across the platform.</span>
+                {!isLoggedInSuperAdmin && (
+                  <span className="text-[11px] font-bold text-amber-500 flex items-center gap-1 mt-1">
+                    <Lock size={12} /> Only Super Admins can grant or modify Super Admin Master Privilege.
+                  </span>
+                )}
               </div>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+            <label className={`relative inline-flex items-center shrink-0 ${isLoggedInSuperAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
               <input
                 type="checkbox"
                 checked={isSuperAdmin}
-                onChange={(e) => setIsSuperAdmin(e.target.checked)}
+                disabled={!isLoggedInSuperAdmin}
+                onChange={(e) => isLoggedInSuperAdmin && setIsSuperAdmin(e.target.checked)}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-slate-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:after:border-slate-600 peer-checked:bg-emerald-500"></div>
@@ -237,7 +191,7 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
         {/* Sidebar Menu Item Permissions List */}
         <div className="p-6 max-h-[50vh] overflow-y-auto space-y-6">
           <div className="flex justify-between items-center">
-            <span className="text-xs font-black uppercase tracking-widest text-slate-400">Individual Sidebar Page Access</span>
+            <span className="text-xs font-black uppercase tracking-widest text-slate-400">Individual Sidebar Page Access ({availableSidebarItems.length} Available)</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={handleSelectAll}
@@ -265,7 +219,7 @@ const PermissionModal = ({ isOpen, onClose, user, onSave, showToast, getAuthHead
           )}
 
           {categories.map(cat => {
-            const catItems = ALL_SIDEBAR_ITEMS.filter(i => i.category === cat);
+            const catItems = availableSidebarItems.filter(i => i.category === cat);
             return (
               <div key={cat} className="space-y-3">
                 <h4 className="text-[11px] font-black uppercase tracking-wider text-indigo-500 dark:text-indigo-400">{cat}</h4>

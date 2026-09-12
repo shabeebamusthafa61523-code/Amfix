@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, Shield, ShieldCheck, CheckCircle2, Loader2, Save, 
-  CheckSquare, Square, RefreshCw, User as UserIcon, Mail, Phone, Briefcase, Folder
+  CheckSquare, Square, RefreshCw, User as UserIcon, Mail, Phone, Briefcase, Folder, Lock
 } from 'lucide-react';
 import { useToast } from '../components/ToastProvider';
 import { useUser } from '../contexts/UserContext';
+import { ALL_SIDEBAR_ITEMS, isSuperAdminUser, getAvailableSidebarItemsForUser } from '../utils/sidebarItems';
 
 const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/+$/, '');
 
@@ -21,90 +22,11 @@ const getApiEndpoint = (path) => {
   return `${API_BASE}/api/v1${cleanPath}`;
 };
 
-const ALL_SIDEBAR_ITEMS = [
-  // Dashboards
-  { label: 'Dashboard', path: '/dashboard', category: 'Dashboards', desc: 'Main CRM overview & key metrics' },
-  { label: 'Admin Dashboard', path: '/dashboard', category: 'Dashboards', desc: 'Admin panel with full CRM overview & controls' },
-  { label: 'MD Dashboard', path: '/md-dashboard', category: 'Dashboards', desc: 'Managing Director executive overview & analytics' },
-  { label: 'HR Dashboard', path: '/hr-dashboard', category: 'Dashboards', desc: 'HR overview dashboard & attendance stats' },
-  { label: 'Lead Dashboard', path: '/lead-dashboard', category: 'Dashboards', desc: 'Lead generation & conversion metrics' },
-  { label: 'Marketing Dashboard', path: '/marketing-dashboard', category: 'Dashboards', desc: 'Marketing campaigns & lead channels' },
-  { label: 'Counselor Dashboard', path: '/counselor-dashboard', category: 'Dashboards', desc: 'Academic counselor dashboard & student conversions' },
-  { label: 'Accountant Dashboard', path: '/accountant-dashboard', category: 'Dashboards', desc: 'Accountant financial dashboard, cashbook & revenue metrics' },
-  { label: 'Dev Dashboard', path: '/developer-dashboard', category: 'Dashboards', desc: 'Developer task tracking & commit status' },
-  { label: 'GD Dashboard', path: '/graphic-designer-dashboard', category: 'Dashboards', desc: 'Graphic design project & asset tracker' },
-  { label: 'Video Dashboard', path: '/videographer-dashboard', category: 'Dashboards', desc: 'Videography project & editing status' },
-
-  // Management & Operations
-  { label: 'Approvals', path: '/approvals', category: 'Management', desc: 'MD Executive approvals for leaves & salary payments' },
-  { label: 'Clients', path: '/clients', category: 'Management', desc: 'Client directory & company profiles' },
-  { label: 'Projects', path: '/projects', category: 'Management', desc: 'Project tracking & milestones' },
-  { label: 'Content Calendar', path: '/calendar-work', category: 'Management', desc: 'Social media & marketing content scheduling calendar' },
-  { label: 'Users', path: '/users', category: 'Management', desc: 'Employee & user account management' },
-  { label: 'Departments', path: '/departments', category: 'Management', desc: 'Department hierarchy & manager assignments' },
-  { label: 'Sidebar Permissions', path: '/sidebar-permissions', category: 'Management', desc: 'Custom user menu permission configuration' },
-  { label: 'Task Assign', path: '/todo', category: 'Operations', desc: 'Task assignment & attachment view' },
-
-  // HR & Recruitment
-  { label: 'Attendance', path: '/attendance', category: 'HR', desc: 'Daily attendance clock-in/out logs' },
-  { label: 'Attendance Logs', path: '/attendance-logs', category: 'HR', desc: 'Detailed everyday login/logout times, location & working hours logs' },
-  { label: 'Leave Requests', path: '/leaves', category: 'HR', desc: 'Leave request application & approvals' },
-  { label: 'Recruitment', path: '/recruitment', category: 'HR', desc: 'Recruitment directory, candidate pipeline & offer letters' },
-  { label: 'Student Attendance', path: '/student-attendance', category: 'HR', desc: 'Student batch attendance logs' },
-
-  // Leads & Sales
-  { label: 'Leads Directory', path: '/leads', category: 'Leads', desc: 'Full leads directory & sales pipeline' },
-  { label: 'Client Leads', path: '/client-leads', category: 'Leads', desc: 'Client lead pipeline & inquiries' },
-  { label: 'Student Leads', path: '/leads-telecaller', category: 'Leads', desc: 'Telecaller assigned lead calls' },
-  { label: 'Lead Counselor', path: '/lead-counselor', category: 'Leads', desc: 'Academic counselor lead assignments' },
-
-  // LMS / Academy
-  { label: 'Course Management', path: '/academy/courses', category: 'LMS / Academy', desc: 'Course catalog & curriculum management' },
-  { label: 'Batches', path: '/academy/batches', category: 'LMS / Academy', desc: 'Student batch creation & schedule tracking' },
-  { label: 'Enrollment Tracking', path: '/academy/enrollments', category: 'LMS / Academy', desc: 'Student course enrollment & fee status' },
-  { label: 'My LMS Learning', path: '/academy/learning', category: 'LMS / Academy', desc: 'Student LMS portal & course materials' },
-
-  // Analytics & Reports
-  { label: 'KPI Analytics', path: '/performance-dashboard', category: 'Analytics', desc: 'Quantitative KPI score & performance' },
-  { label: 'AI Reports', path: '/ai-report', category: 'Analytics', desc: 'Automated AI reports & summaries' },
-  { label: 'Employee Reports', path: '/employee-reports', category: 'Reports', desc: 'Employee activity & performance logs' },
-  { label: 'Daily Report', path: '/basic-report', category: 'Reports', desc: 'Common daily shift activity & report view' },
-  { label: 'Team Reports', path: '/team-reports', category: 'Reports', desc: 'Team lead department reports' },
-  { label: 'Developer Report', path: '/developer-report', category: 'Reports', desc: 'Developer daily shift reports' },
-  { label: 'Graphic Designer Report', path: '/graphic-designer-report', category: 'Reports', desc: 'Graphic design shift reports' },
-  { label: 'Videographer Report', path: '/videographer-report', category: 'Reports', desc: 'Videography shift reports' },
-  { label: 'Academic Counselor Report', path: '/academic-counselor-report', category: 'Reports', desc: 'Academic counselor shift reports' },
-  { label: 'HOD R&D Report', path: '/hod-rd-report', category: 'Reports', desc: 'HOD R&D shift reports' },
-  { label: 'HOD Marketing Report', path: '/hod-marketing-report', category: 'Reports', desc: 'HOD Marketing consolidated shift reports' },
-  { label: 'HR Shift Report', path: '/hr-report', category: 'Reports', desc: 'HR shift reports' },
-  { label: 'Ops Shift Report', path: '/ops-report', category: 'Reports', desc: 'Operations shift reports' },
-  { label: 'Accountant Shift Report', path: '/accountant-report', category: 'Reports', desc: 'Accountant shift reports' },
-  { label: 'Marketing Shift Report', path: '/marketing-report', category: 'Reports', desc: 'Marketing shift reports' },
-
-  // Finance & Accounts
-  { label: 'Accounts', path: '/accounts', category: 'Finance', desc: 'Expense management, salary & cash book overview' },
-  { label: 'Sales', path: '/accounts/income', category: 'Finance', desc: 'Revenue, client invoices & payment receipt records' },
-  { label: 'Income', path: '/accounts/sales', category: 'Finance', desc: 'Client sales deals, billing invoices & revenue tracking' },
-  { label: 'Purchase', path: '/accounts/purchase', category: 'Finance', desc: 'Vendor procurement, purchase orders & stock bills' },
-  { label: 'Create Invoice', path: '/accounts/create-invoice', category: 'Finance', desc: 'Itemized Zoho tax invoice & billing builder' },
-  { label: 'Expense Categories', path: '/accounts/categories', category: 'Finance', desc: 'Account expense categories' },
-  { label: 'Expense', path: '/accounts/expenses', category: 'Finance', desc: 'Record & upload expense vouchers' },
-  { label: 'Salary Payment', path: '/accounts/salary', category: 'Finance', desc: 'Salary payment processing & disbursal' },
-  { label: 'Cash & Bank', path: '/accounts/cash-book', category: 'Finance', desc: 'Cash & bank ledger & transaction history' },
-  { label: 'Operation', path: '/accounts/operation', category: 'Finance', desc: 'Operation amount ledger, given by & to whom records' },
-  { label: 'Financial Report', path: '/accounts/reports', category: 'Finance', desc: 'Financial expense analytics & summaries' },
-  { label: 'Payslips', path: '/payslips', category: 'Finance', desc: 'Employee payslip generation & disbursal records' },
-  { label: 'Personal Payslip', path: '/my-payslip', category: 'Finance', desc: 'Personal salary slip portal for individual employees' },
-
-  // General
-  { label: 'Notifications', path: '/notifications', category: 'General', desc: 'System alerts & messages' }
-];
-
 const UserPermissionsPage = () => {
   const { userId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { refetchUser } = useUser() || {};
+  const { refetchUser, user: liveLoggedInUser } = useUser() || {};
 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -112,6 +34,21 @@ const UserPermissionsPage = () => {
 
   const [selectedPermissions, setSelectedPermissions] = useState([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  const loggedInUser = useMemo(() => {
+    if (liveLoggedInUser) return liveLoggedInUser;
+    try {
+      const saved = localStorage.getItem('user');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return null;
+  }, [liveLoggedInUser]);
+
+  const isLoggedInSuperAdmin = isSuperAdminUser(loggedInUser);
+
+  const availableSidebarItems = useMemo(() => {
+    return getAvailableSidebarItemsForUser(loggedInUser);
+  }, [loggedInUser]);
 
   const getAuthHeaders = useCallback(() => {
     const rawToken = localStorage.getItem('token');
@@ -178,7 +115,7 @@ const UserPermissionsPage = () => {
 
   const handleSelectAll = () => {
     if (isSuperAdmin) return;
-    setSelectedPermissions(ALL_SIDEBAR_ITEMS.map(i => i.label));
+    setSelectedPermissions(availableSidebarItems.map(i => i.label));
   };
 
   const handleDeselectAll = () => {
@@ -197,8 +134,8 @@ const UserPermissionsPage = () => {
         },
         body: JSON.stringify({
           permissions: selectedPermissions,
-          isSuperAdmin,
-          role: isSuperAdmin ? 'superadmin' : (user?.role === 'superadmin' ? 'admin' : user?.role)
+          isSuperAdmin: isLoggedInSuperAdmin ? isSuperAdmin : user?.isSuperAdmin,
+          role: (isLoggedInSuperAdmin && isSuperAdmin) ? 'superadmin' : (user?.role === 'superadmin' ? 'admin' : user?.role)
         })
       });
 
@@ -215,12 +152,14 @@ const UserPermissionsPage = () => {
           const updatedLocalUser = {
             ...currentUser,
             permissions: selectedPermissions,
-            isSuperAdmin,
-            role: isSuperAdmin ? 'superadmin' : currentUser.role
+            isSuperAdmin: isLoggedInSuperAdmin ? isSuperAdmin : currentUser.isSuperAdmin,
+            role: (isLoggedInSuperAdmin && isSuperAdmin) ? 'superadmin' : currentUser.role
           };
           localStorage.setItem('user', JSON.stringify(updatedLocalUser));
           window.dispatchEvent(new Event('storage'));
         }
+
+        window.dispatchEvent(new Event('permissionsUpdated'));
 
         // Refresh local user state
         fetchUser();
@@ -235,7 +174,9 @@ const UserPermissionsPage = () => {
     }
   };
 
-  const categories = [...new Set(ALL_SIDEBAR_ITEMS.map(i => i.category))];
+  const categories = useMemo(() => {
+    return [...new Set(availableSidebarItems.map(i => i.category))];
+  }, [availableSidebarItems]);
 
   if (loading) {
     return (
@@ -329,7 +270,7 @@ const UserPermissionsPage = () => {
           <div className="text-left md:text-right">
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Configured Active Pages</p>
             <p className="text-lg font-black text-indigo-600 dark:text-indigo-400">
-              {isSuperAdmin ? 'All Sidebar Pages (Super Admin)' : `${selectedPermissions.length} / ${ALL_SIDEBAR_ITEMS.length} Allowed`}
+              {isSuperAdmin ? 'All Sidebar Pages (Super Admin)' : `${selectedPermissions.length} / ${availableSidebarItems.length} Allowed`}
             </p>
           </div>
         </div>
@@ -343,18 +284,31 @@ const UserPermissionsPage = () => {
               <ShieldCheck size={28} />
             </div>
             <div>
-              <h3 className="text-base font-black tracking-tight">Super Admin Master Privilege</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-black tracking-tight">Super Admin Master Privilege</h3>
+                {!isLoggedInSuperAdmin && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                    <Lock size={10} /> Locked
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-300 font-semibold mt-0.5 max-w-2xl">
                 When enabled, this user gains unrestricted access to all pages, shift reports, and administrative management features across the CRM.
               </p>
+              {!isLoggedInSuperAdmin && (
+                <p className="text-[11px] font-bold text-amber-400 mt-1 flex items-center gap-1">
+                  <Lock size={12} /> Only Super Admins can grant or modify Super Admin Master Privilege.
+                </p>
+              )}
             </div>
           </div>
 
-          <label className="relative inline-flex items-center cursor-pointer shrink-0">
+          <label className={`relative inline-flex items-center shrink-0 ${isLoggedInSuperAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
             <input 
               type="checkbox" 
               checked={isSuperAdmin}
-              onChange={(e) => setIsSuperAdmin(e.target.checked)}
+              disabled={!isLoggedInSuperAdmin}
+              onChange={(e) => isLoggedInSuperAdmin && setIsSuperAdmin(e.target.checked)}
               className="sr-only peer"
             />
             <div className="w-14 h-7 bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
@@ -398,7 +352,7 @@ const UserPermissionsPage = () => {
         )}
 
         {categories.map(category => {
-          const categoryItems = ALL_SIDEBAR_ITEMS.filter(i => i.category === category);
+          const categoryItems = availableSidebarItems.filter(i => i.category === category);
           return (
             <div key={category} className="space-y-3">
               <div className="flex items-center gap-2">

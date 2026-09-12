@@ -1,7 +1,7 @@
 // src/routes/attendance.routes.js
 import { Router } from 'express';
 import protectRoute from '../middleware/auth.middleware.js'; 
-import { checkIn, checkOut, getAttendanceByDate, getAllAttendanceByDate, getAttendanceLogs, updateAttendanceRecord } from '../controllers/attendance.controller.js';
+import { checkIn, checkOut, getAttendanceByDate, getAllAttendanceByDate, getAttendanceLogs, updateAttendanceRecord, getWifiSettings, updateWifiSettings } from '../controllers/attendance.controller.js';
 
 const router = Router();
 
@@ -9,6 +9,8 @@ const router = Router();
 router.use(protectRoute);
 
 // Place explicit paths BEFORE dynamic parameters (:date)
+router.get('/wifi-settings', getWifiSettings);
+router.put('/wifi-settings', updateWifiSettings);
 router.post('/check-in', checkIn);
 router.post('/check-out', checkOut);
 router.get('/logs', getAttendanceLogs);

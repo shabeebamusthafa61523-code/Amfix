@@ -171,7 +171,7 @@ const menuItems = [
   { icon: ClipboardList, label: 'Daily Report', path: '/basic-report', category: 'Reports', isBasicReportFallback: true },
 
   // --- DAILY OPERATIONS ---
-  { icon: Clock, label: 'Attendance', path: '/attendance', category: 'Daily Operations', excludeRoles: ['1', '2', 'hr', 'admin'] },
+  { icon: Clock, label: 'Attendance', path: '/attendance', category: 'Daily Operations' },
   { icon: Clock, label: 'Attendance Logs', path: '/attendance-logs', category: 'Daily Operations' },
   { icon: ListCheck, label: 'Task Assign', path: '/todo', category: 'Daily Operations' },
 ];
@@ -356,7 +356,11 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       setPermissionsVersion(v => v + 1);
     };
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener('permissionsUpdated', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('permissionsUpdated', handleStorageChange);
+    };
   }, []);
 
   const getVisibleMenuItems = () => {
@@ -370,7 +374,16 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
       }
 
       if (!userObj) {
-        return menuItems.filter(item => !item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations);
+        return menuItems.filter(item => 
+          item.label === 'Task Assign' || 
+          item.label === 'Notifications' || 
+          item.label === 'Attendance' || 
+          item.label === 'Attendance Logs' ||
+          item.path === '/todo' ||
+          item.path === '/notifications' ||
+          item.path === '/attendance' ||
+          item.path === '/attendance-logs'
+        );
       }
 
       const currentUserRole = String(userObj.role_id || userObj.roleId || userObj.role || '').toLowerCase().trim();
@@ -389,7 +402,7 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         return menuItems.filter(item => !item.isCommonDashboardFallback && !item.isBasicReportFallback);
       }
 
-      // 2. Custom Sidebar Permissions set by Super Admin for this user
+      // 2. Custom Sidebar Permissions set by Super Admin / Admin for this user
       if (Array.isArray(userObj.permissions) && userObj.permissions.length > 0) {
         const allowedSet = userObj.permissions.map(p => String(p).toLowerCase().trim());
         
@@ -468,112 +481,32 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, isMobileOpen, setIsMobileOpen })
         }
       }
       
-      const deptName = userObj.department || userObj.departmentId?.name || '';
-      const isNonOperational = String(deptName).toLowerCase().trim() === 'non-operational';
-      if (isNonOperational) {
-        return menuItems.filter(item => item.label === 'Employee Reports' || item.label === 'Dashboard' || item.path === '/leaves');
-      }
-
-      let currentUserDept = '';
-      if (userObj.departmentId) {
-        if (typeof userObj.departmentId === 'object' && userObj.departmentId._id) {
-          currentUserDept = String(userObj.departmentId._id).trim();
-        } else {
-          currentUserDept = String(userObj.departmentId).trim();
-        }
-      }
-
-      let currentUserDesignation = '';
-      if (userObj.designationId) {
-        if (typeof userObj.designationId === 'object' && userObj.designationId._id) {
-          currentUserDesignation = String(userObj.designationId._id).trim();
-        } else {
-          currentUserDesignation = String(userObj.designationId).trim();
-        }
-      } else if (userObj.designation_id) {
-        currentUserDesignation = String(userObj.designation_id).trim();
-      }
+      // Default Fallback (when user permissions are empty and user is NOT Super Admin):
+      // ONLY give Task Assign, Notifications, Attendance & Attendance Logs as default.
+      const defaultAllowed = [
+        'task assign',
+        'notifications',
+        'attendance',
+        'attendance logs',
+        '/todo',
+        '/notifications',
+        '/attendance',
+        '/attendance-logs'
+      ];
       
-      const visible = menuItems.filter(item => {
-        if (item.excludeRoles && item.excludeRoles.includes(currentUserRole)) {
-          return false;
-        }
-        // Show Team Reports page only for non-HR department team leads
-        if (item.isTeamLeadOnly) {
-          const desigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
-          const isHrUser = currentUserRole === 'hr' || desigName.includes('hr');
-          if (isHrUser) return false;
-          return !!userObj.isTeamLead;
-        }
-        if (item.isCommonDashboardFallback || item.isBasicReportFallback) {
-          return false;
-        }
-        if (item.label === 'Clients' || item.label === 'Projects' || item.label === 'Client Leads' || item.label === 'KPI Analytics' || item.label === 'Lead Dashboard' || item.label === 'Marketing Dashboard') {
-          const isAdminHrOrTeamLead = ['1', '2', '3', '10', 'admin', 'hr', 'superadmin', 'team_lead', 'teamlead', 'manager', 'tl', 'marketing'].includes(currentUserRole) || !!userObj.isTeamLead;
-          return isAdminHrOrTeamLead;
-        }
-        if (!item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations && !item.allowedDepartmentNames && !item.allowedDesignationNames) return true;
-        const roleMatch = item.allowedRoles && item.allowedRoles.includes(currentUserRole);
-        const deptMatch = item.allowedDepartments && item.allowedDepartments.includes(currentUserDept);
-        const designationMatch = item.allowedDesignations && item.allowedDesignations.includes(currentUserDesignation);
-        
-        // Name-based department matching (works across environments)
-        const currentDeptName = String(deptName).toLowerCase().trim();
-        const deptNameMatch = item.allowedDepartmentNames && item.allowedDepartmentNames.some(name => 
-          currentDeptName.includes(name) || name.includes(currentDeptName)
-        );
-
-        // Name-based designation matching (works across environments)
-        const currentDesigName = String(userObj.designation || userObj.designationId?.name || '').toLowerCase().trim();
-        const desigNameMatch = item.allowedDesignationNames && item.allowedDesignationNames.some(name => 
-          currentDesigName.includes(name) || name.includes(currentDesigName)
-        );
-        
-        const matches = [];
-        if (item.allowedRoles) matches.push(roleMatch);
-        if (item.allowedDepartments) matches.push(deptMatch);
-        if (item.allowedDesignations) matches.push(designationMatch);
-        if (item.allowedDepartmentNames) matches.push(deptNameMatch);
-        if (item.allowedDesignationNames) matches.push(desigNameMatch);
-        
-        return matches.some(m => m === true);
+      return menuItems.filter(item => {
+        const labelLower = item.label.toLowerCase().trim();
+        const pathLower = item.path ? item.path.toLowerCase().trim() : '';
+        return defaultAllowed.includes(labelLower) || defaultAllowed.includes(pathLower);
       });
-
-      // Fallback dashboard: if user has no other dashboard in visible items
-      const hasOtherDashboard = visible.some(item => item.label.toLowerCase().includes('dashboard'));
-      if (!hasOtherDashboard) {
-        const fallbackDashboard = menuItems.find(item => item.isCommonDashboardFallback);
-        if (fallbackDashboard) visible.unshift(fallbackDashboard);
-      }
-
-      // Fallback report: if user has no other report page in visible items
-      const hasOtherReport = visible.some(item => item.label.toLowerCase().includes('report'));
-      if (!hasOtherReport) {
-        const fallbackReport = menuItems.find(item => item.isBasicReportFallback);
-        if (fallbackReport) {
-          visible.push(fallbackReport);
-        }
-      }
-
-      // Determine the user's primary dashboard and place it at the VERY TOP of the sidebar under Overview
-      const userDashboardPath = resolveUserDashboardPath(userObj);
-      let primaryDash = menuItems.find(item => item.path === userDashboardPath);
-      if (!primaryDash) {
-        primaryDash = visible.find(item => item.label.toLowerCase().includes('dashboard'));
-      }
-
-      let finalVisible = [...visible];
-      if (primaryDash) {
-        // Remove existing copy if present
-        finalVisible = finalVisible.filter(item => item.path !== primaryDash.path && item.label !== primaryDash.label);
-        // Unshift primary dashboard at the top under Overview category
-        finalVisible.unshift({ ...primaryDash, category: 'Overview' });
-      }
-
-      return finalVisible;
     } catch (e) {
       console.error("Error reading operator authorization layout paths:", e);
-      return menuItems.filter(item => !item.allowedRoles && !item.allowedDepartments && !item.allowedDesignations);
+      return menuItems.filter(item => 
+        item.label === 'Task Assign' || 
+        item.label === 'Notifications' || 
+        item.label === 'Attendance' || 
+        item.label === 'Attendance Logs'
+      );
     }
   };
 

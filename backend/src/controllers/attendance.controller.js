@@ -2,6 +2,8 @@
 // BACKEND: attendance.controller.js
 // ===============================
 
+import fs from 'fs';
+import path from 'path';
 import Attendance from '../models/attendance.model.js';
 import User from '../models/user.model.js';
 import mongoose from 'mongoose';
@@ -124,16 +126,22 @@ export const checkIn = async (req, res) => {
     }
 
     const clientIp = getClientIp(req);
+    const bodyIp = (req.body?.clientIp || req.body?.ip || '').trim().replace(/^::ffff:/, '');
 
     // Wi-Fi IP Verification Check (if configured via env OFFICE_WIFI_IPS or REQUIRE_WIFI_VERIFICATION)
     const officeWifiIpsConfig = process.env.OFFICE_WIFI_IPS;
     const requireWifi = String(process.env.REQUIRE_WIFI_VERIFICATION).toLowerCase() === 'true' || (officeWifiIpsConfig && officeWifiIpsConfig.trim().length > 0);
 
-    if (requireWifi && officeWifiIpsConfig) {
+    if (requireWifi && officeWifiIpsConfig && officeWifiIpsConfig.trim().length > 0) {
       const allowedIps = officeWifiIpsConfig.split(',').map(ip => ip.trim().replace(/^::ffff:/, ''));
-      if (allowedIps.length > 0 && !allowedIps.includes(clientIp)) {
+      const ipToValidate = bodyIp || clientIp;
+      const isAllowed = allowedIps.some(allowedIp => 
+        allowedIp === clientIp || (bodyIp && allowedIp === bodyIp)
+      );
+
+      if (!isAllowed) {
         return res.status(403).json({
-          detail: `Wi-Fi verification failed: You are connected to IP (${clientIp}). Attendance check-in can only be marked while connected to the Office Wi-Fi network.`
+          detail: `Wi-Fi verification failed: You are connected to IP (${ipToValidate}). Attendance check-in can only be marked while connected to the Office Wi-Fi network (${officeWifiIpsConfig}).`
         });
       }
     }
@@ -620,6 +628,79 @@ export const updateAttendanceRecord = async (req, res) => {
       success: false,
       message: 'Failed to update attendance record',
       error: error.message
+    });
+  }
+};
+
+export const getWifiSettings = async (req, res) => {
+  try {
+    const clientIp = getClientIp(req);
+    const officeWifiIpsConfig = process.env.OFFICE_WIFI_IPS || '';
+    const requireWifi = String(process.env.REQUIRE_WIFI_VERIFICATION).toLowerCase() === 'true' || (officeWifiIpsConfig.trim().length > 0);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        clientIp,
+        requireWifi,
+        officeWifiIps: officeWifiIpsConfig
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to fetch Wi-Fi settings'
+    });
+  }
+};
+
+export const updateWifiSettings = async (req, res) => {
+  try {
+    const { requireWifi, officeWifiIps } = req.body || {};
+
+    const cleanRequireWifi = Boolean(requireWifi);
+    const cleanOfficeWifiIps = typeof officeWifiIps === 'string' ? officeWifiIps.trim() : '';
+
+    process.env.REQUIRE_WIFI_VERIFICATION = String(cleanRequireWifi);
+    process.env.OFFICE_WIFI_IPS = cleanOfficeWifiIps;
+
+    // Persist changes to backend/.env file
+    try {
+      const envPath = path.resolve(process.cwd(), '.env');
+      let envContent = '';
+      if (fs.existsSync(envPath)) {
+        envContent = fs.readFileSync(envPath, 'utf8');
+      }
+
+      const updateOrAppendEnvVar = (content, key, value) => {
+        const regex = new RegExp(`^${key}=.*$`, 'm');
+        if (regex.test(content)) {
+          return content.replace(regex, `${key}=${value}`);
+        } else {
+          return content ? `${content.trim()}\n${key}=${value}` : `${key}=${value}`;
+        }
+      };
+
+      envContent = updateOrAppendEnvVar(envContent, 'REQUIRE_WIFI_VERIFICATION', String(cleanRequireWifi));
+      envContent = updateOrAppendEnvVar(envContent, 'OFFICE_WIFI_IPS', cleanOfficeWifiIps);
+
+      fs.writeFileSync(envPath, envContent, 'utf8');
+    } catch (fsErr) {
+      console.warn('Warning: Could not persist Wi-Fi settings to .env file:', fsErr.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Wi-Fi Attendance settings updated successfully.',
+      data: {
+        requireWifi: cleanRequireWifi,
+        officeWifiIps: cleanOfficeWifiIps
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Failed to update Wi-Fi settings'
     });
   }
 };

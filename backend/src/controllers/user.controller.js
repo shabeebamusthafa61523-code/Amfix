@@ -988,21 +988,44 @@ export const userController = {
         throw new AppError('Employee profile not found.', 404);
       }
 
-      if (permissions !== undefined && Array.isArray(permissions)) {
-        user.permissions = permissions;
-      }
-      if (isSuperAdmin !== undefined) {
-        user.isSuperAdmin = Boolean(isSuperAdmin);
-        if (user.isSuperAdmin) {
-          user.role = 'superadmin';
-          user.role_id = '0';
+      const loggedInUser = req.user;
+      const isLoggedRole = String(loggedInUser?.role_id || loggedInUser?.roleId || loggedInUser?.role || '').toLowerCase().trim();
+      const isLoggedSuperAdmin = loggedInUser?.isSuperAdmin === true || loggedInUser?.is_super_admin === true || isLoggedRole === 'superadmin' || isLoggedRole === '0';
+
+      if (!isLoggedSuperAdmin) {
+        // Non-Super Admin cannot grant Super Admin privilege
+        if (isSuperAdmin === true || role === 'superadmin') {
+          throw new AppError('Only Super Admins can grant Super Admin privileges.', 403);
         }
-      }
-      if (role !== undefined && role) {
-        user.role = role;
-        if (role === 'superadmin') {
-          user.isSuperAdmin = true;
-          user.role_id = '0';
+
+        // Non-Super Admin can only assign permissions present within their own scope
+        const loggedInAdminPerms = Array.isArray(loggedInUser?.permissions) ? loggedInUser.permissions.map(p => String(p).toLowerCase().trim()) : [];
+        const defaultScope = ['task assign', 'notifications', 'attendance', 'attendance logs', '/todo', '/notifications', '/attendance', '/attendance-logs'];
+        const allowedAdminScope = loggedInAdminPerms.length > 0 ? loggedInAdminPerms : defaultScope;
+
+        if (permissions !== undefined && Array.isArray(permissions)) {
+          user.permissions = permissions.filter(p => {
+            const pLower = String(p).toLowerCase().trim();
+            return allowedAdminScope.includes(pLower);
+          });
+        }
+      } else {
+        if (permissions !== undefined && Array.isArray(permissions)) {
+          user.permissions = permissions;
+        }
+        if (isSuperAdmin !== undefined) {
+          user.isSuperAdmin = Boolean(isSuperAdmin);
+          if (user.isSuperAdmin) {
+            user.role = 'superadmin';
+            user.role_id = '0';
+          }
+        }
+        if (role !== undefined && role) {
+          user.role = role;
+          if (role === 'superadmin') {
+            user.isSuperAdmin = true;
+            user.role_id = '0';
+          }
         }
       }
 
