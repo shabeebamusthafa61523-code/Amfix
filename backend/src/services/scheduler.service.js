@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import prisma from '../config/db.js';
-// import redis from '../config/redis.js';
+import redis from '../config/redis.js';
 import notificationService, { sendNotification } from './notification.service.js';
 // import { kpiService } from './kpi.service.js'; // Service file not found - wrapped in try-catch
 // import { payrollService } from './payroll.service.js'; // Service file not found - wrapped in try-catch
@@ -232,9 +232,10 @@ export const schedulerService = {
     const cacheRefreshJob = cron.schedule('*/5 * * * *', async () => {
       logger.info('⏰ CRON TRIGGERED: Cache dashboard refresh (Every 5 minutes)');
       try {
-        // Clear old cached dashboard stats key to force refresh on next pull
-        await redis.del('dashboard_overview_cache');
-        logger.info('🧹 Evicted old Redis dashboard overview cache.');
+        if (redis && typeof redis.del === 'function' && redis.status === 'ready') {
+          await redis.del('dashboard_overview_cache');
+          logger.info('🧹 Evicted old Redis dashboard overview cache.');
+        }
       } catch (err) {
         logger.error(`❌ Cron Job: Cache refresh failed: ${err.message}`);
       }

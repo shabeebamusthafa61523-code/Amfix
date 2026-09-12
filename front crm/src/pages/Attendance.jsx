@@ -304,6 +304,28 @@ const Attendance = () => {
     });
   };
 
+  const fetchPublicIp = async () => {
+    const providers = [
+      'https://api.ipify.org?format=json',
+      'https://api.seeip.org/jsonip',
+      'https://api.my-ip.io/ip.json'
+    ];
+    for (const url of providers) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) {
+          const data = await res.json();
+          const ip = data.ip || data.ip_address;
+          if (ip && typeof ip === 'string') return ip.trim();
+        }
+      } catch (e) {}
+    }
+    return '';
+  };
+
   const handleAction = async (type) => {
     setError(null);
     setSuccessMsg(null);
@@ -314,17 +336,7 @@ const Attendance = () => {
 
       if (type === 'check-in' || type === 'check-out') {
         const coords = await getCurrentPositionPromise();
-        
-        let clientIp = '';
-        try {
-          const ipRes = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(3000) });
-          if (ipRes.ok) {
-            const ipData = await ipRes.json();
-            clientIp = ipData.ip || '';
-          }
-        } catch (e) {
-          console.warn('Could not fetch client public IP:', e);
-        }
+        const clientIp = await fetchPublicIp();
 
         bodyData = {
           latitude: coords.latitude,
