@@ -90,6 +90,10 @@ const serializeAttendance = (record) => {
 };
 
 const getClientIp = (req) => {
+  const bodyIp = req.body?.clientIp;
+  if (bodyIp && typeof bodyIp === 'string' && bodyIp.trim()) {
+    return bodyIp.trim().replace(/^::ffff:/, '');
+  }
   const rawIp = req.headers['x-forwarded-for'] || req.socket?.remoteAddress || req.connection?.remoteAddress || '';
   const firstIp = rawIp.split(',')[0].trim().replace(/^::ffff:/, '');
   return firstIp || '127.0.0.1';
